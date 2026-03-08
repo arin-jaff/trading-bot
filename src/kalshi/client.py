@@ -1,7 +1,12 @@
-"""Kalshi API client for Trump Mentions markets."""
+"""Kalshi API client for Trump Mentions markets.
+
+Uses RSA key-pair authentication for trading endpoints.
+Public endpoints (markets, events) work without auth.
+"""
 
 import os
 import time
+import base64
 import requests
 from typing import Optional
 from loguru import logger
@@ -11,18 +16,27 @@ load_dotenv()
 
 
 class KalshiClient:
-    """Client for interacting with Kalshi's trading API v2."""
+    """Client for interacting with Kalshi's trading API v2.
+
+    Authentication uses RSA key signing:
+    - KALSHI_API_KEY: Your API key ID
+    - KALSHI_PRIVATE_KEY_PATH: Path to your RSA private key (.pem file)
+
+    Public endpoints (markets, events) work without authentication.
+    Trading endpoints (portfolio, orders) require auth.
+    """
+
+    BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
 
     def __init__(self):
-        self.base_url = os.getenv('KALSHI_BASE_URL', 'https://trading-api.kalshi.com/trade-api/v2')
-        self.email = os.getenv('KALSHI_EMAIL', '')
-        self.password = os.getenv('KALSHI_PASSWORD', '')
-        self.api_key = os.getenv('KALSHI_API_KEY', '')
-        self.token = None
-        self.member_id = None
+        self.base_url = os.getenv('KALSHI_BASE_URL', self.BASE_URL)
+        self.api_key_id = os.getenv('KALSHI_API_KEY', '')
+        self.private_key_path = os.getenv('KALSHI_PRIVATE_KEY_PATH', '')
+        self._auth = None
         self._session = requests.Session()
         self._last_request_time = 0
         self._min_request_interval = 0.1  # rate limiting
+        self._authenticated = False
 
     def _rate_limit(self):
         """Simple rate limiter."""
@@ -31,63 +45,113 @@ class KalshiClient:
             time.sleep(self._min_request_interval - elapsed)
         self._last_request_time = time.time()
 
-    def _headers(self) -> dict:
-        headers = {'Content-Type': 'application/json'}
-        if self.token:
-            headers['Authorization'] = f'Bearer {self.token}'
-        return headers
+    def _sign_request(self, method: str, path: str) -> dict:
+        """Create RSA-PSS signed auth headers for a request."""
+        if not self._auth:
+            return {'Content-Type': 'application/json'}
+
+        try:
+            timestamp_ms = str(int(time.time() * 1000))
+            # Message to sign: timestamp + METHOD + path
+            msg = (timestamp_ms + method.upper() + path).encode('utf-8')
+
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding
+
+            signature = self._auth['private_key'].sign(
+                msg,
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.DIGEST_LENGTH
+                ),
+                hashes.SHA256()
+            )
+
+            return {
+                'Content-Type': 'application/json',
+                'KALSHI-ACCESS-KEY': self._auth['key_id'],
+                'KALSHI-ACCESS-SIGNATURE': base64.b64encode(signature).decode('utf-8'),
+                'KALSHI-ACCESS-TIMESTAMP': timestamp_ms,
+            }
+        except Exception as e:
+            logger.error(f"Request signing failed: {e}")
+            return {'Content-Type': 'application/json'}
 
     def login(self) -> bool:
-        """Authenticate with Kalshi and obtain a session token."""
-        try:
-            resp = self._session.post(
-                f'{self.base_url}/login',
-                json={'email': self.email, 'password': self.password},
-                headers={'Content-Type': 'application/json'}
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            self.token = data.get('token')
-            self.member_id = data.get('member_id')
-            logger.info(f"Logged in to Kalshi as member {self.member_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Kalshi login failed: {e}")
+        """Set up RSA key authentication.
+
+        Loads the private key and verifies it works by calling the balance endpoint.
+        """
+        if not self.api_key_id:
+            logger.warning("No KALSHI_API_KEY configured. Trading features disabled. "
+                          "Market data still works without auth.")
             return False
 
-    def _get(self, endpoint: str, params: Optional[dict] = None) -> dict:
-        """Make authenticated GET request."""
+        if not self.private_key_path or not os.path.exists(self.private_key_path):
+            logger.warning(f"RSA private key not found at '{self.private_key_path}'. "
+                          "Generate one at kalshi.com/account/api. "
+                          "Set KALSHI_PRIVATE_KEY_PATH in .env")
+            return False
+
+        try:
+            from cryptography.hazmat.primitives import serialization
+
+            with open(self.private_key_path, 'rb') as f:
+                private_key = serialization.load_pem_private_key(f.read(), password=None)
+
+            self._auth = {
+                'key_id': self.api_key_id,
+                'private_key': private_key,
+            }
+
+            # Verify auth works
+            balance = self.get_balance()
+            self._authenticated = True
+            logger.info(f"Kalshi auth OK. Balance: ${balance.get('balance', 0) / 100:.2f}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Kalshi auth failed: {e}")
+            self._auth = None
+            return False
+
+    @property
+    def is_authenticated(self) -> bool:
+        return self._authenticated
+
+    def _get(self, endpoint: str, params: Optional[dict] = None,
+             require_auth: bool = False) -> dict:
+        """Make a GET request. Auth headers added if available."""
         self._rate_limit()
-        resp = self._session.get(
-            f'{self.base_url}{endpoint}',
-            headers=self._headers(),
-            params=params or {}
-        )
+        url = f'{self.base_url}{endpoint}'
+        path = endpoint.split('?')[0]
+        headers = self._sign_request('GET', path) if self._auth else {'Content-Type': 'application/json'}
+
+        resp = self._session.get(url, headers=headers, params=params or {})
         resp.raise_for_status()
         return resp.json()
 
     def _post(self, endpoint: str, data: Optional[dict] = None) -> dict:
         """Make authenticated POST request."""
         self._rate_limit()
-        resp = self._session.post(
-            f'{self.base_url}{endpoint}',
-            headers=self._headers(),
-            json=data or {}
-        )
+        url = f'{self.base_url}{endpoint}'
+        headers = self._sign_request('POST', endpoint)
+
+        resp = self._session.post(url, headers=headers, json=data or {})
         resp.raise_for_status()
         return resp.json()
 
     def _delete(self, endpoint: str) -> dict:
         """Make authenticated DELETE request."""
         self._rate_limit()
-        resp = self._session.delete(
-            f'{self.base_url}{endpoint}',
-            headers=self._headers()
-        )
+        url = f'{self.base_url}{endpoint}'
+        headers = self._sign_request('DELETE', endpoint)
+
+        resp = self._session.delete(url, headers=headers)
         resp.raise_for_status()
         return resp.json()
 
-    # --- Market Discovery ---
+    # --- Market Discovery (public, no auth needed) ---
 
     def get_events(self, series_ticker: Optional[str] = None,
                    status: Optional[str] = None,
@@ -143,43 +207,44 @@ class KalshiClient:
     # --- Trump Mentions specific ---
 
     def find_trump_mentions_markets(self) -> list[dict]:
-        """Find all Trump Mentions markets by searching known series tickers
-        and keywords."""
+        """Find all Trump Mentions markets.
+
+        Uses the known series ticker KXTRUMPSAY and fetches all events/markets.
+        """
         all_markets = []
-        search_terms = [
-            'TRUMPMENTIONS', 'TRUMPSAY', 'TRUMP', 'KXTRUMPMENTIONS',
-            'POTUSSAY', 'TRUMPWORD',
-        ]
 
-        # Search by series tickers
-        for term in search_terms:
+        # Primary: KXTRUMPSAY is the confirmed series ticker
+        series_tickers = ['KXTRUMPSAY']
+
+        for series in series_tickers:
             try:
-                resp = self.get_events(series_ticker=term)
-                events = resp.get('events', [])
-                for event in events:
-                    event_ticker = event.get('event_ticker', '')
-                    market_resp = self.get_markets(event_ticker=event_ticker)
-                    markets = market_resp.get('markets', [])
-                    all_markets.extend(markets)
-            except Exception as e:
-                logger.debug(f"No results for series {term}: {e}")
+                cursor = None
+                while True:
+                    resp = self.get_events(series_ticker=series, cursor=cursor)
+                    events = resp.get('events', [])
+                    if not events:
+                        break
 
-        # Also do a broader search
-        try:
-            cursor = None
-            while True:
-                resp = self.get_markets(cursor=cursor, limit=200)
-                markets = resp.get('markets', [])
-                for m in markets:
-                    title = (m.get('title', '') + ' ' + m.get('subtitle', '')).lower()
-                    if any(kw in title for kw in ['trump', 'say', 'mention', 'word']):
-                        if m not in all_markets:
-                            all_markets.append(m)
-                cursor = resp.get('cursor')
-                if not cursor or not markets:
-                    break
-        except Exception as e:
-            logger.warning(f"Broad market search error: {e}")
+                    for event in events:
+                        event_ticker = event.get('event_ticker', '')
+                        # Fetch all markets for this event
+                        market_cursor = None
+                        while True:
+                            market_resp = self.get_markets(
+                                event_ticker=event_ticker, cursor=market_cursor
+                            )
+                            markets = market_resp.get('markets', [])
+                            all_markets.extend(markets)
+                            market_cursor = market_resp.get('cursor')
+                            if not market_cursor or not markets:
+                                break
+
+                    cursor = resp.get('cursor')
+                    if not cursor:
+                        break
+
+            except Exception as e:
+                logger.error(f"Error fetching series {series}: {e}")
 
         # Deduplicate by ticker
         seen = set()
@@ -193,11 +258,11 @@ class KalshiClient:
         logger.info(f"Found {len(unique)} Trump Mentions markets")
         return unique
 
-    # --- Trading ---
+    # --- Trading (requires auth) ---
 
     def get_balance(self) -> dict:
         """Get account balance."""
-        return self._get(f'/portfolio/balance')
+        return self._get('/portfolio/balance')
 
     def get_positions(self) -> dict:
         """Get current positions."""

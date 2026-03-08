@@ -83,8 +83,7 @@ def create_scheduler() -> BackgroundScheduler:
 
 def _sync_markets(client: KalshiClient, sync: MarketSync):
     try:
-        if not client.token:
-            client.login()
+        # Market data is public, no auth needed
         sync.sync_markets()
     except Exception as e:
         logger.error(f"Scheduled market sync failed: {e}")

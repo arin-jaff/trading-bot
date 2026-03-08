@@ -87,7 +87,7 @@ def sync_markets(background_tasks: BackgroundTasks):
 
 def _run_market_sync():
     try:
-        kalshi_client.login()
+        # Market data is public, no auth needed
         stats = market_sync.sync_markets()
         logger.info(f"Market sync: {stats}")
     except Exception as e:
@@ -278,6 +278,7 @@ def full_refresh(background_tasks: BackgroundTasks):
 
 def _full_refresh():
     try:
+        # Try auth for trading features, but market data works without it
         kalshi_client.login()
         market_sync.sync_markets()
         speech_scraper.scrape_all_sources()

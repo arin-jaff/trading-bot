@@ -31,6 +31,27 @@ class MarketSync:
 
         terms = []
 
+        # Pattern 0: custom_strike.Word field (Kalshi's actual term field)
+        custom_strike = market_data.get('custom_strike', {})
+        word = custom_strike.get('Word', '')
+        if word:
+            terms.append(self._build_term_dict(word))
+            # If the Word contains a slash (e.g., "Doge/Dogecoin"), also add as compound
+            if '/' in word:
+                sub_terms = [p.strip().lower() for p in word.split('/') if p.strip()]
+                terms.append({
+                    'term': word,
+                    'normalized_term': word.lower().strip(),
+                    'is_compound': True,
+                    'sub_terms': sub_terms,
+                })
+
+        # Also check yes_sub_title and no_sub_title
+        for field in ['yes_sub_title', 'no_sub_title']:
+            val = market_data.get(field, '')
+            if val and val.lower() not in [t['normalized_term'] for t in terms]:
+                terms.append(self._build_term_dict(val))
+
         # Pattern 1: Quoted terms - 'term' or "term"
         quoted = re.findall(r"['\"]([^'\"]+)['\"]", full_text)
         for q in quoted:
@@ -118,8 +139,11 @@ class MarketSync:
                 market.subtitle = market_data.get('subtitle', '')
                 market.market_type = 'trump_mentions'
                 market.status = market_data.get('status', '')
-                market.yes_price = market_data.get('yes_bid', 0) / 100.0 if market_data.get('yes_bid') else None
-                market.no_price = market_data.get('no_bid', 0) / 100.0 if market_data.get('no_bid') else None
+                # Prices: API returns cents (0-100), store as dollars (0-1.0)
+                yes_bid = market_data.get('yes_bid') or market_data.get('last_price') or 0
+                no_bid = market_data.get('no_bid') or 0
+                market.yes_price = yes_bid / 100.0 if yes_bid else None
+                market.no_price = no_bid / 100.0 if no_bid else None
                 market.volume = market_data.get('volume', 0)
                 market.open_interest = market_data.get('open_interest', 0)
 

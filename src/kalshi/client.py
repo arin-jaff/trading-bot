@@ -35,7 +35,7 @@ class KalshiClient:
         self._auth = None
         self._session = requests.Session()
         self._last_request_time = 0
-        self._min_request_interval = 0.1  # rate limiting
+        self._min_request_interval = 0.2  # rate limiting (Kalshi has strict limits)
         self._authenticated = False
 
     def _rate_limit(self):
@@ -119,13 +119,17 @@ class KalshiClient:
     def is_authenticated(self) -> bool:
         return self._authenticated
 
+    def _full_path(self, endpoint: str) -> str:
+        """Get the full path for signing (must include /trade-api/v2 prefix)."""
+        return f'/trade-api/v2{endpoint}'
+
     def _get(self, endpoint: str, params: Optional[dict] = None,
              require_auth: bool = False) -> dict:
         """Make a GET request. Auth headers added if available."""
         self._rate_limit()
         url = f'{self.base_url}{endpoint}'
-        path = endpoint.split('?')[0]
-        headers = self._sign_request('GET', path) if self._auth else {'Content-Type': 'application/json'}
+        full_path = self._full_path(endpoint)
+        headers = self._sign_request('GET', full_path) if self._auth else {'Content-Type': 'application/json'}
 
         resp = self._session.get(url, headers=headers, params=params or {})
         resp.raise_for_status()
@@ -135,7 +139,8 @@ class KalshiClient:
         """Make authenticated POST request."""
         self._rate_limit()
         url = f'{self.base_url}{endpoint}'
-        headers = self._sign_request('POST', endpoint)
+        full_path = self._full_path(endpoint)
+        headers = self._sign_request('POST', full_path)
 
         resp = self._session.post(url, headers=headers, json=data or {})
         resp.raise_for_status()
@@ -145,7 +150,8 @@ class KalshiClient:
         """Make authenticated DELETE request."""
         self._rate_limit()
         url = f'{self.base_url}{endpoint}'
-        headers = self._sign_request('DELETE', endpoint)
+        full_path = self._full_path(endpoint)
+        headers = self._sign_request('DELETE', full_path)
 
         resp = self._session.delete(url, headers=headers)
         resp.raise_for_status()

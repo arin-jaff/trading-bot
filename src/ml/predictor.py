@@ -23,20 +23,24 @@ class TermPredictor:
     2. Temporal patterns (day-of-week, time-of-day, event-type effects)
     3. Topic-event correlation (certain events -> certain terms)
     4. Trend momentum (increasing/decreasing usage patterns)
-    5. LLM-based contextual analysis (GPT/Claude for nuanced prediction)
+    5. Colab fine-tuned model Monte Carlo predictions (replaces LLM API calls)
     """
 
     def __init__(self):
         self.model_weights = {
-            'frequency': 0.25,
-            'temporal': 0.15,
-            'trend': 0.20,
+            'frequency': 0.20,
+            'temporal': 0.10,
+            'trend': 0.15,
             'event_correlation': 0.15,
-            'llm': 0.25,
+            'colab_monte_carlo': 0.40,  # highest weight: your fine-tuned model
         }
+        self._colab_predictions = None
 
     def predict_all_terms(self, event: Optional[dict] = None) -> list[dict]:
         """Generate predictions for all tracked terms."""
+        # Load Colab Monte Carlo predictions if available
+        self._load_colab_predictions()
+
         predictions = []
 
         with get_session() as session:
@@ -52,6 +56,23 @@ class TermPredictor:
         # Sort by probability descending
         predictions.sort(key=lambda x: x['probability'], reverse=True)
         return predictions
+
+    def _load_colab_predictions(self):
+        """Load predictions from Colab fine-tuned model."""
+        try:
+            from .colab_integration import ColabPredictor
+            colab = ColabPredictor()
+            preds = colab.get_predictions()
+            if preds:
+                self._colab_predictions = {
+                    p['term'].lower().strip(): p for p in preds
+                }
+                logger.info(f"Loaded {len(preds)} Colab Monte Carlo predictions")
+            else:
+                self._colab_predictions = {}
+        except Exception as e:
+            logger.debug(f"No Colab predictions available: {e}")
+            self._colab_predictions = {}
 
     def _predict_term(self, session, term: Term,
                       event: Optional[dict] = None) -> dict:
@@ -72,11 +93,26 @@ class TermPredictor:
             session, term, event
         )
 
+        # 5. Colab Monte Carlo prediction (your fine-tuned model)
+        colab_pred = self._colab_monte_carlo_score(term)
+        if colab_pred is not None:
+            scores['colab_monte_carlo'] = colab_pred
+        else:
+            # If no Colab prediction, redistribute weight to other components
+            scores['colab_monte_carlo'] = None
+
         # Combined weighted score
-        probability = sum(
-            scores[k] * self.model_weights[k]
-            for k in scores if k in self.model_weights
-        )
+        active_scores = {k: v for k, v in scores.items() if v is not None}
+        active_weights = {k: self.model_weights.get(k, 0) for k in active_scores}
+        total_weight = sum(active_weights.values())
+
+        if total_weight > 0:
+            probability = sum(
+                active_scores[k] * active_weights[k] / total_weight
+                for k in active_scores
+            )
+        else:
+            probability = 0.5
 
         # Clamp to [0, 1]
         probability = max(0.0, min(1.0, probability))
@@ -185,6 +221,34 @@ class TermPredictor:
             return 0.5
 
         return min(1.0, matching_speeches / max(1, total_event_type))
+
+    def _colab_monte_carlo_score(self, term: Term) -> Optional[float]:
+        """Get probability from Colab fine-tuned Monte Carlo simulation.
+
+        This is the most powerful signal: a model fine-tuned on Trump's actual
+        speech patterns, run 1000 times to produce frequency-based probabilities.
+        """
+        if not self._colab_predictions:
+            return None
+
+        normalized = term.normalized_term.lower().strip()
+
+        # Direct match
+        if normalized in self._colab_predictions:
+            return self._colab_predictions[normalized]['probability']
+
+        # For compound terms, check sub-terms
+        if term.is_compound and term.sub_terms:
+            sub_probs = []
+            for st in term.sub_terms:
+                st_lower = st.lower().strip()
+                if st_lower in self._colab_predictions:
+                    sub_probs.append(self._colab_predictions[st_lower]['probability'])
+            if sub_probs:
+                # Any sub-term matching counts, so use max
+                return max(sub_probs)
+
+        return None
 
     def _calculate_confidence(self, session, term: Term) -> float:
         """Calculate confidence level based on data quality and quantity."""

@@ -18,6 +18,7 @@ from ..scraper.term_analyzer import TermAnalyzer
 from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
 from ..ml.model_trainer import ModelTrainer
+from ..ml.colab_integration import ColabPredictor
 from ..scraper.live_monitor import LiveSpeechMonitor
 from ..alerts import alert_manager
 from ..config import config as app_config
@@ -40,6 +41,7 @@ event_tracker = EventTracker()
 predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
 model_trainer = ModelTrainer()
+colab_predictor = ColabPredictor()
 live_monitor = LiveSpeechMonitor()
 
 
@@ -337,6 +339,31 @@ def get_model_info():
 def get_ml_predictions():
     """Get ML model predictions."""
     return model_trainer.predict()
+
+
+@app.get("/api/colab/predictions")
+def get_colab_predictions():
+    """Get predictions from Colab fine-tuned model."""
+    return colab_predictor.get_predictions()
+
+
+@app.post("/api/colab/import")
+def import_colab_predictions(file_path: str):
+    """Import a predictions JSON from Colab."""
+    return colab_predictor.import_predictions_file(file_path)
+
+
+@app.post("/api/colab/save-to-db")
+def save_colab_to_db():
+    """Save Colab predictions to the trading database."""
+    colab_predictor.save_to_database()
+    return {"status": "saved"}
+
+
+@app.get("/api/colab/discovered-phrases")
+def get_discovered_phrases():
+    """Get new phrases discovered by Monte Carlo that aren't in Kalshi's term list."""
+    return colab_predictor.get_discovered_phrases()
 
 
 # --- System endpoints ---

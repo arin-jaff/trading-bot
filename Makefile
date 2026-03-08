@@ -1,4 +1,4 @@
-.PHONY: install api gui all clean init
+.PHONY: install api gui all clean init export-colab
 
 install:
 	pip install -r requirements.txt
@@ -18,6 +18,9 @@ all:
 	python run_api.py &
 	sleep 2
 	python run_gui.py
+
+export-colab:
+	python export_for_colab.py
 
 clean:
 	rm -rf data/trading_bot.db

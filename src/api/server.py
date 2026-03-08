@@ -17,6 +17,8 @@ from ..scraper.speech_scraper import SpeechScraper
 from ..scraper.term_analyzer import TermAnalyzer
 from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
+from ..ml.model_trainer import ModelTrainer
+from ..scraper.live_monitor import LiveSpeechMonitor
 
 app = FastAPI(title="Trump Mentions Trading Bot", version="1.0.0")
 
@@ -35,6 +37,8 @@ term_analyzer = TermAnalyzer()
 event_tracker = EventTracker()
 predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
+model_trainer = ModelTrainer()
+live_monitor = LiveSpeechMonitor()
 
 
 @app.on_event("startup")
@@ -282,6 +286,63 @@ def _full_refresh():
         logger.error(f"Full refresh failed: {e}")
 
 
+# --- Live monitoring endpoints ---
+
+@app.post("/api/live/start")
+def start_live_monitoring():
+    """Start live speech monitoring."""
+    live_monitor.start_monitoring()
+    return {"status": "monitoring started"}
+
+
+@app.post("/api/live/stop")
+def stop_live_monitoring():
+    """Stop live speech monitoring."""
+    live_monitor.stop_monitoring()
+    return {"status": "monitoring stopped"}
+
+
+@app.get("/api/live/status")
+def get_live_status():
+    """Get live monitoring status."""
+    return live_monitor.get_live_status()
+
+
+# --- ML Model endpoints ---
+
+@app.post("/api/ml/train")
+def train_models(background_tasks: BackgroundTasks):
+    """Trigger model training."""
+    background_tasks.add_task(_train_models)
+    return {"status": "training started"}
+
+
+def _train_models():
+    try:
+        results = model_trainer.train()
+        logger.info(f"Model training results: {results}")
+    except Exception as e:
+        logger.error(f"Model training failed: {e}")
+
+
+@app.get("/api/ml/info")
+def get_model_info():
+    """Get information about trained models."""
+    return model_trainer.get_model_info()
+
+
+@app.get("/api/ml/predictions")
+def get_ml_predictions():
+    """Get ML model predictions."""
+    return model_trainer.predict()
+
+
+# --- System endpoints ---
+
 @app.get("/api/system/health")
 def health_check():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "live_monitoring": live_monitor.is_monitoring,
+    }

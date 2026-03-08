@@ -152,6 +152,12 @@ with st.sidebar:
 
 st.title("Trump Mentions Trading Bot")
 
+# Unread alerts badge
+unread = api_get("/alerts/count") or {}
+unread_count = unread.get('unread', 0)
+if unread_count > 0:
+    st.warning(f"You have {unread_count} unread alert{'s' if unread_count > 1 else ''}!")
+
 # Live alerts bar
 live_events = api_get("/events/live") or []
 if live_events:

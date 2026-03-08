@@ -19,6 +19,8 @@ from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
 from ..ml.model_trainer import ModelTrainer
 from ..scraper.live_monitor import LiveSpeechMonitor
+from ..alerts import alert_manager
+from ..config import config as app_config
 
 app = FastAPI(title="Trump Mentions Trading Bot", version="1.0.0")
 
@@ -339,10 +341,43 @@ def get_ml_predictions():
 
 # --- System endpoints ---
 
+# --- Alert endpoints ---
+
+@app.get("/api/alerts")
+def get_alerts(limit: int = 50, alert_type: Optional[str] = None,
+               unread_only: bool = False):
+    """Get recent alerts."""
+    return alert_manager.get_recent_alerts(limit, alert_type, unread_only)
+
+
+@app.get("/api/alerts/count")
+def get_unread_count():
+    """Get unread alert count."""
+    return {"unread": alert_manager.get_unread_count()}
+
+
+@app.post("/api/alerts/{alert_id}/read")
+def mark_alert_read(alert_id: int):
+    """Mark an alert as read."""
+    alert_manager.mark_read(alert_id)
+    return {"status": "ok"}
+
+
+# --- Config endpoints ---
+
+@app.get("/api/config/status")
+def get_config_status():
+    """Get configuration status."""
+    return app_config.get_status()
+
+
+# --- System endpoints ---
+
 @app.get("/api/system/health")
 def health_check():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
         "live_monitoring": live_monitor.is_monitoring,
+        "config": app_config.get_status(),
     }

@@ -13,6 +13,7 @@ from .scraper.speech_scraper import SpeechScraper
 from .scraper.term_analyzer import TermAnalyzer
 from .scraper.event_tracker import EventTracker
 from .ml.predictor import TermPredictor
+from .ml.colab_pipeline import ColabPipeline
 
 
 def create_scheduler() -> BackgroundScheduler:
@@ -27,6 +28,7 @@ def create_scheduler() -> BackgroundScheduler:
     event_tracker = EventTracker()
     predictor = TermPredictor()
     trading_bot = TradingBot(client, predictor)
+    colab_pipeline = ColabPipeline()
 
     refresh_interval = int(os.getenv('REFRESH_INTERVAL_SECONDS', '300'))
 
@@ -78,6 +80,22 @@ def create_scheduler() -> BackgroundScheduler:
         name='Check trading opportunities',
     )
 
+    # Colab pipeline: export + upload + trigger training daily at 4 AM UTC
+    scheduler.add_job(
+        _run_colab_pipeline, CronTrigger(hour=4, minute=0),
+        args=[colab_pipeline, speech_scraper, term_analyzer],
+        id='colab_pipeline', replace_existing=True,
+        name='Auto-retrain pipeline (daily)',
+    )
+
+    # Poll for Colab training completion every 15 minutes
+    scheduler.add_job(
+        _poll_colab_results, IntervalTrigger(minutes=15),
+        args=[colab_pipeline],
+        id='colab_poll', replace_existing=True,
+        name='Poll Colab for training results',
+    )
+
     return scheduler
 
 
@@ -124,3 +142,32 @@ def _check_trading(bot: TradingBot):
                 bot.execute_trade(s, require_confirmation=False)
     except Exception as e:
         logger.error(f"Scheduled trading check failed: {e}")
+
+
+def _run_colab_pipeline(pipeline: ColabPipeline,
+                        scraper: SpeechScraper,
+                        analyzer: TermAnalyzer):
+    """Daily job: scrape latest speeches, then run the full
+    export → upload → trigger → poll → import pipeline if enough
+    new data has accumulated."""
+    try:
+        # First scrape fresh data
+        scraper.scrape_all_sources()
+        analyzer.process_all_unprocessed()
+
+        # Then run pipeline (checks should_retrain internally)
+        result = pipeline.run_full_pipeline()
+        logger.info(f"Colab pipeline result: {result}")
+    except Exception as e:
+        logger.error(f"Scheduled Colab pipeline failed: {e}")
+
+
+def _poll_colab_results(pipeline: ColabPipeline):
+    """Periodic job: check if a previously-triggered Colab run has
+    completed and import the results."""
+    try:
+        result = pipeline.check_and_import()
+        if result.get('status') == 'imported':
+            logger.info(f"Imported Colab results: {result}")
+    except Exception as e:
+        logger.error(f"Colab poll failed: {e}")

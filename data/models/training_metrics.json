@@ -1,0 +1,62 @@
+{
+  "timestamp": "2026-03-09T00:42:13.184547",
+  "results": {
+    "gradient_boosting": {
+      "cv_auc_mean": 0.6866078293081916,
+      "cv_auc_std": 0.05710000959836577,
+      "train_accuracy": 0.739656912209889,
+      "train_precision": 0.7275494672754946,
+      "train_recall": 0.8581687612208259,
+      "train_f1": 0.7874794069192751,
+      "train_brier": 0.16813295216963778,
+      "n_samples": 991,
+      "n_features": 25,
+      "top_features": {
+        "speech_frequency": 0.2992981590943301,
+        "term_id": 0.1312149088699397,
+        "term_length": 0.0767750249786627,
+        "velocity_30d": 0.0707011458029654,
+        "type_press_conference_pct": 0.0488681344277123,
+        "dow_entropy": 0.04752463258388157,
+        "type_interview_pct": 0.04035775287591938,
+        "mentions_last_90d": 0.036901886805972325,
+        "total_mentions": 0.03413116716639294,
+        "burstiness": 0.027991649082159852
+      }
+    },
+    "random_forest": {
+      "cv_auc_mean": 0.6941819630977706,
+      "cv_auc_std": 0.07868771679053861,
+      "train_accuracy": 0.7245206861755802,
+      "train_precision": 0.7312703583061889,
+      "train_recall": 0.8061041292639138,
+      "train_f1": 0.7668659265584971,
+      "train_brier": 0.17926742405635987,
+      "n_samples": 991,
+      "n_features": 25,
+      "top_features": {
+        "speech_frequency": 0.1253542160195904,
+        "total_mentions": 0.08535129004526124,
+        "mentions_last_60d": 0.08074902087666769,
+        "mentions_last_90d": 0.07584954766478594,
+        "mentions_last_7d": 0.05757586687200111,
+        "mentions_last_30d": 0.05517991707101478,
+        "term_id": 0.04743948107592792,
+        "acceleration": 0.04718612676272851,
+        "dow_entropy": 0.04694563166586456,
+        "velocity_30d": 0.04485903450379902
+      }
+    },
+    "logistic_regression": {
+      "cv_auc_mean": 0.6636417235922545,
+      "cv_auc_std": 0.09411451828720321,
+      "train_accuracy": 0.6619576185671039,
+      "train_precision": 0.6813725490196079,
+      "train_recall": 0.748653500897666,
+      "train_f1": 0.7134302822925578,
+      "train_brier": 0.21107591312430435,
+      "n_samples": 991,
+      "n_features": 25
+    }
+  }
+}

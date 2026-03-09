@@ -19,6 +19,8 @@ from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
 from ..ml.model_trainer import ModelTrainer
 from ..ml.colab_integration import ColabPredictor
+from ..ml.colab_pipeline import ColabPipeline
+from ..ml.drive_sync import DriveSync
 from ..scraper.live_monitor import LiveSpeechMonitor
 from ..alerts import alert_manager
 from ..config import config as app_config
@@ -42,6 +44,8 @@ predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
 model_trainer = ModelTrainer()
 colab_predictor = ColabPredictor()
+colab_pipeline = ColabPipeline()
+drive_sync = DriveSync()
 live_monitor = LiveSpeechMonitor()
 
 
@@ -365,6 +369,77 @@ def save_colab_to_db():
 def get_discovered_phrases():
     """Get new phrases discovered by Monte Carlo that aren't in Kalshi's term list."""
     return colab_predictor.get_discovered_phrases()
+
+
+# --- Pipeline endpoints ---
+
+@app.get("/api/pipeline/status")
+def get_pipeline_status():
+    """Get the status of the automated training pipeline."""
+    return {
+        'pipeline': colab_pipeline.get_status(),
+        'drive': drive_sync.get_status(),
+    }
+
+
+@app.post("/api/pipeline/run")
+def run_pipeline(background_tasks: BackgroundTasks, force: bool = False):
+    """Trigger the full automated pipeline: export → upload → trigger Colab → poll → import."""
+    colab_pipeline.run_pipeline_async(force=force)
+    return {"status": "pipeline started", "force": force}
+
+
+@app.post("/api/pipeline/export-upload")
+def pipeline_export_upload(background_tasks: BackgroundTasks):
+    """Export training data and upload to Google Drive (no training trigger)."""
+    background_tasks.add_task(_run_export_upload)
+    return {"status": "export and upload started"}
+
+
+def _run_export_upload():
+    try:
+        result = colab_pipeline.export_and_upload()
+        logger.info(f"Export & upload result: {result}")
+    except Exception as e:
+        logger.error(f"Export & upload failed: {e}")
+
+
+@app.post("/api/pipeline/trigger-training")
+def trigger_training():
+    """Upload latest data to Drive and write a trigger file for Colab."""
+    upload = drive_sync.upload_training_data()
+    if 'error' in upload:
+        raise HTTPException(status_code=500, detail=upload['error'])
+
+    trigger = drive_sync.write_trigger_file(
+        trigger_type='manual',
+        extra_data={'triggered_from': 'api'},
+    )
+    return {'upload': upload, 'trigger': trigger}
+
+
+@app.post("/api/pipeline/poll")
+def poll_colab_results():
+    """Check if Colab training has completed and import results."""
+    return colab_pipeline.check_and_import()
+
+
+@app.get("/api/drive/status")
+def get_drive_status():
+    """Get Google Drive integration status."""
+    return drive_sync.get_status()
+
+
+@app.post("/api/drive/upload")
+def upload_to_drive():
+    """Upload training exports to Google Drive."""
+    return drive_sync.upload_training_data()
+
+
+@app.post("/api/drive/download-predictions")
+def download_predictions_from_drive():
+    """Download latest predictions from Google Drive."""
+    return drive_sync.download_predictions()
 
 
 # --- System endpoints ---

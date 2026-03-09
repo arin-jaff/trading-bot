@@ -8,6 +8,12 @@ selenium>=4.15.0
 playwright>=1.40.0
 feedparser>=6.0.0
 trafilatura>=1.6.0
+yt-dlp>=2024.1.0
+youtube-transcript-api>=0.6.0
+
+# Google Drive integration
+google-api-python-client>=2.100.0
+google-auth>=2.23.0
 
 # Data & ML
 pandas>=2.1.0

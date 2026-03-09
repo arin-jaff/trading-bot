@@ -1,0 +1,636 @@
+{
+  "export_date": "2026-03-09T00:51:49.717731",
+  "stats": {
+    "total_speeches": 78,
+    "total_chunks": 289,
+    "output_path": "data/exports/trump_speeches.jsonl",
+    "total_words": 508284,
+    "format": "jsonl"
+  },
+  "speeches": [
+    {
+      "id": 258,
+      "title": "White House Cabinet Meeting 10/09/25",
+      "date": "2025-10-09T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 13139
+    },
+    {
+      "id": 254,
+      "title": "Trump Press Gaggle Aboard Airforce One 10/14/25",
+      "date": "2025-10-14T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 3255
+    },
+    {
+      "id": 245,
+      "title": "White House Briefing for 10/23/25",
+      "date": "2025-10-23T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 15703
+    },
+    {
+      "id": 233,
+      "title": "Presidential Cabinet Meeting 12/02/25",
+      "date": "2025-12-02T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 25265
+    },
+    {
+      "id": 230,
+      "title": "Trump Rally In Pennsylvania on 12/09/25",
+      "date": "2025-12-09T00:00:00",
+      "type": "rally",
+      "source": "rev_transcripts",
+      "word_count": 16567
+    },
+    {
+      "id": 224,
+      "title": "Presidential Address on 12/17/25",
+      "date": "2025-12-17T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 2901
+    },
+    {
+      "id": 220,
+      "title": "Donald Trump White House Press Briefing on 1/20/26",
+      "date": "2026-01-20T00:00:00",
+      "type": "press_conference",
+      "source": "rev_transcripts",
+      "word_count": 18268
+    },
+    {
+      "id": 217,
+      "title": "Trump Remarks in Iowa 1/27/26",
+      "date": "2026-01-27T00:00:00",
+      "type": "remarks",
+      "source": "rev_transcripts",
+      "word_count": 9202
+    },
+    {
+      "id": 218,
+      "title": "Trump Press Gaggle 1/27/26",
+      "date": "2026-01-27T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 1388
+    },
+    {
+      "id": 215,
+      "title": "Cabinet Meeting 1/29/26",
+      "date": "2026-01-29T00:00:00",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 14827
+    },
+    {
+      "id": 214,
+      "title": "Executive Orders 1/30/26",
+      "date": "2026-01-30T00:00:00",
+      "type": "signing",
+      "source": "rev_transcripts",
+      "word_count": 6481
+    },
+    {
+      "id": 202,
+      "title": "Trump Speaks at U.N.",
+      "date": "2026-03-08T20:34:03.216912",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8687
+    },
+    {
+      "id": 203,
+      "title": "TrumpRX Announcement",
+      "date": "2026-03-08T20:34:03.693383",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 3110
+    },
+    {
+      "id": 204,
+      "title": "Trump at Navy 250th",
+      "date": "2026-03-08T20:34:03.764500",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7784
+    },
+    {
+      "id": 205,
+      "title": "Trump and Netanyahu Press Conference",
+      "date": "2026-03-08T20:34:03.832380",
+      "type": "press_conference",
+      "source": "rev_transcripts",
+      "word_count": 6705
+    },
+    {
+      "id": 206,
+      "title": "Donald Trump West Point Commencement Speech Transcript",
+      "date": "2026-03-08T20:34:03.891733",
+      "type": "remarks",
+      "source": "rev_transcripts",
+      "word_count": 3327
+    },
+    {
+      "id": 207,
+      "title": "German Chancellor Friedrich Merz At White House",
+      "date": "2026-03-08T20:34:03.949165",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 6949
+    },
+    {
+      "id": 208,
+      "title": "Medal of Honor Ceremony",
+      "date": "2026-03-08T20:34:04.014280",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 5320
+    },
+    {
+      "id": 209,
+      "title": "Trump Speaks on Energy in Texas",
+      "date": "2026-03-08T20:34:04.086920",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 9984
+    },
+    {
+      "id": 210,
+      "title": "2026 State of the Union Address",
+      "date": "2026-03-08T20:34:04.155447",
+      "type": "address",
+      "source": "rev_transcripts",
+      "word_count": 11960
+    },
+    {
+      "id": 211,
+      "title": "White House Black History Month Event",
+      "date": "2026-03-08T20:34:04.567104",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8520
+    },
+    {
+      "id": 212,
+      "title": "White House Coal Ceremony",
+      "date": "2026-03-08T20:34:04.999896",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 4224
+    },
+    {
+      "id": 213,
+      "title": "Trump Signs Funding Bill",
+      "date": "2026-03-08T20:34:06.883293",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7379
+    },
+    {
+      "id": 216,
+      "title": "Trump Accounts Summit",
+      "date": "2026-03-08T20:34:07.438182",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 11715
+    },
+    {
+      "id": 219,
+      "title": "Trump at WEF",
+      "date": "2026-03-08T20:34:07.697690",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 15440
+    },
+    {
+      "id": 221,
+      "title": "Trump at the Detroit Economic Club",
+      "date": "2026-03-08T20:34:08.218841",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 11816
+    },
+    {
+      "id": 222,
+      "title": "Trump speaks after US strikes Venezuela and Captures Maduro",
+      "date": "2026-03-08T20:34:08.340349",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 10491
+    },
+    {
+      "id": 223,
+      "title": "White House Announces Lower Drug Prices",
+      "date": "2026-03-08T20:34:08.905355",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8037
+    },
+    {
+      "id": 225,
+      "title": "White House Hanukkah Celebration",
+      "date": "2026-03-08T20:34:09.038145",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7973
+    },
+    {
+      "id": 226,
+      "title": "Border Medal Presentation",
+      "date": "2026-03-08T20:34:09.106700",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7981
+    },
+    {
+      "id": 227,
+      "title": "Trump at Congressional Ball",
+      "date": "2026-03-08T20:34:09.193519",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 3704
+    },
+    {
+      "id": 228,
+      "title": "AI Executive Order",
+      "date": "2026-03-08T20:34:09.708805",
+      "type": "signing",
+      "source": "rev_transcripts",
+      "word_count": 5530
+    },
+    {
+      "id": 229,
+      "title": "White House Technology Roundtable",
+      "date": "2026-03-08T20:34:09.800210",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 13282
+    },
+    {
+      "id": 231,
+      "title": "Corporate Average Fuel Economy Executive Order",
+      "date": "2026-03-08T20:34:09.979457",
+      "type": "signing",
+      "source": "rev_transcripts",
+      "word_count": 11952
+    },
+    {
+      "id": 232,
+      "title": "Dell Donation to Trump Accounts",
+      "date": "2026-03-08T20:34:10.430578",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7639
+    },
+    {
+      "id": 234,
+      "title": "Trump Thanksgiving Service Member Call",
+      "date": "2026-03-08T20:34:10.589928",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 10039
+    },
+    {
+      "id": 235,
+      "title": "Trump and Mamdani Speak from the Oval Office",
+      "date": "2026-03-08T20:34:10.663265",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7357
+    },
+    {
+      "id": 236,
+      "title": "Trump and Vance Speak to Military Families",
+      "date": "2026-03-08T20:34:10.774787",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 2228
+    },
+    {
+      "id": 237,
+      "title": "Executive Order for \"Fostering the Future\" Initiative",
+      "date": "2026-03-08T20:34:11.316609",
+      "type": "signing",
+      "source": "rev_transcripts",
+      "word_count": 2656
+    },
+    {
+      "id": 238,
+      "title": "Trump Signs H.R. 5371",
+      "date": "2026-03-08T20:34:11.388700",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 2066
+    },
+    {
+      "id": 239,
+      "title": "Trump and Orb\u00e1n",
+      "date": "2026-03-08T20:34:11.844438",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7502
+    },
+    {
+      "id": 240,
+      "title": "Trump Speaks at America Business Forum",
+      "date": "2026-03-08T20:34:11.926877",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 11204
+    },
+    {
+      "id": 241,
+      "title": "Trump Breakfast with Senators",
+      "date": "2026-03-08T20:34:12.012878",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 4153
+    },
+    {
+      "id": 242,
+      "title": "Trump and XI Jinping in South Korea",
+      "date": "2026-03-08T20:34:12.438833",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 1001
+    },
+    {
+      "id": 243,
+      "title": "The Donald Trump 2025 60 Minutes Interview",
+      "date": "2026-03-08T20:34:12.503415",
+      "type": "interview",
+      "source": "rev_transcripts",
+      "word_count": 16655
+    },
+    {
+      "id": 244,
+      "title": "Trump Addresses Navy in japan",
+      "date": "2026-03-08T20:34:12.581135",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 9532
+    },
+    {
+      "id": 246,
+      "title": "Rutte and Trump at White House",
+      "date": "2026-03-08T20:34:13.132073",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8406
+    },
+    {
+      "id": 247,
+      "title": "White House Diwali Celebration",
+      "date": "2026-03-08T20:34:13.220539",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8247
+    },
+    {
+      "id": 248,
+      "title": "Trump Speaks at Senate Luncheon",
+      "date": "2026-03-08T20:34:14.730853",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 8334
+    },
+    {
+      "id": 249,
+      "title": "Zelensky Meeting at White House",
+      "date": "2026-03-08T20:34:14.813122",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7445
+    },
+    {
+      "id": 250,
+      "title": "White House IVF Announcement",
+      "date": "2026-03-08T20:34:15.274873",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 10710
+    },
+    {
+      "id": 251,
+      "title": "Trump Ballroom Event",
+      "date": "2026-03-08T20:34:15.349691",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7148
+    },
+    {
+      "id": 252,
+      "title": "Argentina's President Visits White House",
+      "date": "2026-03-08T20:34:15.431682",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 9975
+    },
+    {
+      "id": 253,
+      "title": "Kirk Gets Presidential Medal of Freedom",
+      "date": "2026-03-08T20:34:15.498338",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7800
+    },
+    {
+      "id": 255,
+      "title": "Trump Speaks at Ceasefire Ceremony",
+      "date": "2026-03-08T20:34:15.999117",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 7314
+    },
+    {
+      "id": 256,
+      "title": "Trump Announces Hostages Released",
+      "date": "2026-03-08T20:34:16.082960",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 9166
+    },
+    {
+      "id": 257,
+      "title": "Finnish President Visits White House",
+      "date": "2026-03-08T20:34:16.152574",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 5226
+    },
+    {
+      "id": 259,
+      "title": "Trump and Carney at the White House",
+      "date": "2026-03-08T20:34:16.336879",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 6762
+    },
+    {
+      "id": 449,
+      "title": "Video Library",
+      "date": "2026-03-08T20:35:33.993823",
+      "type": "other",
+      "source": "whitehouse",
+      "word_count": 295
+    },
+    {
+      "id": 454,
+      "title": "The Inaugural Address",
+      "date": "2026-03-08T20:35:35.325316",
+      "type": "other",
+      "source": "whitehouse",
+      "word_count": 3011
+    },
+    {
+      "id": 459,
+      "title": "President Trump Participates in a Swearing-in Ceremony for the Ambassador to the Republic of India",
+      "date": "2026-03-08T20:35:37.227628",
+      "type": "other",
+      "source": "whitehouse",
+      "word_count": 100
+    },
+    {
+      "id": 482,
+      "title": "President Trump Participates in a Visit with the LSU and LSU Shreveport Baseball Champions",
+      "date": "2026-03-08T20:35:49.437501",
+      "type": "other",
+      "source": "whitehouse",
+      "word_count": 104
+    },
+    {
+      "id": 493,
+      "title": "President Trump Participates in a Bilateral Meeting with the Prime Minister of Canada",
+      "date": "2026-03-08T20:35:54.459694",
+      "type": "other",
+      "source": "whitehouse",
+      "word_count": 100
+    },
+    {
+      "id": 511,
+      "title": "White House Calendar",
+      "date": "2026-03-08T20:36:03.866854",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 1658
+    },
+    {
+      "id": 512,
+      "title": "What the numbers say: Trump\u2019s 2025 versus his 2017",
+      "date": "2026-03-08T20:36:05.823146",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 375
+    },
+    {
+      "id": 513,
+      "title": "Transcript transparency: How the past three administrations stack up",
+      "date": "2026-03-08T20:36:05.891694",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 706
+    },
+    {
+      "id": 514,
+      "title": "Trump demonstrates his gift of gab in first two weeks in office",
+      "date": "2026-03-08T20:36:06.269495",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 647
+    },
+    {
+      "id": 515,
+      "title": "Donald Trump and His Support of Whistleblowers \u2014 Through February, 2019",
+      "date": "2026-03-08T20:36:06.547207",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 821
+    },
+    {
+      "id": 517,
+      "title": "Presidential Office Hours: Donald Trump\u2019s Schedule Vs. FDR Through Obama",
+      "date": "2026-03-08T20:36:07.081503",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 3095
+    },
+    {
+      "id": 518,
+      "title": "Does the Trump Brand Carry a Premium?",
+      "date": "2026-03-08T20:36:07.355130",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 2881
+    },
+    {
+      "id": 519,
+      "title": "Date (Newest)",
+      "date": "2026-03-08T20:36:09.335835",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 817
+    },
+    {
+      "id": 520,
+      "title": "Count the qualifiers:Trump\u2019s week became another presidential talk-a-thon",
+      "date": "2026-03-08T20:36:10.107873",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 1455
+    },
+    {
+      "id": 521,
+      "title": "Jack Smith onTrumpaccusations that Biden directed probes: \u2018No\u2019",
+      "date": "2026-03-08T20:36:10.147134",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 721
+    },
+    {
+      "id": 522,
+      "title": "Democrats struggle to checkTrumpmoves on plane, meme coin",
+      "date": "2026-03-08T20:36:10.394603",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 1759
+    },
+    {
+      "id": 523,
+      "title": "Trumphas \u2018do what we want\u2019 mindset as 100th day in office nears",
+      "date": "2026-03-08T20:36:10.467263",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 1135
+    },
+    {
+      "id": 524,
+      "title": "Michael Horowitz approaches stormy path inTrumpadministration",
+      "date": "2026-03-08T20:36:10.699972",
+      "type": "other",
+      "source": "rollcall_factbase",
+      "word_count": 1232
+    },
+    {
+      "id": 525,
+      "title": "What Biden andTrumpwere stressed about during their debate",
+      "date": "2026-03-08T20:36:11.123520",
+      "type": "debate",
+      "source": "rollcall_factbase",
+      "word_count": 696
+    },
+    {
+      "id": 526,
+      "title": "Debatus interruptus, tracking the Biden-Trumpdebates",
+      "date": "2026-03-08T20:36:11.187479",
+      "type": "debate",
+      "source": "rollcall_factbase",
+      "word_count": 943
+    }
+  ]
+}

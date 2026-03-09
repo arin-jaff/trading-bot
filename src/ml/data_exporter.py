@@ -36,24 +36,42 @@ class DataExporter:
 
         Returns export stats.
         """
+        logger.info(
+            "Starting training corpus export",
+        )
+        logger.debug(
+            f"Export params: output_name={output_name}, min_word_count={min_word_count}, format={format}"
+        )
+
         with get_session() as session:
             speeches = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
                 Speech.word_count >= min_word_count
             ).order_by(Speech.date).all()
 
+            logger.info(f"Found {len(speeches)} candidate speeches for export")
+
             if not speeches:
                 logger.warning("No speeches with transcripts to export")
                 return {'error': 'no data', 'count': 0}
 
             records = []
-            for speech in speeches:
+            for speech_idx, speech in enumerate(speeches, start=1):
+                logger.debug(
+                    f"Processing speech {speech_idx}/{len(speeches)}: id={speech.id}, title={speech.title!r}, date={speech.date}, db_word_count={speech.word_count}"
+                )
                 transcript = self._clean_transcript(speech.transcript)
                 if not transcript or len(transcript.split()) < min_word_count:
+                    logger.debug(
+                        f"Skipping speech id={speech.id} after cleaning: empty_or_too_short=True, cleaned_words={len(transcript.split()) if transcript else 0}"
+                    )
                     continue
 
                 # Split long transcripts into chunks for training
                 chunks = self._chunk_transcript(transcript, max_tokens=2048)
+                logger.debug(
+                    f"Speech id={speech.id} chunked into {len(chunks)} chunks"
+                )
 
                 for i, chunk in enumerate(chunks):
                     record = self._format_record(
@@ -62,8 +80,14 @@ class DataExporter:
                     if record:
                         records.append(record)
 
+                if speech_idx % 10 == 0:
+                    logger.info(
+                        f"Progress: processed {speech_idx}/{len(speeches)} speeches, accumulated {len(records)} chunks"
+                    )
+
             # Write output
             output_path = os.path.join(EXPORT_DIR, f'{output_name}.jsonl')
+            logger.info(f"Writing {len(records)} records to {output_path}")
             with open(output_path, 'w') as f:
                 for record in records:
                     f.write(json.dumps(record) + '\n')
@@ -81,6 +105,7 @@ class DataExporter:
 
             # Also export metadata
             meta_path = os.path.join(EXPORT_DIR, f'{output_name}_metadata.json')
+            logger.debug(f"Writing metadata to {meta_path}")
             with open(meta_path, 'w') as f:
                 json.dump({
                     'export_date': datetime.utcnow().isoformat(),
@@ -237,7 +262,20 @@ class DataExporter:
                 chunk = chunk[:best_break + 1]
 
             chunks.append(chunk)
-            i = end - overlap
+
+            # If we've reached the final chunk, stop.
+            if end >= len(words):
+                break
+
+            next_i = end - overlap
+            # Safety guard to prevent infinite loops if overlap settings are invalid.
+            if next_i <= i:
+                logger.warning(
+                    f"Chunking index did not advance (i={i}, next_i={next_i}, end={end}, overlap={overlap}); forcing progress"
+                )
+                next_i = i + max_tokens
+
+            i = next_i
 
         return chunks
 

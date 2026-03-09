@@ -137,6 +137,9 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# Private keys & credentials
+secrets/
 .venv
 env/
 venv/
@@ -206,6 +209,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Private keys
+# Private keys (all stored in secrets/ folder)
+# *.pem entries kept as safety net
 *.pem
-kalshi_private_key.pem

@@ -19,6 +19,7 @@ class TradingBot:
         self.client = client or KalshiClient()
         self.predictor = predictor or TermPredictor()
         self.is_running = False
+        self.paper_mode = True  # When True, no real trades are placed
 
         # Risk parameters
         self.max_position_size = 100  # max contracts per market
@@ -155,6 +156,11 @@ class TradingBot:
         if require_confirmation and not self.auto_trade:
             order_details['status'] = 'pending_confirmation'
             return order_details
+
+        # Paper mode: log but don't place real orders
+        if self.paper_mode:
+            logger.info(f"[PAPER] Would place: {order_details['action']} {qty}x {side} on {ticker} @ {price_cents}c")
+            return {**order_details, 'status': 'paper_trade', 'paper_mode': True}
 
         # Place the order
         try:

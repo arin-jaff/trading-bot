@@ -1,0 +1,1712 @@
+{
+  "generated_at": "2026-03-09T15:49:40.760343",
+  "event_context": {
+    "event_type": "rally",
+    "location": "Michigan",
+    "audience": "auto workers and supporters",
+    "date": "2026-03-15",
+    "current_news": [
+      "Trade tensions with China escalating over tariffs",
+      "Auto industry layoffs in the Midwest",
+      "Border security bill stalled in Congress",
+      "Stock market hit new highs this week"
+    ],
+    "recent_trump_focus": [
+      "Tariffs on Chinese goods",
+      "Bringing manufacturing jobs back",
+      "Border wall funding"
+    ]
+  },
+  "simulation_params": {
+    "num_simulations": 1000,
+    "temperature": 0.75,
+    "top_p": 0.9,
+    "max_tokens": 512,
+    "base_model": "unsloth/Meta-Llama-3.1-8B",
+    "recency_half_life_days": 60
+  },
+  "term_predictions": [
+    {
+      "term": "stock market",
+      "probability": 0.174,
+      "raw_probability": 0.174,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 174,
+      "total_mentions": 222,
+      "avg_mentions_per_speech": 0.22,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "50",
+      "probability": 0.166,
+      "raw_probability": 0.166,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 166,
+      "total_mentions": 193,
+      "avg_mentions_per_speech": 0.19,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "fake news",
+      "probability": 0.061,
+      "raw_probability": 0.061,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 61,
+      "total_mentions": 73,
+      "avg_mentions_per_speech": 0.07,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "new york",
+      "probability": 0.06,
+      "raw_probability": 0.06,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 60,
+      "total_mentions": 81,
+      "avg_mentions_per_speech": 0.08,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "email",
+      "probability": 0.05,
+      "raw_probability": 0.05,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 50,
+      "total_mentions": 51,
+      "avg_mentions_per_speech": 0.05,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "bill clinton",
+      "probability": 0.032,
+      "raw_probability": 0.032,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 32,
+      "total_mentions": 32,
+      "avg_mentions_per_speech": 0.03,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "green new scam",
+      "probability": 0.028,
+      "raw_probability": 0.028,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 28,
+      "total_mentions": 35,
+      "avg_mentions_per_speech": 0.04,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "epstein",
+      "probability": 0.023,
+      "raw_probability": 0.023,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 23,
+      "total_mentions": 45,
+      "avg_mentions_per_speech": 0.04,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "recession",
+      "probability": 0.021,
+      "raw_probability": 0.021,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 21,
+      "total_mentions": 36,
+      "avg_mentions_per_speech": 0.04,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "50,000",
+      "probability": 0.019,
+      "raw_probability": 0.019,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 19,
+      "total_mentions": 22,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "communist / communism",
+      "probability": 0.018,
+      "raw_probability": 0.018,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 18,
+      "total_mentions": 35,
+      "avg_mentions_per_speech": 0.04,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "communist",
+      "probability": 0.016,
+      "raw_probability": 0.016,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 16,
+      "total_mentions": 21,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "barack hussein obama",
+      "probability": 0.015,
+      "raw_probability": 0.015,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 15,
+      "total_mentions": 15,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "christmas",
+      "probability": 0.015,
+      "raw_probability": 0.015,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 15,
+      "total_mentions": 21,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "shutdown",
+      "probability": 0.014,
+      "raw_probability": 0.014,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 14,
+      "total_mentions": 18,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "melania",
+      "probability": 0.011,
+      "raw_probability": 0.011,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 11,
+      "total_mentions": 11,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "dead country",
+      "probability": 0.011,
+      "raw_probability": 0.011,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 11,
+      "total_mentions": 17,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "rigged election / stolen election",
+      "probability": 0.009,
+      "raw_probability": 0.009,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 9,
+      "total_mentions": 12,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "rigged election",
+      "probability": 0.009,
+      "raw_probability": 0.009,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 9,
+      "total_mentions": 12,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "maduro",
+      "probability": 0.009,
+      "raw_probability": 0.009,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 9,
+      "total_mentions": 16,
+      "avg_mentions_per_speech": 0.02,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "beef",
+      "probability": 0.008,
+      "raw_probability": 0.008,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 8,
+      "total_mentions": 11,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "transgender",
+      "probability": 0.006,
+      "raw_probability": 0.006,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 6,
+      "total_mentions": 8,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "bibi / netanyahu",
+      "probability": 0.006,
+      "raw_probability": 0.006,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 6,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "who are you with / where are you from",
+      "probability": 0.006,
+      "raw_probability": 0.006,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 6,
+      "total_mentions": 8,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "king",
+      "probability": 0.006,
+      "raw_probability": 0.006,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 6,
+      "total_mentions": 14,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "africa",
+      "probability": 0.006,
+      "raw_probability": 0.006,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 6,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "cookie",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "somalia / somali / somalian",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "somalia",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 6,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "hoax",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 8,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "football",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "zelenskyy",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "sleepy joe",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "space force",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "argentina",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "iq",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "elon / musk",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 6,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "elon",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "turkey",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "olympic",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "buttigieg",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "who are you with",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "olympics",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "hockey",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 6,
+      "avg_mentions_per_speech": 0.01,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "manhattan",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "soybean",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "pelosi",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "hunter",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "con job",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "ballroom",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "windmill",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "world cup",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "bibi",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "nobel",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "thug",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "tiktok",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "insurrection",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "desantis",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "witch hunt",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "swamp",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "golden dome",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "drill baby drill",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "crypto / bitcoin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "crypto",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "predict / prediction",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "predict",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "discombobulator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "marijuana / weed / cannabis",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "marijuana",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "mog / mogged / mogging",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "mog",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "autopen / auto pen",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "autopen",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "tds / trump derangement syndrome",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "tds",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "newscum",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "mental institution",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "paid agitator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "antifa",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "insurrection act",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "paid agitator / professional agitator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "penguin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "stimulus / dividend",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "stimulus",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "central casting",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "nine war",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "fat shot / ozempic",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "fat shot",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "sedition",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "bbc",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "marjorie taylor greene",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "autism",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "slopadopoulos",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "kim jong un",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "zohran / mamdani",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "zohran",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "soros",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "halloween",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "ghislaine / maxwell",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "ghislaine",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "amish",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "ufc",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "nobel prize / peace prize",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "nobel prize",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "tylenol",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "panican",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "taylor swift",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "mcdonald\u2019s",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "mcdonald",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "cracker barrel",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "in aug 2025",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "south park",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "lyin kamala",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "bitcoin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "sydney sweeney",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "too big to rig",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "schiff",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "two-state",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "paramount",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "palestine",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "nest egg",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "massie",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "larry summers",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "loomer",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "lisa monaco",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "crooked hillary",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "comey",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "colbert",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "clean beautiful coal",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    },
+    {
+      "term": "aoc",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "model_name": "monte_carlo_finetune"
+    }
+  ],
+  "discovered_phrases": [
+    {
+      "phrase": "we re",
+      "probability": 3.024,
+      "total_mentions": 3024
+    },
+    {
+      "phrase": "it s",
+      "probability": 2.488,
+      "total_mentions": 2488
+    },
+    {
+      "phrase": "that s",
+      "probability": 2.038,
+      "total_mentions": 2038
+    },
+    {
+      "phrase": "going to",
+      "probability": 1.79,
+      "total_mentions": 1790
+    },
+    {
+      "phrase": "thank you",
+      "probability": 1.713,
+      "total_mentions": 1713
+    },
+    {
+      "phrase": "they re",
+      "probability": 1.582,
+      "total_mentions": 1582
+    },
+    {
+      "phrase": "want to",
+      "probability": 1.424,
+      "total_mentions": 1424
+    },
+    {
+      "phrase": "our country",
+      "probability": 1.376,
+      "total_mentions": 1376
+    },
+    {
+      "phrase": "don t",
+      "probability": 1.37,
+      "total_mentions": 1370
+    },
+    {
+      "phrase": "usa usa",
+      "probability": 0.976,
+      "total_mentions": 976
+    },
+    {
+      "phrase": "we ve",
+      "probability": 0.975,
+      "total_mentions": 975
+    },
+    {
+      "phrase": "usa usa usa",
+      "probability": 0.921,
+      "total_mentions": 921
+    },
+    {
+      "phrase": "re going",
+      "probability": 0.904,
+      "total_mentions": 904
+    },
+    {
+      "phrase": "usa usa usa usa",
+      "probability": 0.867,
+      "total_mentions": 867
+    },
+    {
+      "phrase": "re going to",
+      "probability": 0.863,
+      "total_mentions": 863
+    },
+    {
+      "phrase": "the world",
+      "probability": 0.839,
+      "total_mentions": 839
+    },
+    {
+      "phrase": "usa usa usa usa usa",
+      "probability": 0.825,
+      "total_mentions": 825
+    },
+    {
+      "phrase": "i m",
+      "probability": 0.8,
+      "total_mentions": 800
+    },
+    {
+      "phrase": "if you",
+      "probability": 0.708,
+      "total_mentions": 708
+    },
+    {
+      "phrase": "we re going",
+      "probability": 0.684,
+      "total_mentions": 684
+    },
+    {
+      "phrase": "you know",
+      "probability": 0.671,
+      "total_mentions": 671
+    },
+    {
+      "phrase": "we re going to",
+      "probability": 0.669,
+      "total_mentions": 669
+    },
+    {
+      "phrase": "he s",
+      "probability": 0.653,
+      "total_mentions": 653
+    },
+    {
+      "phrase": "didn t",
+      "probability": 0.609,
+      "total_mentions": 609
+    },
+    {
+      "phrase": "a lot",
+      "probability": 0.59,
+      "total_mentions": 590
+    },
+    {
+      "phrase": "into our",
+      "probability": 0.586,
+      "total_mentions": 586
+    },
+    {
+      "phrase": "we ll",
+      "probability": 0.577,
+      "total_mentions": 577
+    },
+    {
+      "phrase": "right now",
+      "probability": 0.574,
+      "total_mentions": 574
+    },
+    {
+      "phrase": "now we",
+      "probability": 0.574,
+      "total_mentions": 574
+    },
+    {
+      "phrase": "talk about",
+      "probability": 0.57,
+      "total_mentions": 570
+    },
+    {
+      "phrase": "of dollars",
+      "probability": 0.566,
+      "total_mentions": 566
+    },
+    {
+      "phrase": "i think",
+      "probability": 0.562,
+      "total_mentions": 562
+    },
+    {
+      "phrase": "s a",
+      "probability": 0.558,
+      "total_mentions": 558
+    },
+    {
+      "phrase": "so we",
+      "probability": 0.549,
+      "total_mentions": 549
+    },
+    {
+      "phrase": "let s",
+      "probability": 0.537,
+      "total_mentions": 537
+    },
+    {
+      "phrase": "into our country",
+      "probability": 0.53,
+      "total_mentions": 530
+    },
+    {
+      "phrase": "you michigan",
+      "probability": 0.514,
+      "total_mentions": 514
+    },
+    {
+      "phrase": "the united",
+      "probability": 0.513,
+      "total_mentions": 513
+    },
+    {
+      "phrase": "thank you michigan",
+      "probability": 0.512,
+      "total_mentions": 512
+    },
+    {
+      "phrase": "and we re",
+      "probability": 0.511,
+      "total_mentions": 511
+    },
+    {
+      "phrase": "very much",
+      "probability": 0.508,
+      "total_mentions": 508
+    },
+    {
+      "phrase": "united states",
+      "probability": 0.508,
+      "total_mentions": 508
+    },
+    {
+      "phrase": "s why",
+      "probability": 0.507,
+      "total_mentions": 507
+    },
+    {
+      "phrase": "that s why",
+      "probability": 0.5,
+      "total_mentions": 500
+    },
+    {
+      "phrase": "the united states",
+      "probability": 0.5,
+      "total_mentions": 500
+    },
+    {
+      "phrase": "you very",
+      "probability": 0.47,
+      "total_mentions": 470
+    },
+    {
+      "phrase": "if we",
+      "probability": 0.47,
+      "total_mentions": 470
+    },
+    {
+      "phrase": "in the world",
+      "probability": 0.467,
+      "total_mentions": 467
+    },
+    {
+      "phrase": "thank you very",
+      "probability": 0.466,
+      "total_mentions": 466
+    },
+    {
+      "phrase": "you very much",
+      "probability": 0.464,
+      "total_mentions": 464
+    }
+  ]
+}

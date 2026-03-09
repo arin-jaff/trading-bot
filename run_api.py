@@ -4,11 +4,11 @@ import uvicorn
 from loguru import logger
 from dotenv import load_dotenv
 
+load_dotenv()
+
 from src.database.db import init_db
 from src.scheduler import create_scheduler
 from src.api.server import app
-
-load_dotenv()
 
 
 def main():

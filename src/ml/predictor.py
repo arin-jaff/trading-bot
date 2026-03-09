@@ -125,27 +125,60 @@ class TermPredictor:
             'term': term.term,
             'probability': round(probability, 4),
             'confidence': round(confidence, 4),
-            'component_scores': {k: round(v, 4) for k, v in scores.items()},
+            'component_scores': {k: round(v, 4) if v is not None else None for k, v in scores.items()},
             'model_name': 'ensemble_v1',
         }
 
     def _frequency_score(self, session, term: Term) -> float:
         """Score based on how often the term appears across speeches.
 
-        Uses speeches-with-term / total-speeches ratio.
+        Uses recency-weighted frequency: recent mentions count more than
+        older ones.  A term said 3 times last month scores higher than
+        one said 50 times in 2017 but not since.
         """
+        import math
+        now = datetime.utcnow()
+
+        # Get all occurrences with speech dates
+        occs = session.query(TermOccurrence, Speech).join(Speech).filter(
+            TermOccurrence.term_id == term.id,
+            Speech.date.isnot(None),
+        ).all()
+
+        if not occs:
+            return 0.1  # low score when never seen
+
         total_speeches = session.query(Speech).filter(
             Speech.is_processed == True
         ).count()
 
         if total_speeches == 0:
-            return 0.5  # neutral when no data
+            return 0.5
 
-        speeches_with_term = session.query(TermOccurrence).filter_by(
-            term_id=term.id
+        # Recency-weighted count: each occurrence is weighted by
+        # exp(-days_ago / half_life).  Half-life of 60 days means
+        # a mention 60 days ago counts half as much as one today.
+        HALF_LIFE_DAYS = 60
+        decay = math.log(2) / HALF_LIFE_DAYS
+
+        weighted_count = 0.0
+        raw_count = 0
+        for occ, speech in occs:
+            days_ago = max(0, (now - speech.date).days)
+            weight = math.exp(-decay * days_ago)
+            weighted_count += occ.count * weight
+            raw_count += occ.count
+
+        # Normalize: compare to what a term mentioned in every recent
+        # speech would score
+        recent_speeches = session.query(Speech).filter(
+            Speech.is_processed == True,
+            Speech.date >= now - timedelta(days=90),
         ).count()
+        max_expected = max(1, recent_speeches)
 
-        return min(1.0, speeches_with_term / max(1, total_speeches))
+        score = weighted_count / max_expected
+        return min(1.0, score)
 
     def _temporal_score(self, session, term: Term,
                         event: Optional[dict] = None) -> float:

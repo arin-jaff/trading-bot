@@ -1,7 +1,7 @@
 """FastAPI backend server for the trading bot."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,9 +76,54 @@ def get_markets(status: Optional[str] = None):
                 'no_price': m.no_price,
                 'volume': m.volume,
                 'close_time': m.close_time.isoformat() if m.close_time else None,
+                'expiration_time': m.expiration_time.isoformat() if m.expiration_time else None,
+                'result': m.result,
                 'terms': [t.term for t in m.terms],
             }
             for m in markets
+        ]
+
+
+@app.get("/api/markets/weekly-payouts")
+def get_weekly_payouts(weeks: int = 12):
+    """Get weekly payout data — which terms resolved yes/no each week."""
+    from collections import defaultdict
+    with get_session() as session:
+        # Get all settled markets with results
+        settled = session.query(Market).filter(
+            Market.result.in_(['yes', 'no']),
+            Market.close_time.isnot(None),
+        ).all()
+
+        # Group by week
+        weekly: dict = defaultdict(lambda: {'yes': [], 'no': []})
+        for m in settled:
+            week_start = m.close_time - timedelta(days=m.close_time.weekday())
+            week_key = week_start.strftime('%Y-%m-%d')
+            terms = [t.term for t in m.terms]
+            weekly[week_key][m.result].append({
+                'ticker': m.kalshi_ticker,
+                'title': m.title,
+                'terms': terms,
+                'close_time': m.close_time.isoformat(),
+                'yes_price': m.yes_price,
+                'volume': m.volume,
+            })
+
+        # Sort by week descending, limit to N weeks
+        sorted_weeks = sorted(weekly.items(), key=lambda x: x[0], reverse=True)[:weeks]
+
+        return [
+            {
+                'week': week,
+                'yes_count': len(data['yes']),
+                'no_count': len(data['no']),
+                'yes_markets': data['yes'],
+                'no_markets': data['no'],
+                'yes_terms': list(set(t for m in data['yes'] for t in m['terms'])),
+                'no_terms': list(set(t for m in data['no'] for t in m['terms'])),
+            }
+            for week, data in sorted_weeks
         ]
 
 

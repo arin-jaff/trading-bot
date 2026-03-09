@@ -61,7 +61,7 @@ with st.sidebar:
 
     # Kalshi connection
     st.subheader("Kalshi Connection")
-    if st.button("Login to Kalshi", use_container_width=True):
+    if st.button("Login to Kalshi", width="stretch"):
         result = api_post("/kalshi/login")
         if result:
             st.success(f"Logged in: {result.get('member_id', '')}")
@@ -71,30 +71,30 @@ with st.sidebar:
     # Data refresh controls
     st.subheader("Data Refresh")
 
-    if st.button("Full Refresh", type="primary", use_container_width=True):
+    if st.button("Full Refresh", type="primary", width="stretch"):
         result = api_post("/system/full-refresh")
         if result:
             st.info("Full refresh started...")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Sync Markets", use_container_width=True):
+        if st.button("Sync Markets", width="stretch"):
             result = api_post("/markets/sync")
             if result:
                 st.info("Syncing...")
 
-        if st.button("Scrape Speeches", use_container_width=True):
+        if st.button("Scrape Speeches", width="stretch"):
             result = api_post("/speeches/scrape")
             if result:
                 st.info("Scraping...")
 
     with col2:
-        if st.button("Update Events", use_container_width=True):
+        if st.button("Update Events", width="stretch"):
             result = api_post("/events/update")
             if result:
                 st.info("Updating...")
 
-        if st.button("Generate Predictions", use_container_width=True):
+        if st.button("Generate Predictions", width="stretch"):
             result = api_post("/predictions/generate")
             if result:
                 st.info("Generating...")
@@ -111,7 +111,7 @@ with st.sidebar:
     min_edge = st.slider("Min Edge", 0.01, 0.30, config.get('min_edge_threshold', 0.05), 0.01)
     min_conf = st.slider("Min Confidence", 0.0, 1.0, config.get('min_confidence', 0.3), 0.05)
 
-    if st.button("Update Config", use_container_width=True):
+    if st.button("Update Config", width="stretch"):
         api_put("/trading/config", {
             'auto_trade': auto_trade,
             'max_total_exposure': max_exposure,
@@ -205,7 +205,7 @@ with tab_markets:
                     'close_time': st.column_config.TextColumn("Closes"),
                     'terms': st.column_config.TextColumn("Terms", width="large"),
                 },
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
             )
 
@@ -216,7 +216,62 @@ with tab_markets:
                 fig = px.histogram(x=prices, nbins=20,
                                    title="Yes Price Distribution (Active Markets)",
                                    labels={'x': 'Yes Price', 'y': 'Count'})
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
+        # Weekly payouts chart
+        st.subheader("Weekly Term Payouts")
+        weekly_data = api_get("/markets/weekly-payouts", {'weeks': 12}) or []
+        if weekly_data:
+            # Stacked bar chart: yes vs no per week
+            weeks_df = pd.DataFrame([
+                {
+                    'Week': w['week'],
+                    'Said (Yes)': w['yes_count'],
+                    'Not Said (No)': w['no_count'],
+                }
+                for w in weekly_data
+            ])
+            weeks_df = weeks_df.sort_values('Week')
+
+            fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=weeks_df['Week'], y=weeks_df['Said (Yes)'],
+                name='Said (Yes)', marker_color='#2ecc71',
+            ))
+            fig.add_trace(go.Bar(
+                x=weeks_df['Week'], y=weeks_df['Not Said (No)'],
+                name='Not Said (No)', marker_color='#e74c3c',
+            ))
+            fig.update_layout(
+                barmode='stack',
+                title='Weekly Market Results',
+                xaxis_title='Week Starting',
+                yaxis_title='Number of Markets',
+                height=400,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Detailed breakdown per week
+            for w in weekly_data:
+                yes_terms = ', '.join(w.get('yes_terms', [])[:10]) or 'None'
+                no_terms = ', '.join(w.get('no_terms', [])[:10]) or 'None'
+                with st.expander(
+                    f"Week of {w['week']} — "
+                    f"{w['yes_count']} Yes, {w['no_count']} No"
+                ):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**Said (Yes):**")
+                        for m in w.get('yes_markets', []):
+                            terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
+                            st.text(f"  {terms_str}")
+                    with col2:
+                        st.markdown("**Not Said (No):**")
+                        for m in w.get('no_markets', []):
+                            terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
+                            st.text(f"  {terms_str}")
+        else:
+            st.info("No settled markets yet — payouts will appear after markets close.")
+
     else:
         st.info("No markets loaded yet. Click 'Sync Markets' in the sidebar.")
 
@@ -248,7 +303,7 @@ with tab_terms:
                 'trend_score': st.column_config.NumberColumn("Trend", format="%.2f"),
                 'market_count': st.column_config.NumberColumn("Markets"),
             },
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -262,7 +317,7 @@ with tab_terms:
                 title="Top 20 Terms by Occurrence",
             )
             fig.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         # Term detail view
         st.subheader("Term Detail")
@@ -277,7 +332,7 @@ with tab_terms:
                     hist_df = pd.DataFrame(history)
                     fig = px.line(hist_df, x='date', y='count',
                                   title=f"'{selected_term}' Usage Over Time")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
                 else:
                     st.info("No usage history available yet.")
     else:
@@ -310,7 +365,7 @@ with tab_predictions:
                 'confidence': st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1),
                 'model_name': st.column_config.TextColumn("Model"),
             },
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -323,7 +378,7 @@ with tab_predictions:
                 labels={'probability': 'Predicted Probability', 'confidence': 'Model Confidence'},
             )
             fig.update_traces(textposition='top center')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
     else:
         st.info("No predictions generated yet. Click 'Generate Predictions'.")
 
@@ -385,7 +440,7 @@ with tab_trading:
     positions = portfolio.get('positions', [])
     if positions:
         st.subheader("Current Positions")
-        st.dataframe(pd.DataFrame(positions), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(positions), width="stretch", hide_index=True)
 
 
 # --- Events Calendar Tab ---
@@ -426,7 +481,7 @@ with tab_events:
                     hover_data=['title', 'location'],
                     title="Upcoming Events Timeline",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
         # Events list
         st.subheader("Event Details")
@@ -487,10 +542,10 @@ with tab_live:
                      title="Live Term Detections",
                      color='count', color_continuous_scale='Reds')
         fig.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # Table
-        st.dataframe(det_df, use_container_width=True, hide_index=True)
+        st.dataframe(det_df, width="stretch", hide_index=True)
     else:
         st.info("No terms detected yet. Start monitoring and wait for a live speech.")
 
@@ -506,13 +561,13 @@ with tab_ml:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Train Models", type="primary", use_container_width=True):
+        if st.button("Train Models", type="primary", width="stretch"):
             result = api_post("/ml/train")
             if result:
                 st.info("Training started... This may take a few minutes.")
 
     with col2:
-        if st.button("Get ML Predictions", use_container_width=True):
+        if st.button("Get ML Predictions", width="stretch"):
             ml_preds = api_get("/ml/predictions") or []
             if ml_preds:
                 st.session_state['ml_predictions'] = ml_preds
@@ -547,7 +602,7 @@ with tab_ml:
 
                     fig = px.bar(feat_df, x='importance', y='feature',
                                  orientation='h', title=f"{model_name} Feature Importance")
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
     else:
         st.info("No models trained yet. Click 'Train Models' to start.")
@@ -566,7 +621,7 @@ with tab_ml:
                 'probability': st.column_config.ProgressColumn("Probability", min_value=0, max_value=1),
                 'confidence': st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1),
             },
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -586,7 +641,7 @@ with tab_ml:
                         yaxis_title="Probability",
                         height=300,
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
 
 
 # --- Data Stats Tab ---

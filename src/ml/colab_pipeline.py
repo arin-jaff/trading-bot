@@ -131,29 +131,52 @@ class ColabPipeline:
             if not force and not self.should_retrain():
                 results['skipped'] = True
                 results['reason'] = 'Not enough new data for retraining'
-                logger.info("Pipeline skipped: not enough new data")
+                logger.info("[PIPELINE] Skipped — not enough new data since last training")
                 return results
 
             # Stage 1: export training data
-            logger.info("Pipeline Stage 1/5: Exporting training data")
+            stage_start = time.time()
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] Stage 1/5: EXPORTING training data")
+            logger.info("=" * 60)
             self._set_state('exporting')
             export_results = self._export_all()
             results['stages']['export'] = export_results
-            if 'error' in export_results.get('corpus', {}):
+            corpus_info = export_results.get('corpus', {})
+            logger.info(
+                f"[PIPELINE] Export done in {time.time() - stage_start:.1f}s | "
+                f"Speeches: {corpus_info.get('speech_count', '?')} | "
+                f"Chunks: {corpus_info.get('chunk_count', '?')}"
+            )
+            if 'error' in corpus_info:
                 results['error'] = 'Export failed: no training data'
+                logger.error(f"[PIPELINE] FAILED at Stage 1: {corpus_info['error']}")
                 return results
 
             # Stage 2: upload to Google Drive
-            logger.info("Pipeline Stage 2/5: Uploading to Google Drive")
+            stage_start = time.time()
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] Stage 2/5: UPLOADING to Google Drive")
+            logger.info("=" * 60)
             self._set_state('uploading')
             upload_results = self.drive.upload_training_data()
             results['stages']['upload'] = upload_results
+            uploaded_count = len(upload_results.get('uploaded', []))
+            error_count = len(upload_results.get('errors', []))
+            logger.info(
+                f"[PIPELINE] Upload done in {time.time() - stage_start:.1f}s | "
+                f"Files uploaded: {uploaded_count} | Errors: {error_count}"
+            )
             if 'error' in upload_results:
                 results['error'] = f"Upload failed: {upload_results['error']}"
+                logger.error(f"[PIPELINE] FAILED at Stage 2: {upload_results['error']}")
                 return results
 
             # Stage 3: trigger Colab training
-            logger.info("Pipeline Stage 3/5: Triggering Colab training")
+            stage_start = time.time()
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] Stage 3/5: TRIGGERING Colab training")
+            logger.info("=" * 60)
             self._set_state('triggering')
             trigger_results = self.drive.write_trigger_file(
                 trigger_type='full_pipeline',
@@ -165,10 +188,25 @@ class ColabPipeline:
             results['stages']['trigger'] = trigger_results
             if 'error' in trigger_results:
                 results['error'] = f"Trigger failed: {trigger_results['error']}"
+                logger.error(f"[PIPELINE] FAILED at Stage 3: {trigger_results['error']}")
                 return results
+            logger.info(
+                f"[PIPELINE] Trigger written in {time.time() - stage_start:.1f}s | "
+                f"Now waiting for Colab to pick it up..."
+            )
+            logger.info(
+                "[PIPELINE] Open your Colab notebook and run it, "
+                "or wait for scheduled execution"
+            )
 
             # Stage 4: poll for completion
-            logger.info("Pipeline Stage 4/5: Polling for Colab completion")
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] Stage 4/5: WAITING for Colab completion")
+            logger.info(
+                f"[PIPELINE] Polling every {self.POLL_INTERVAL}s, "
+                f"timeout {self.POLL_TIMEOUT // 60}min"
+            )
+            logger.info("=" * 60)
             self._set_state('waiting_for_colab')
             completion = self._poll_for_completion()
             results['stages']['completion'] = completion or {'status': 'timeout'}
@@ -177,19 +215,35 @@ class ColabPipeline:
                     'Colab training not yet complete. '
                     'Results will be imported on next poll cycle.'
                 )
+                logger.warning(
+                    "[PIPELINE] Timed out waiting for Colab. "
+                    "The scheduler will keep polling every 15 min."
+                )
                 return results
+            logger.info("[PIPELINE] Colab training COMPLETE — importing results")
 
             # Stage 5: download and import predictions
-            logger.info("Pipeline Stage 5/5: Importing predictions")
+            stage_start = time.time()
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] Stage 5/5: IMPORTING predictions")
+            logger.info("=" * 60)
             self._set_state('importing')
             import_results = self._import_predictions()
             results['stages']['import'] = import_results
+            pred_count = import_results.get('download', {}).get('predictions_count', '?')
+            logger.info(
+                f"[PIPELINE] Import done in {time.time() - stage_start:.1f}s | "
+                f"Predictions imported: {pred_count}"
+            )
 
             # Record the speech count so we know when to retrain next
             self._record_speech_count()
 
             results['completed'] = True
-            logger.info("Pipeline completed successfully")
+            total_time = time.time() - results.get('_start_time', time.time())
+            logger.info("=" * 60)
+            logger.info("[PIPELINE] COMPLETE — all stages finished successfully")
+            logger.info("=" * 60)
 
         except Exception as e:
             results['error'] = str(e)
@@ -288,19 +342,31 @@ class ColabPipeline:
     def _poll_for_completion(self) -> Optional[dict]:
         """Poll Drive for the ``training_complete.json`` signal."""
         elapsed = 0
+        poll_count = 0
         while elapsed < self.POLL_TIMEOUT:
+            poll_count += 1
             completion = self.drive.check_completion()
             if completion:
+                logger.info(
+                    f"[PIPELINE] Colab completion detected after "
+                    f"{elapsed // 60}m {elapsed % 60}s ({poll_count} polls)"
+                )
                 return completion
 
-            logger.debug(
-                f"Waiting for Colab completion… "
-                f"({elapsed // 60}m / {self.POLL_TIMEOUT // 60}m timeout)"
+            remaining = (self.POLL_TIMEOUT - elapsed) // 60
+            logger.info(
+                f"[PIPELINE] Poll #{poll_count}: No completion yet | "
+                f"Elapsed: {elapsed // 60}m {elapsed % 60}s | "
+                f"Remaining: {remaining}m | "
+                f"Next check in {self.POLL_INTERVAL}s"
             )
             time.sleep(self.POLL_INTERVAL)
             elapsed += self.POLL_INTERVAL
 
-        logger.warning("Timed out waiting for Colab completion")
+        logger.warning(
+            f"[PIPELINE] Timed out after {self.POLL_TIMEOUT // 60}m "
+            f"({poll_count} polls). Colab may still be running."
+        )
         return None
 
     def _import_predictions(self) -> dict:

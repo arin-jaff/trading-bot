@@ -60,10 +60,16 @@ class MarketSync:
                 terms.append(self._build_term_dict(q))
 
         # Pattern 2: Slash-separated compound terms (e.g., "X / Y")
-        if '/' in full_text:
+        # Handled via custom_strike.Word above — the regex below is a
+        # fallback for titles only.  The Word field is the authoritative
+        # source and already captures the full phrase on both sides of
+        # the slash, so we skip this pattern if we already got a
+        # compound term from Pattern 0.
+        has_compound_from_word = any(t.get('is_compound') for t in terms)
+        if '/' in full_text and not has_compound_from_word:
             # Look for patterns like "phrase1 / phrase2"
             slash_parts = re.findall(
-                r"['\"]?([^'\"/?]+?)\s*/\s*([^'\"?.]+?)['\"]?(?:\?|$|\s)",
+                r"['\"]?([^'\"/?]+?)\s*/\s*([^'\"?]+?)['\"]?(?:\?|$)",
                 full_text
             )
             for parts in slash_parts:

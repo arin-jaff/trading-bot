@@ -1,10 +1,10 @@
 {
-  "export_date": "2026-03-09T00:51:49.717731",
+  "export_date": "2026-03-09T02:24:52.430906",
   "stats": {
-    "total_speeches": 78,
-    "total_chunks": 289,
+    "total_speeches": 80,
+    "total_chunks": 298,
     "output_path": "data/exports/trump_speeches.jsonl",
-    "total_words": 508284,
+    "total_words": 526508,
     "format": "jsonl"
   },
   "speeches": [
@@ -95,6 +95,14 @@
       "type": "signing",
       "source": "rev_transcripts",
       "word_count": 6481
+    },
+    {
+      "id": 548,
+      "title": "Karoline Leavitt White House Press Briefing on 3/04/26",
+      "date": "2026-03-04T00:00:00",
+      "type": "press_conference",
+      "source": "rev_transcripts",
+      "word_count": 8306
     },
     {
       "id": 202,
@@ -631,6 +639,14 @@
       "type": "debate",
       "source": "rollcall_factbase",
       "word_count": 943
+    },
+    {
+      "id": 549,
+      "title": "Melania Trump Chairs United Nations Meeting",
+      "date": "2026-03-08T21:46:27.337151",
+      "type": "other",
+      "source": "rev_transcripts",
+      "word_count": 10253
     }
   ]
 }

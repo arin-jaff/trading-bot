@@ -136,6 +136,7 @@ class DataExporter:
         with get_session() as session:
             terms = session.query(Term).all()
 
+            now = datetime.utcnow()
             term_data = []
             for term in terms:
                 occs = session.query(TermOccurrence).filter_by(
@@ -143,6 +144,8 @@ class DataExporter:
                 ).all()
 
                 contexts = []
+                latest_date = None
+                recent_count = 0  # occurrences in last 30 days
                 for occ in occs:
                     speech = session.query(Speech).get(occ.speech_id)
                     if speech and occ.context_snippets:
@@ -154,6 +157,13 @@ class DataExporter:
                                 'speech_type': speech.speech_type,
                                 'count_in_speech': occ.count,
                             })
+                    if speech and speech.date:
+                        if latest_date is None or speech.date > latest_date:
+                            latest_date = speech.date
+                        if (now - speech.date).days <= 30:
+                            recent_count += occ.count
+
+                days_since_last = (now - latest_date).days if latest_date else None
 
                 term_data.append({
                     'term': term.term,
@@ -162,6 +172,9 @@ class DataExporter:
                     'sub_terms': term.sub_terms,
                     'total_occurrences': term.total_occurrences,
                     'trend_score': term.trend_score,
+                    'recent_count_30d': recent_count,
+                    'days_since_last_mention': days_since_last,
+                    'last_mentioned': latest_date.isoformat() if latest_date else None,
                     'contexts': contexts,
                 })
 

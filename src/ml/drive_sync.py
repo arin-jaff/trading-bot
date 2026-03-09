@@ -1,18 +1,13 @@
 """Google Drive integration for syncing training data and model artifacts.
 
-Handles uploading exported training data to Google Drive and downloading
-prediction results from Colab-trained models.
+Supports two auth modes:
+  1. OAuth user credentials (recommended) — uses your personal Drive quota
+     - Set GOOGLE_OAUTH_CREDENTIALS_PATH to the OAuth client JSON (from GCP console)
+     - On first run, opens a browser for consent; token is cached in secrets/drive_token.json
+  2. Service account — only works with Shared Drives (Google Workspace)
+     - Set GOOGLE_SERVICE_ACCOUNT_KEY_PATH to the service account JSON key
 
-Setup:
-  1. Create a GCP project at https://console.cloud.google.com
-  2. Enable the Google Drive API
-  3. Create a service account and download the JSON key file
-  4. Set GOOGLE_SERVICE_ACCOUNT_KEY_PATH env var to the key file path
-  5. Create a folder in Google Drive and share it with the service account email
-  6. Set GOOGLE_DRIVE_FOLDER_ID to that folder's ID (from the URL)
-
-Alternatively, set GOOGLE_DRIVE_CREDENTIALS_JSON with the raw JSON content
-of the service account key (useful for containerized deployments).
+Both modes require GOOGLE_DRIVE_FOLDER_ID set to the target folder ID.
 """
 
 import io
@@ -31,7 +26,7 @@ PREDICTIONS_DIR = os.path.join('data', 'predictions')
 class DriveSync:
     """Syncs training data and predictions between local storage and Google Drive."""
 
-    SCOPES = ['https://www.googleapis.com/auth/drive.file']
+    SCOPES = ['https://www.googleapis.com/auth/drive']
 
     # Subfolder names inside the shared Drive folder
     DATA_SUBFOLDER = 'data'
@@ -39,21 +34,43 @@ class DriveSync:
     PREDICTIONS_SUBFOLDER = 'predictions'
     TRIGGERS_SUBFOLDER = 'triggers'
 
+    # Project root (one level up from src/)
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     def __init__(self):
         self.root_folder_id = os.getenv('GOOGLE_DRIVE_FOLDER_ID', '')
-        self.key_path = os.getenv('GOOGLE_SERVICE_ACCOUNT_KEY_PATH', '')
+
+        # OAuth credentials (preferred — uses your personal Drive quota)
+        _raw_oauth_path = os.getenv('GOOGLE_OAUTH_CREDENTIALS_PATH', '')
+        if _raw_oauth_path and not os.path.isabs(_raw_oauth_path):
+            self.oauth_path = os.path.join(self._PROJECT_ROOT, _raw_oauth_path)
+        else:
+            self.oauth_path = _raw_oauth_path
+
+        # Token cache path
+        self.token_path = os.path.join(self._PROJECT_ROOT, 'secrets', 'drive_token.json')
+
+        # Service account credentials (fallback — only works with Shared Drives)
+        _raw_key_path = os.getenv('GOOGLE_SERVICE_ACCOUNT_KEY_PATH', '')
+        if _raw_key_path and not os.path.isabs(_raw_key_path):
+            self.key_path = os.path.join(self._PROJECT_ROOT, _raw_key_path)
+        else:
+            self.key_path = _raw_key_path
         self.credentials_json = os.getenv('GOOGLE_DRIVE_CREDENTIALS_JSON', '')
+
         self._service = None
         self._subfolder_cache: dict[str, str] = {}
 
     @property
     def is_configured(self) -> bool:
         """Check if Drive integration has valid configuration."""
-        has_creds = (
+        has_oauth = bool(self.oauth_path and os.path.exists(self.oauth_path))
+        has_service_acct = (
             bool(self.key_path and os.path.exists(self.key_path))
             or bool(self.credentials_json)
         )
-        return bool(self.root_folder_id and has_creds)
+        has_token = bool(os.path.exists(self.token_path))
+        return bool(self.root_folder_id and (has_oauth or has_token or has_service_acct))
 
     def _get_service(self):
         """Lazily initialize the Google Drive API service."""
@@ -61,27 +78,80 @@ class DriveSync:
             return self._service
 
         try:
-            from google.oauth2 import service_account
             from googleapiclient.discovery import build
         except ImportError:
             raise ImportError(
                 "Google API client not installed. Run: "
-                "pip install google-api-python-client google-auth"
+                "pip install google-api-python-client google-auth google-auth-oauthlib"
             )
 
-        if self.credentials_json:
-            info = json.loads(self.credentials_json)
-            creds = service_account.Credentials.from_service_account_info(
-                info, scopes=self.SCOPES,
-            )
-        else:
-            creds = service_account.Credentials.from_service_account_file(
-                self.key_path, scopes=self.SCOPES,
+        creds = self._get_oauth_credentials()
+        if creds is None:
+            creds = self._get_service_account_credentials()
+
+        if creds is None:
+            raise RuntimeError(
+                "No Google Drive credentials found. Set GOOGLE_OAUTH_CREDENTIALS_PATH "
+                "(recommended) or GOOGLE_SERVICE_ACCOUNT_KEY_PATH."
             )
 
         self._service = build('drive', 'v3', credentials=creds)
         logger.info("Google Drive API service initialized")
         return self._service
+
+    def _get_oauth_credentials(self):
+        """Get OAuth user credentials (opens browser on first run)."""
+        try:
+            from google.oauth2.credentials import Credentials
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            from google.auth.transport.requests import Request
+        except ImportError:
+            return None
+
+        creds = None
+
+        # Load cached token
+        if os.path.exists(self.token_path):
+            creds = Credentials.from_authorized_user_file(self.token_path, self.SCOPES)
+
+        # Refresh or get new token
+        if creds and creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+            except Exception:
+                creds = None
+
+        if not creds or not creds.valid:
+            if not self.oauth_path or not os.path.exists(self.oauth_path):
+                return None
+            flow = InstalledAppFlow.from_client_secrets_file(self.oauth_path, self.SCOPES)
+            creds = flow.run_local_server(port=0)
+
+        # Save token for next time
+        os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
+        with open(self.token_path, 'w') as f:
+            f.write(creds.to_json())
+
+        logger.info("Using OAuth user credentials for Google Drive")
+        return creds
+
+    def _get_service_account_credentials(self):
+        """Get service account credentials (fallback)."""
+        try:
+            from google.oauth2 import service_account
+        except ImportError:
+            return None
+
+        if self.credentials_json:
+            info = json.loads(self.credentials_json)
+            return service_account.Credentials.from_service_account_info(
+                info, scopes=self.SCOPES,
+            )
+        elif self.key_path and os.path.exists(self.key_path):
+            return service_account.Credentials.from_service_account_file(
+                self.key_path, scopes=self.SCOPES,
+            )
+        return None
 
     # ------------------------------------------------------------------
     # Subfolder management
@@ -102,6 +172,7 @@ class DriveSync:
         )
         results = service.files().list(
             q=query, fields='files(id, name)',
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute()
         files = results.get('files', [])
 
@@ -115,6 +186,7 @@ class DriveSync:
             }
             folder = service.files().create(
                 body=metadata, fields='id',
+                supportsAllDrives=True,
             ).execute()
             folder_id = folder['id']
             logger.info(f"Created Drive subfolder: {subfolder_name} ({folder_id})")
@@ -133,14 +205,6 @@ class DriveSync:
 
         If a file with the same name already exists in the target folder,
         it is *updated* in-place (no duplicates created).
-
-        Args:
-            local_path: Path to the local file.
-            drive_filename: Name for the file on Drive (defaults to local name).
-            subfolder: Subfolder name inside root folder (created if needed).
-
-        Returns:
-            Dict with file id, name, web link, and action (created/updated).
         """
         from googleapiclient.http import MediaFileUpload
 
@@ -159,6 +223,7 @@ class DriveSync:
         )
         existing = service.files().list(
             q=query, fields='files(id)',
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute()
         existing_files = existing.get('files', [])
 
@@ -170,6 +235,7 @@ class DriveSync:
                 fileId=file_id,
                 media_body=media,
                 fields='id, name, webViewLink',
+                supportsAllDrives=True,
             ).execute()
             logger.info(f"Updated '{filename}' on Drive ({file_id})")
             return {
@@ -187,6 +253,7 @@ class DriveSync:
             body=metadata,
             media_body=media,
             fields='id, name, webViewLink',
+            supportsAllDrives=True,
         ).execute()
         logger.info(f"Uploaded '{filename}' to Drive ({created['id']})")
         return {
@@ -198,10 +265,7 @@ class DriveSync:
 
     def download_file(self, drive_filename: str, local_path: str,
                       subfolder: Optional[str] = None) -> bool:
-        """Download a file from Google Drive to local storage.
-
-        Returns True if the file was found and downloaded successfully.
-        """
+        """Download a file from Google Drive to local storage."""
         from googleapiclient.http import MediaIoBaseDownload
 
         service = self._get_service()
@@ -216,6 +280,7 @@ class DriveSync:
         )
         results = service.files().list(
             q=query, fields='files(id, name)',
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute()
         files = results.get('files', [])
 
@@ -224,7 +289,7 @@ class DriveSync:
             return False
 
         file_id = files[0]['id']
-        request = service.files().get_media(fileId=file_id)
+        request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
 
         os.makedirs(os.path.dirname(local_path) or '.', exist_ok=True)
         with open(local_path, 'wb') as fh:
@@ -233,7 +298,7 @@ class DriveSync:
             while not done:
                 _, done = downloader.next_chunk()
 
-        logger.info(f"Downloaded '{drive_filename}' → {local_path}")
+        logger.info(f"Downloaded '{drive_filename}' -> {local_path}")
         return True
 
     def _delete_drive_file(self, filename: str,
@@ -252,9 +317,10 @@ class DriveSync:
             )
             results = service.files().list(
                 q=query, fields='files(id)',
+                supportsAllDrives=True, includeItemsFromAllDrives=True,
             ).execute()
             for f in results.get('files', []):
-                service.files().delete(fileId=f['id']).execute()
+                service.files().delete(fileId=f['id'], supportsAllDrives=True).execute()
                 logger.debug(f"Deleted '{filename}' from Drive")
         except Exception as e:
             logger.debug(f"Error deleting '{filename}' from Drive: {e}")
@@ -264,19 +330,12 @@ class DriveSync:
     # ------------------------------------------------------------------
 
     def upload_training_data(self) -> dict:
-        """Upload all training export files to Drive ``data`` subfolder.
-
-        Uploads:
-          - trump_speeches.jsonl  (training corpus)
-          - trump_speeches_metadata.json
-          - term_context.json     (RAG context data)
-          - event_speech_pairs.json
-        """
+        """Upload all training export files to Drive ``data`` subfolder."""
         if not self.is_configured:
             return {
                 'error': (
                     'Google Drive not configured. Set GOOGLE_DRIVE_FOLDER_ID '
-                    'and GOOGLE_SERVICE_ACCOUNT_KEY_PATH.'
+                    'and GOOGLE_OAUTH_CREDENTIALS_PATH (or GOOGLE_SERVICE_ACCOUNT_KEY_PATH).'
                 ),
             }
 
@@ -341,11 +400,7 @@ class DriveSync:
 
     def write_trigger_file(self, trigger_type: str = 'full_pipeline',
                            extra_data: Optional[dict] = None) -> dict:
-        """Write a trigger file to Drive to signal Colab to start training.
-
-        The Colab notebook/script checks for ``training_trigger.json`` on
-        startup.  If found it begins the training + prediction pipeline.
-        """
+        """Write a trigger file to Drive to signal Colab to start training."""
         if not self.is_configured:
             return {'error': 'Google Drive not configured'}
 
@@ -376,11 +431,7 @@ class DriveSync:
                 os.remove(tmp_path)
 
     def check_completion(self) -> Optional[dict]:
-        """Check if Colab has written a completion signal to Drive.
-
-        Returns the completion payload if found, ``None`` otherwise.
-        On success the trigger and completion files are cleaned up.
-        """
+        """Check if Colab has written a completion signal to Drive."""
         if not self.is_configured:
             return None
 
@@ -426,7 +477,9 @@ class DriveSync:
                 self.root_folder_id[:10] + '...'
                 if self.root_folder_id else None
             ),
-            'has_credentials': bool(self.key_path or self.credentials_json),
+            'has_credentials': bool(
+                self.oauth_path or self.key_path or self.credentials_json
+            ),
         }
 
         if self.is_configured:
@@ -435,6 +488,7 @@ class DriveSync:
                 folder = service.files().get(
                     fileId=self.root_folder_id,
                     fields='name, webViewLink',
+                    supportsAllDrives=True,
                 ).execute()
                 status['folder_name'] = folder.get('name')
                 status['folder_link'] = folder.get('webViewLink')

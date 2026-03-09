@@ -28,10 +28,18 @@ class KalshiClient:
 
     BASE_URL = 'https://api.elections.kalshi.com/trade-api/v2'
 
+    # Project root (one level up from src/)
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
     def __init__(self):
         self.base_url = os.getenv('KALSHI_BASE_URL', self.BASE_URL)
         self.api_key_id = os.getenv('KALSHI_API_KEY', '')
-        self.private_key_path = os.getenv('KALSHI_PRIVATE_KEY_PATH', '')
+        _raw_key_path = os.getenv('KALSHI_PRIVATE_KEY_PATH', '')
+        # Resolve relative paths against the project root
+        if _raw_key_path and not os.path.isabs(_raw_key_path):
+            self.private_key_path = os.path.join(self._PROJECT_ROOT, _raw_key_path)
+        else:
+            self.private_key_path = _raw_key_path
         self._auth = None
         self._session = requests.Session()
         self._last_request_time = 0

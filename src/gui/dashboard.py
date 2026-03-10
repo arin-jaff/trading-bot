@@ -11,7 +11,7 @@ import time
 
 # Page config
 st.set_page_config(
-    page_title="Trump Mentions Trading Bot",
+    page_title="TrumpGPT Trading Bot",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -19,10 +19,43 @@ st.set_page_config(
 
 API_BASE = "http://localhost:8000/api"
 
+# --- ASCII art (trimmed) ---
+TRUMP_ART = """
+                                 ..... ..... ....
+                                .%%%%%%%%%%%%%%%%@%.
+                             .#%%%%%%%%%%%%%%%%%%%%%%%*.
+                            .%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
+                           .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
+                          .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
+                          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@......
+                         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%-
+                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+.
+                       .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
+                      .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
+                       .@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%-.
+                        +%%.-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%..
+                     .%%%%%%#..+%%%%%%%%%%%%%%%%%%%%%%%%%%..
+                  .#%%%%%%%%%%=...@%%%%%%%%%%%%%%%%%%%%%%.
+               ..@%%%%%%%%%%%%%%.   +@%%%%%%%%%%%%%%%%%%%.
+              .%%%%%%%%%%%%%%%%%%%.  .:%%%%%%%%%%%%%%%%%%.
+            .%%%%%%%%%%%%%%%%%%%%%%%   .+%%%%%%%%%%%%%#.
+            %%%%%%%%%%%%%%%%%%%%%%%%%.   .%%%%%%@*..
+          .@%%%%%%%%%%%%%%%%%%%%%%%%%%..  .@%%: .
+          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%.   *@
+         +%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@  :%%.
+        .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+.%%%.
+       .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@...
+      .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%=
+     .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@.
+    .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
+    -%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@.
+    .............................................
+"""
+
 # --- Helper functions ---
 
 def api_get(endpoint: str, params: dict = None):
-    """Make a GET request to the API."""
     try:
         resp = requests.get(f"{API_BASE}{endpoint}", params=params or {}, timeout=10)
         resp.raise_for_status()
@@ -33,7 +66,6 @@ def api_get(endpoint: str, params: dict = None):
 
 
 def api_post(endpoint: str, data: dict = None):
-    """Make a POST request to the API."""
     try:
         resp = requests.post(f"{API_BASE}{endpoint}", json=data or {}, timeout=30)
         resp.raise_for_status()
@@ -44,7 +76,6 @@ def api_post(endpoint: str, data: dict = None):
 
 
 def api_put(endpoint: str, data: dict = None):
-    """Make a PUT request to the API."""
     try:
         resp = requests.put(f"{API_BASE}{endpoint}", json=data or {}, timeout=10)
         resp.raise_for_status()
@@ -52,6 +83,17 @@ def api_put(endpoint: str, data: dict = None):
     except Exception as e:
         st.error(f"API Error: {e}")
         return None
+
+
+# --- Session state init ---
+if 'trade_queue' not in st.session_state:
+    st.session_state.trade_queue = []
+if 'suggestion_index' not in st.session_state:
+    st.session_state.suggestion_index = 0
+if 'trashed_terms' not in st.session_state:
+    st.session_state.trashed_terms = set()
+if 'confirm_trash' not in st.session_state:
+    st.session_state.confirm_trash = None
 
 
 # --- Sidebar ---
@@ -186,8 +228,6 @@ with st.sidebar:
 
 # --- Main Dashboard ---
 
-st.title("Trump Mentions Trading Bot")
-
 # Unread alerts badge
 unread = api_get("/alerts/count") or {}
 unread_count = unread.get('unread', 0)
@@ -198,38 +238,283 @@ if unread_count > 0:
 live_events = api_get("/events/live") or []
 if live_events:
     for event in live_events:
-        st.error(f"🔴 LIVE NOW: {event['title']} (started {event.get('start_time', 'unknown')})")
+        st.error(f"LIVE NOW: {event['title']} (started {event.get('start_time', 'unknown')})")
 
 # --- Tab Layout ---
-tab_markets, tab_terms, tab_final, tab_predictions, tab_trading, tab_events, tab_live, tab_ml, tab_data = st.tabs([
-    "Markets", "Terms Database", "Final Predictions", "Raw Predictions", "Trading",
-    "Events Calendar", "Live Monitor", "TrumpGPT", "Data Stats"
+tab_home, tab_markets, tab_terms, tab_trading, tab_events, tab_live, tab_ml, tab_data = st.tabs([
+    "Home", "Markets", "Terms", "Trading",
+    "Events", "Live Monitor", "TrumpGPT", "Data"
 ])
 
 
-# --- Markets Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# HOME TAB — Welcome + Trade Suggestions
+# ═══════════════════════════════════════════════════════════════════
+with tab_home:
+    # Header with ASCII art
+    col_art, col_title = st.columns([1, 2])
+    with col_art:
+        st.code(TRUMP_ART, language=None)
+    with col_title:
+        st.title("TrumpGPT")
+        st.caption("LoRA fine-tuned Llama-3.1-8B + Multi-Scenario Monte Carlo")
+
+        # Quick stats
+        model_status = api_get("/model/status") or {}
+        health = api_get("/system/health") or {}
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Terms Tracked", model_status.get('total_terms_tracked', 0))
+        col2.metric("Predictions", model_status.get('colab_predictions_count', 0))
+        last_run = model_status.get('last_run', '')
+        col3.metric("Last Run", last_run[:10] if last_run else "Never")
+
+        if health.get('status') == 'ok':
+            st.success("System online")
+        else:
+            st.error("API not responding")
+
+    st.divider()
+
+    # ── Trade Suggestions Card System ──
+    st.header("Trade Suggestions")
+    st.caption("TrumpGPT's best opportunities ranked by edge. Accept to queue, deny to skip, trash to remove.")
+
+    # Get suggestions, filter out trashed and already-said (99%+)
+    all_suggestions = api_get("/predictions/final") or []
+    suggestions = [
+        s for s in all_suggestions
+        if s.get('term', '').lower() not in st.session_state.trashed_terms
+        and abs(s.get('edge', 0)) >= 0.01
+        and (s.get('market_yes_price') or 0) < 0.99  # 99%+ = already said, skip
+    ]
+    # Sort by absolute edge descending
+    suggestions.sort(key=lambda x: abs(x.get('edge', 0)), reverse=True)
+
+    if suggestions:
+        idx = st.session_state.suggestion_index % len(suggestions)
+        remaining = len(suggestions) - idx
+        st.caption(f"Showing suggestion {idx + 1} of {len(suggestions)}")
+
+        s = suggestions[idx]
+        term = s.get('term', '?')
+        edge = s.get('edge', 0)
+        our_prob = s.get('final_probability', 0)
+        market_price = s.get('market_yes_price', 0.5)
+        side = 'YES' if edge > 0 else 'NO'
+        edge_abs = abs(edge)
+        hist = s.get('historical_market_record', {})
+        past_yes = hist.get('yes', 0)
+        past_no = hist.get('no', 0)
+
+        # Confidence descriptor
+        if edge_abs >= 0.20:
+            conf_label = "Very High"
+            conf_color = "#2ecc71"
+        elif edge_abs >= 0.10:
+            conf_label = "High"
+            conf_color = "#27ae60"
+        elif edge_abs >= 0.05:
+            conf_label = "Moderate"
+            conf_color = "#f39c12"
+        else:
+            conf_label = "Low"
+            conf_color = "#e74c3c"
+
+        # Main card — market title with week range
+        close_time = s.get('close_time', '')
+        week_label = ''
+        if close_time:
+            try:
+                close_dt = datetime.fromisoformat(close_time)
+                week_start = close_dt - timedelta(days=close_dt.weekday())
+                week_end = week_start + timedelta(days=6)
+                week_label = f" for the week of {week_start.strftime('%b %d')} – {week_end.strftime('%b %d')}"
+            except Exception:
+                pass
+
+        market_title = s.get('market_title', f'Will Trump say "{term}"?')
+        st.markdown(f"### {market_title}")
+        if week_label:
+            st.caption(week_label)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("TrumpGPT Says", f"{our_prob:.0%}")
+        col2.metric("Market Says", f"{market_price:.0%}")
+        col3.metric("Edge", f"{edge:+.1%}")
+        col4.metric("Suggested Side", side)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Confidence", conf_label)
+        col2.metric("Historical Record", f"{past_yes}W / {past_no}L" if past_yes + past_no > 0 else "No history")
+        col3.metric("Speeches w/ Term", s.get('speeches_with_term', 0))
+        col4.metric("Recency Weight", f"x{s.get('recency_weight', 1.0):.2f}")
+
+        # Market outcome history for this term (yes/no per week)
+        weekly_data = api_get("/markets/weekly-payouts", {'weeks': 16}) or []
+        term_lower = term.lower().strip()
+        term_weeks = []
+        for w in weekly_data:
+            yes_terms = [t.lower() for t in w.get('yes_terms', [])]
+            no_terms = [t.lower() for t in w.get('no_terms', [])]
+            if term_lower in yes_terms:
+                term_weeks.append({'Week': w['week'], 'Result': 'Said', 'value': 1})
+            elif term_lower in no_terms:
+                term_weeks.append({'Week': w['week'], 'Result': 'Not Said', 'value': -1})
+
+        if term_weeks:
+            tw_df = pd.DataFrame(term_weeks).sort_values('Week')
+            colors = {'Said': '#2ecc71', 'Not Said': '#e74c3c'}
+            fig = go.Figure()
+            for result, color in colors.items():
+                mask = tw_df[tw_df['Result'] == result]
+                if not mask.empty:
+                    fig.add_trace(go.Bar(
+                        x=mask['Week'], y=[1] * len(mask),
+                        name=result, marker_color=color,
+                    ))
+            fig.update_layout(
+                title=f'"{term}" — past market outcomes',
+                height=220,
+                margin=dict(t=35, b=20, l=40, r=20),
+                yaxis=dict(visible=False),
+                barmode='stack',
+                showlegend=True,
+                legend=dict(orientation='h', y=1.15),
+            )
+            st.plotly_chart(fig, width="stretch")
+        else:
+            st.caption(f"No past market history for \"{term}\".")
+
+        # Component breakdown
+        with st.expander("Signal breakdown"):
+            comp = s.get('component_scores', {})
+            if comp:
+                for signal, score in comp.items():
+                    if score is not None:
+                        bar_len = int(score * 30)
+                        bar = "█" * bar_len + "░" * (30 - bar_len)
+                        st.text(f"  {signal:<22} {score:.1%}  {bar}")
+
+            by_scenario = s.get('by_scenario', {})
+            if by_scenario:
+                st.markdown("**Per-scenario:**")
+                for sc, sc_data in by_scenario.items():
+                    prob = sc_data.get('probability', 0) if isinstance(sc_data, dict) else sc_data
+                    st.text(f"  {sc.replace('_', ' '):<22} {prob:.0%}")
+
+        # Action buttons
+        st.markdown("---")
+        col_accept, col_deny, col_trash = st.columns(3)
+
+        with col_accept:
+            if st.button("Accept — Add to Queue", type="primary", key=f"accept_{idx}",
+                         use_container_width=True):
+                # Add to trade queue
+                queue_item = {
+                    'term': term,
+                    'market_ticker': s.get('market_ticker', ''),
+                    'market_title': s.get('market_title', ''),
+                    'side': side.lower(),
+                    'our_probability': our_prob,
+                    'market_price': market_price,
+                    'edge': edge,
+                    'confidence': conf_label,
+                    'added_at': datetime.utcnow().isoformat(),
+                }
+                # Avoid duplicates
+                existing_terms = {q['term'] for q in st.session_state.trade_queue}
+                if term not in existing_terms:
+                    st.session_state.trade_queue.append(queue_item)
+                st.session_state.suggestion_index += 1
+                st.rerun()
+
+        with col_deny:
+            if st.button("Deny — Skip", key=f"deny_{idx}",
+                         use_container_width=True):
+                st.session_state.suggestion_index += 1
+                st.rerun()
+
+        with col_trash:
+            if st.session_state.confirm_trash == term:
+                st.warning(f"Remove \"{term}\" from all suggestions?")
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("Yes, trash it", key=f"confirm_yes_{idx}",
+                                 type="primary", use_container_width=True):
+                        st.session_state.trashed_terms.add(term.lower())
+                        st.session_state.confirm_trash = None
+                        # Don't increment index since list shrinks
+                        st.rerun()
+                with c2:
+                    if st.button("Cancel", key=f"confirm_no_{idx}",
+                                 use_container_width=True):
+                        st.session_state.confirm_trash = None
+                        st.rerun()
+            else:
+                if st.button("Trash — Remove", key=f"trash_{idx}",
+                             use_container_width=True):
+                    st.session_state.confirm_trash = term
+                    st.rerun()
+
+        # Queue preview
+        if st.session_state.trade_queue:
+            st.divider()
+            st.subheader(f"Trade Queue ({len(st.session_state.trade_queue)})")
+            q_df = pd.DataFrame(st.session_state.trade_queue)
+            st.dataframe(
+                q_df[['term', 'side', 'our_probability', 'market_price', 'edge', 'confidence']],
+                column_config={
+                    'term': st.column_config.TextColumn("Term", width="large"),
+                    'side': st.column_config.TextColumn("Side"),
+                    'our_probability': st.column_config.NumberColumn("Our Prob", format="%.1%%"),
+                    'market_price': st.column_config.NumberColumn("Market", format="%.1%%"),
+                    'edge': st.column_config.NumberColumn("Edge", format="%+.1%%"),
+                    'confidence': st.column_config.TextColumn("Confidence"),
+                },
+                width="stretch",
+                hide_index=True,
+            )
+            st.caption("Go to the Trading tab to review and execute queued trades.")
+
+    else:
+        st.info("No trade suggestions available. Sync markets and generate predictions first.")
+
+    # Trashed terms info
+    if st.session_state.trashed_terms:
+        with st.expander(f"Trashed terms ({len(st.session_state.trashed_terms)})"):
+            st.caption("These terms are hidden from suggestions this session.")
+            for t in sorted(st.session_state.trashed_terms):
+                st.text(f"  {t}")
+            if st.button("Restore all trashed terms"):
+                st.session_state.trashed_terms = set()
+                st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MARKETS TAB — Simplified
+# ═══════════════════════════════════════════════════════════════════
 with tab_markets:
     st.header("Kalshi Trump Mentions Markets")
 
     markets = api_get("/markets") or []
 
     if markets:
-        # Summary metrics
         active = [m for m in markets if m.get('status') in ('active', 'open')]
+
+        # Summary row
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Markets", len(markets))
-        col2.metric("Active Markets", len(active))
-        col3.metric("Total Volume", sum(m.get('volume', 0) or 0 for m in markets))
+        col2.metric("Active", len(active))
+        col3.metric("Volume", f"{sum(m.get('volume', 0) or 0 for m in markets):,}")
         col4.metric("Unique Terms", len(set(t for m in markets for t in m.get('terms', []))))
 
         # Active markets table
         if active:
-            st.subheader("Active Markets")
             df = pd.DataFrame(active)
             df = df[['ticker', 'title', 'yes_price', 'no_price', 'volume', 'close_time', 'terms']]
             df['terms'] = df['terms'].apply(lambda x: ', '.join(x) if x else '')
 
-            # Color code by price
             st.dataframe(
                 df,
                 column_config={
@@ -245,76 +530,68 @@ with tab_markets:
                 hide_index=True,
             )
 
-        # Price distribution chart
-        if active:
-            prices = [m['yes_price'] for m in active if m.get('yes_price')]
-            if prices:
-                fig = px.histogram(x=prices, nbins=20,
-                                   title="Yes Price Distribution (Active Markets)",
-                                   labels={'x': 'Yes Price', 'y': 'Count'})
+        # Details at the bottom
+        with st.expander("Price Distribution"):
+            if active:
+                prices = [m['yes_price'] for m in active if m.get('yes_price')]
+                if prices:
+                    fig = px.histogram(x=prices, nbins=20,
+                                       title="Yes Price Distribution",
+                                       labels={'x': 'Yes Price', 'y': 'Count'})
+                    st.plotly_chart(fig, width="stretch")
+
+        with st.expander("Weekly Term Payouts"):
+            weekly_data = api_get("/markets/weekly-payouts", {'weeks': 12}) or []
+            if weekly_data:
+                weeks_df = pd.DataFrame([
+                    {
+                        'Week': w['week'],
+                        'Said (Yes)': w['yes_count'],
+                        'Not Said (No)': w['no_count'],
+                    }
+                    for w in weekly_data
+                ]).sort_values('Week')
+
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=weeks_df['Week'], y=weeks_df['Said (Yes)'],
+                    name='Said (Yes)', marker_color='#2ecc71',
+                ))
+                fig.add_trace(go.Bar(
+                    x=weeks_df['Week'], y=weeks_df['Not Said (No)'],
+                    name='Not Said (No)', marker_color='#e74c3c',
+                ))
+                fig.update_layout(barmode='stack', height=400,
+                                  xaxis_title='Week', yaxis_title='Markets')
                 st.plotly_chart(fig, width="stretch")
-        # Weekly payouts chart
-        st.subheader("Weekly Term Payouts")
-        weekly_data = api_get("/markets/weekly-payouts", {'weeks': 12}) or []
-        if weekly_data:
-            # Stacked bar chart: yes vs no per week
-            weeks_df = pd.DataFrame([
-                {
-                    'Week': w['week'],
-                    'Said (Yes)': w['yes_count'],
-                    'Not Said (No)': w['no_count'],
-                }
-                for w in weekly_data
-            ])
-            weeks_df = weeks_df.sort_values('Week')
 
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=weeks_df['Week'], y=weeks_df['Said (Yes)'],
-                name='Said (Yes)', marker_color='#2ecc71',
-            ))
-            fig.add_trace(go.Bar(
-                x=weeks_df['Week'], y=weeks_df['Not Said (No)'],
-                name='Not Said (No)', marker_color='#e74c3c',
-            ))
-            fig.update_layout(
-                barmode='stack',
-                title='Weekly Market Results',
-                xaxis_title='Week Starting',
-                yaxis_title='Number of Markets',
-                height=400,
-            )
-            st.plotly_chart(fig, width="stretch")
-
-            # Detailed breakdown per week
-            for w in weekly_data:
-                yes_terms = ', '.join(w.get('yes_terms', [])[:10]) or 'None'
-                no_terms = ', '.join(w.get('no_terms', [])[:10]) or 'None'
-                with st.expander(
-                    f"Week of {w['week']} — "
-                    f"{w['yes_count']} Yes, {w['no_count']} No"
-                ):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**Said (Yes):**")
-                        for m in w.get('yes_markets', []):
-                            terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
-                            st.text(f"  {terms_str}")
-                    with col2:
-                        st.markdown("**Not Said (No):**")
-                        for m in w.get('no_markets', []):
-                            terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
-                            st.text(f"  {terms_str}")
-        else:
-            st.info("No settled markets yet — payouts will appear after markets close.")
+                for w in weekly_data:
+                    with st.expander(
+                        f"Week of {w['week']} — {w['yes_count']} Yes, {w['no_count']} No"
+                    ):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.markdown("**Said (Yes):**")
+                            for m in w.get('yes_markets', []):
+                                terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
+                                st.text(f"  {terms_str}")
+                        with col2:
+                            st.markdown("**Not Said (No):**")
+                            for m in w.get('no_markets', []):
+                                terms_str = ', '.join(m['terms']) if m['terms'] else m['title']
+                                st.text(f"  {terms_str}")
+            else:
+                st.info("No settled markets yet.")
 
     else:
         st.info("No markets loaded yet. Click 'Sync Markets' in the sidebar.")
 
 
-# --- Terms Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# TERMS TAB
+# ═══════════════════════════════════════════════════════════════════
 with tab_terms:
-    st.header("Terms Master Database")
+    st.header("Terms Database")
 
     terms = api_get("/terms") or []
 
@@ -325,7 +602,6 @@ with tab_terms:
         col2.metric("Compound Terms", compound)
         col3.metric("Total Occurrences", sum(t.get('total_occurrences', 0) for t in terms))
 
-        # Terms table
         df = pd.DataFrame(terms)
         df = df.sort_values('total_occurrences', ascending=False)
         st.dataframe(
@@ -343,23 +619,17 @@ with tab_terms:
             hide_index=True,
         )
 
-        # Top terms chart
-        top_terms = df.head(20)
-        if not top_terms.empty:
-            fig = px.bar(
-                top_terms, x='term', y='total_occurrences',
-                color='trend_score',
-                color_continuous_scale='RdYlGn',
-                title="Top 20 Terms by Occurrence",
-            )
-            fig.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig, width="stretch")
+        with st.expander("Top 20 Terms Chart"):
+            top_terms = df.head(20)
+            if not top_terms.empty:
+                fig = px.bar(top_terms, x='term', y='total_occurrences',
+                             color='trend_score', color_continuous_scale='RdYlGn',
+                             title="Top 20 Terms by Occurrence")
+                fig.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig, width="stretch")
 
-        # Term detail view
         st.subheader("Term Detail")
-        selected_term = st.selectbox(
-            "Select a term", [t['term'] for t in terms]
-        )
+        selected_term = st.selectbox("Select a term", [t['term'] for t in terms])
         if selected_term:
             term_data = next((t for t in terms if t['term'] == selected_term), None)
             if term_data:
@@ -375,159 +645,9 @@ with tab_terms:
         st.info("No terms loaded. Run market sync first.")
 
 
-# --- Final Predictions Tab ---
-with tab_final:
-    st.header("Final Term Predictions")
-    st.caption("Combined probability for each term in upcoming Kalshi markets, "
-               "blending TrumpGPT Monte Carlo, historical speech frequency, and past market outcomes.")
-
-    final_preds = api_get("/predictions/final") or []
-
-    if final_preds:
-        # Summary metrics
-        high_edge = [p for p in final_preds if abs(p.get('edge', 0)) >= 0.10]
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Active Terms", len(final_preds))
-        col2.metric("High Edge (>10%)", len(high_edge))
-        avg_prob = sum(p['final_probability'] for p in final_preds) / len(final_preds)
-        col3.metric("Avg Probability", f"{avg_prob:.1%}")
-        buy_signals = [p for p in final_preds if p['edge'] > 0.05]
-        col4.metric("Buy Signals", len(buy_signals))
-
-        # Main predictions table
-        fp_df = pd.DataFrame(final_preds)
-        fp_df['edge_pct'] = fp_df['edge'].apply(lambda x: f"{x:+.1%}")
-        fp_df['final_pct'] = fp_df['final_probability'].apply(lambda x: f"{x:.1%}")
-        fp_df['market_pct'] = fp_df['market_yes_price'].apply(
-            lambda x: f"{x:.1%}" if x else "—"
-        )
-        fp_df['hist_record'] = fp_df['historical_market_record'].apply(
-            lambda x: f"{x['yes']}W-{x['no']}L" if x.get('yes', 0) + x.get('no', 0) > 0 else "—"
-        )
-
-        st.dataframe(
-            fp_df[['term', 'final_pct', 'market_pct', 'edge_pct', 'hist_record',
-                   'speeches_with_term', 'close_time']],
-            column_config={
-                'term': st.column_config.TextColumn("Term", width="large"),
-                'final_pct': st.column_config.TextColumn("Our Prediction"),
-                'market_pct': st.column_config.TextColumn("Market Price"),
-                'edge_pct': st.column_config.TextColumn("Edge"),
-                'hist_record': st.column_config.TextColumn("Past Record"),
-                'speeches_with_term': st.column_config.NumberColumn("Speeches"),
-                'close_time': st.column_config.TextColumn("Closes"),
-            },
-            width="stretch",
-            hide_index=True,
-        )
-
-        # Edge scatter chart
-        if len(final_preds) > 1:
-            fig = go.Figure()
-            for p in final_preds:
-                color = '#2ecc71' if p['edge'] > 0 else '#e74c3c'
-                fig.add_trace(go.Scatter(
-                    x=[p['market_yes_price']],
-                    y=[p['final_probability']],
-                    mode='markers+text',
-                    text=[p['term']],
-                    textposition='top center',
-                    marker=dict(size=max(8, abs(p['edge']) * 100), color=color, opacity=0.7),
-                    name=p['term'],
-                    showlegend=False,
-                ))
-            # Diagonal line (no edge)
-            fig.add_trace(go.Scatter(
-                x=[0, 1], y=[0, 1], mode='lines',
-                line=dict(dash='dash', color='gray'),
-                name='No Edge', showlegend=True,
-            ))
-            fig.update_layout(
-                title='Our Prediction vs Market Price (above line = BUY YES, below = BUY NO)',
-                xaxis_title='Market Yes Price',
-                yaxis_title='TrumpGPT Prediction',
-                height=500,
-            )
-            st.plotly_chart(fig, width="stretch")
-
-        # Detailed per-term breakdown
-        st.subheader("Detailed Breakdown")
-        for p in final_preds[:20]:
-            edge_icon = "+" if p['edge'] > 0 else ""
-            with st.expander(
-                f"{p['term']} — {p['final_probability']:.0%} "
-                f"(edge: {edge_icon}{p['edge']:.1%})"
-            ):
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Final Probability", f"{p['final_probability']:.1%}")
-                col2.metric("Market Price", f"{p.get('market_yes_price', 0):.1%}")
-                col3.metric("Ensemble", f"{p['ensemble_probability']:.1%}" if p.get('ensemble_probability') else "—")
-                col4.metric("Colab MC", f"{p['colab_probability']:.1%}" if p.get('colab_probability') else "—")
-
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Speech Frequency", f"{p['historical_speech_rate']:.1%}")
-                hist = p.get('historical_market_record', {})
-                col2.metric("Past Markets", f"{hist.get('yes', 0)}W / {hist.get('no', 0)}L")
-                col3.metric("Recency Weight", f"x{p.get('recency_weight', 1.0):.2f}")
-
-                # Scenario breakdown if available
-                by_scenario = p.get('by_scenario', {})
-                if by_scenario:
-                    st.markdown("**Per-scenario probability:**")
-                    sc_cols = st.columns(len(by_scenario))
-                    for i, (sc, sc_data) in enumerate(by_scenario.items()):
-                        with sc_cols[i]:
-                            prob = sc_data.get('probability', 0) if isinstance(sc_data, dict) else sc_data
-                            st.metric(sc.replace('_', ' ').title(), f"{prob:.0%}")
-    else:
-        st.info("No active markets with predictions. Sync markets and generate predictions first.")
-
-
-# --- Predictions Tab ---
-with tab_predictions:
-    st.header("Term Predictions")
-
-    predictions = api_get("/predictions") or []
-
-    if predictions:
-        # Prediction summary
-        high_prob = [p for p in predictions if p.get('probability', 0) > 0.7]
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Predictions", len(predictions))
-        col2.metric("High Probability (>70%)", len(high_prob))
-        avg_conf = sum(p.get('confidence', 0) for p in predictions) / len(predictions)
-        col3.metric("Avg Confidence", f"{avg_conf:.1%}")
-
-        # Predictions table
-        df = pd.DataFrame(predictions)
-        df = df.sort_values('probability', ascending=False)
-        st.dataframe(
-            df[['term', 'probability', 'confidence', 'model_name']],
-            column_config={
-                'term': st.column_config.TextColumn("Term", width="large"),
-                'probability': st.column_config.ProgressColumn("Probability", min_value=0, max_value=1),
-                'confidence': st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1),
-                'model_name': st.column_config.TextColumn("Model"),
-            },
-            width="stretch",
-            hide_index=True,
-        )
-
-        # Prediction heatmap
-        if len(predictions) > 1:
-            fig = px.scatter(
-                df, x='probability', y='confidence',
-                text='term', size_max=15,
-                title="Predictions: Probability vs Confidence",
-                labels={'probability': 'Predicted Probability', 'confidence': 'Model Confidence'},
-            )
-            fig.update_traces(textposition='top center')
-            st.plotly_chart(fig, width="stretch")
-    else:
-        st.info("No predictions generated yet. Click 'Generate Predictions'.")
-
-
-# --- Trading Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# TRADING TAB — Queue + Execution
+# ═══════════════════════════════════════════════════════════════════
 with tab_trading:
     st.header("Trading Dashboard")
 
@@ -542,34 +662,72 @@ with tab_trading:
 
     st.divider()
 
-    # Trading suggestions
-    st.subheader("Trading Suggestions")
+    # Trade queue from Home tab
+    if st.session_state.trade_queue:
+        st.subheader(f"Queued Trades ({len(st.session_state.trade_queue)})")
+        st.caption("Trades accepted from the Home tab. Review and execute below.")
+
+        for i, trade in enumerate(st.session_state.trade_queue):
+            with st.expander(
+                f"{'BUY' if trade['side'] == 'yes' else 'SELL'} {trade['side'].upper()} — "
+                f"{trade['term']} | Edge: {trade['edge']:+.1%}",
+                expanded=True,
+            ):
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Our Probability", f"{trade['our_probability']:.1%}")
+                col2.metric("Market Price", f"{trade['market_price']:.1%}")
+                col3.metric("Edge", f"{trade['edge']:+.1%}")
+                col4.metric("Confidence", trade['confidence'])
+
+                st.text(f"Market: {trade['market_ticker']}")
+
+                col_exec, col_remove = st.columns(2)
+                with col_exec:
+                    if st.button("Execute Trade", key=f"exec_{i}", type="primary",
+                                 use_container_width=True):
+                        result = api_post("/trading/execute", {
+                            'market_ticker': trade['market_ticker'],
+                            'side': trade['side'],
+                            'quantity': 1,
+                        })
+                        if result:
+                            st.success(f"Trade executed: {result}")
+                            st.session_state.trade_queue.pop(i)
+                            st.rerun()
+                with col_remove:
+                    if st.button("Remove from Queue", key=f"remove_{i}",
+                                 use_container_width=True):
+                        st.session_state.trade_queue.pop(i)
+                        st.rerun()
+
+        if st.button("Clear All Queued Trades"):
+            st.session_state.trade_queue = []
+            st.rerun()
+
+        st.divider()
+
+    # API-generated suggestions (existing)
+    st.subheader("Auto-Generated Suggestions")
     suggestions = api_get("/trading/suggestions") or []
 
     if suggestions:
         for i, s in enumerate(suggestions):
             with st.expander(
-                f"{'🟢' if s['edge'] > 0 else '🔴'} {s['term']} | "
-                f"Edge: {s['edge']:+.1%} | "
-                f"Side: {s['suggested_side'].upper()} | "
-                f"Qty: {s.get('suggested_quantity', 0)}",
-                expanded=i < 3
+                f"{'BUY YES' if s['edge'] > 0 else 'BUY NO'} {s['term']} | "
+                f"Edge: {s['edge']:+.1%} | Qty: {s.get('suggested_quantity', 0)}",
+                expanded=i < 3,
             ):
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Our Probability", f"{s['our_probability']:.1%}")
                 col2.metric("Market Price", f"{s['market_yes_price']:.1%}")
                 col3.metric("Edge", f"{s['edge']:+.1%}")
-                col4.metric("Expected Value", f"${s.get('expected_value', 0):.2f}")
+                col4.metric("Kelly Fraction", f"{s.get('kelly_fraction', 0):.3f}")
 
                 st.text(f"Market: {s['market_ticker']}")
-                st.text(f"Confidence: {s.get('confidence', 0):.1%}")
-                st.text(f"Kelly Fraction: {s.get('kelly_fraction', 0):.3f}")
-
                 if s.get('reasoning'):
                     st.info(f"Reasoning: {s['reasoning']}")
 
-                # Trade button
-                if st.button(f"Execute Trade", key=f"trade_{i}"):
+                if st.button("Execute Trade", key=f"trade_{i}"):
                     result = api_post("/trading/execute", {
                         'market_ticker': s['market_ticker'],
                         'side': s['suggested_side'],
@@ -578,7 +736,7 @@ with tab_trading:
                     if result:
                         st.success(f"Trade placed: {result}")
     else:
-        st.info("No trading opportunities found. Adjust min edge threshold or wait for new data.")
+        st.info("No auto-generated suggestions. Adjust min edge or wait for new data.")
 
     # Current positions
     positions = portfolio.get('positions', [])
@@ -587,20 +745,20 @@ with tab_trading:
         st.dataframe(pd.DataFrame(positions), width="stretch", hide_index=True)
 
 
-# --- Events Calendar Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# EVENTS TAB
+# ═══════════════════════════════════════════════════════════════════
 with tab_events:
     st.header("Trump Events Calendar")
 
     events = api_get("/events", {'days': 60}) or []
 
     if events:
-        # Live events alert
         live = [e for e in events if e.get('is_live')]
         if live:
             for e in live:
-                st.error(f"🔴 LIVE NOW: {e['title']}")
+                st.error(f"LIVE NOW: {e['title']}")
 
-        # Calendar view
         confirmed = [e for e in events if e.get('is_confirmed')]
         unconfirmed = [e for e in events if not e.get('is_confirmed')]
 
@@ -609,7 +767,6 @@ with tab_events:
         col2.metric("Confirmed", len(confirmed))
         col3.metric("Unconfirmed", len(unconfirmed))
 
-        # Timeline chart
         if events:
             event_df = pd.DataFrame(events)
             event_df['start_time'] = pd.to_datetime(event_df['start_time'])
@@ -617,22 +774,17 @@ with tab_events:
 
             if not event_df.empty:
                 fig = px.timeline(
-                    event_df,
-                    x_start='start_time',
-                    x_end='start_time',  # single point
-                    y='event_type',
-                    color='is_confirmed',
+                    event_df, x_start='start_time', x_end='start_time',
+                    y='event_type', color='is_confirmed',
                     hover_data=['title', 'location'],
                     title="Upcoming Events Timeline",
                 )
                 st.plotly_chart(fig, width="stretch")
 
-        # Events list
-        st.subheader("Event Details")
         for e in events:
-            status = "🟢 Confirmed" if e.get('is_confirmed') else "🟡 Unconfirmed"
-            live_badge = " 🔴 LIVE" if e.get('is_live') else ""
-            with st.expander(f"{status}{live_badge} {e['title']} - {e.get('start_time', 'TBD')}"):
+            status_icon = "Confirmed" if e.get('is_confirmed') else "Unconfirmed"
+            live_badge = " LIVE" if e.get('is_live') else ""
+            with st.expander(f"{status_icon}{live_badge} {e['title']} - {e.get('start_time', 'TBD')}"):
                 st.text(f"Type: {e.get('event_type', 'unknown')}")
                 st.text(f"Location: {e.get('location', 'TBD')}")
                 st.text(f"Start: {e.get('start_time', 'TBD')}")
@@ -644,7 +796,9 @@ with tab_events:
         st.info("No upcoming events found. Click 'Update Events'.")
 
 
-# --- Live Monitor Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# LIVE MONITOR TAB
+# ═══════════════════════════════════════════════════════════════════
 with tab_live:
     st.header("Live Speech Monitor")
 
@@ -670,60 +824,41 @@ with tab_live:
             st.text(f"Source: {event.get('source', '?')}")
             st.text(f"Started: {event.get('started_at', '?')}")
 
-    # Live detected terms
     detected = live_status.get('detected_terms', {})
     if detected:
         st.subheader("Detected Terms (Live)")
         total = live_status.get('total_detections', 0)
         st.metric("Total Detections", total)
 
-        # Bar chart of detected terms
         det_df = pd.DataFrame([
             {'term': k, 'count': v} for k, v in detected.items()
         ]).sort_values('count', ascending=False)
 
-        fig = px.bar(det_df, x='term', y='count',
-                     title="Live Term Detections",
+        fig = px.bar(det_df, x='term', y='count', title="Live Term Detections",
                      color='count', color_continuous_scale='Reds')
         fig.update_layout(xaxis_tickangle=-45)
         st.plotly_chart(fig, width="stretch")
 
-        # Table
         st.dataframe(det_df, width="stretch", hide_index=True)
     else:
         st.info("No terms detected yet. Start monitoring and wait for a live speech.")
 
-    # Real-time feed placeholder
     st.subheader("Live Feed")
-    st.info("When Trump speaks live, detected terms will appear here in real-time. "
-            "Dashboard auto-refreshes to show latest detections.")
+    st.info("When Trump speaks live, detected terms will appear here in real-time.")
 
 
-# --- TrumpGPT Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# TRUMPGPT TAB — Model status, no ASCII art (moved to Home)
+# ═══════════════════════════════════════════════════════════════════
 with tab_ml:
-    # ASCII art header
-    trump_art = ""
-    try:
-        import pathlib
-        art_path = pathlib.Path(__file__).parent.parent.parent / 'trump.txt'
-        if art_path.exists():
-            trump_art = art_path.read_text()
-    except Exception:
-        pass
-
-    if trump_art:
-        st.code(trump_art, language=None)
-
     st.header("TrumpGPT")
     st.caption("LoRA fine-tuned Llama-3.1-8B + Multi-Scenario Monte Carlo Simulation Engine")
 
-    # Model status
     model_status = api_get("/model/status") or {}
 
     if model_status.get('model_name'):
-        # Key metrics
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Model", model_status.get('base_model', '—').split('/')[-1])
+        col1.metric("Model", model_status.get('base_model', '').split('/')[-1])
         col2.metric("Terms Tracked", model_status.get('total_terms_tracked', 0))
         col3.metric("Colab Predictions", model_status.get('colab_predictions_count', 0))
         col4.metric("Discovered Phrases", model_status.get('discovered_phrases_count', 0))
@@ -732,9 +867,8 @@ with tab_ml:
         if last_run:
             st.success(f"Last TrumpGPT run: {last_run}")
         else:
-            st.warning("TrumpGPT has not run yet. Run the Colab notebooks to generate predictions.")
+            st.warning("TrumpGPT has not run yet. Run the Colab notebooks.")
 
-        # New iteration info
         new_info = model_status.get('new_iteration_info', {})
         if new_info:
             if new_info.get('would_retrain'):
@@ -789,7 +923,7 @@ with tab_ml:
                 for scenario, words in hot_words.items():
                     st.markdown(f"- **{scenario.replace('_', ' ').title()}**: {', '.join(words)}")
 
-        # Top predictions from TrumpGPT
+        # Top predictions
         top_preds = model_status.get('top_predictions', [])
         if top_preds:
             st.subheader("Top TrumpGPT Predictions")
@@ -807,14 +941,14 @@ with tab_ml:
 
     st.divider()
 
-    # Local ML model training (existing functionality)
+    # Local ML models
     st.subheader("Local ML Models")
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Train Local Models", type="primary", width="stretch"):
             result = api_post("/ml/train")
             if result:
-                st.info("Training started... This may take a few minutes.")
+                st.success("Training started.")
 
     with col2:
         if st.button("Get ML Predictions", width="stretch"):
@@ -864,7 +998,9 @@ with tab_ml:
         )
 
 
-# --- Data Stats Tab ---
+# ═══════════════════════════════════════════════════════════════════
+# DATA STATS TAB
+# ═══════════════════════════════════════════════════════════════════
 with tab_data:
     st.header("Data Collection Statistics")
 
@@ -875,7 +1011,6 @@ with tab_data:
     col2.metric("With Transcripts", speech_stats.get('with_transcripts', 0))
     col3.metric("Processed", speech_stats.get('processed', 0))
 
-    # Term report
     st.subheader("Term Frequency Report")
     report = api_get("/terms/report") or []
     if report:
@@ -885,7 +1020,6 @@ with tab_data:
                     for speech in item['recent_speeches']:
                         st.text(f"  [{speech.get('date', '?')}] {speech.get('speech_title', '?')} ({speech['count']}x)")
 
-    # System health
     st.subheader("System Health")
     health = api_get("/system/health") or {}
     if health.get('status') == 'ok':

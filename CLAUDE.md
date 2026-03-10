@@ -279,3 +279,65 @@ All endpoints prefixed with `/api/`:
 - Tests use `unittest` — run with `python -m pytest tests/`
 - Async background tasks in the API use FastAPI's `BackgroundTasks`
 - Scheduler jobs are synchronous functions called by APScheduler's BackgroundScheduler
+
+## Known Issue: TrumpGPT Probability Compression (~40% for everything)
+
+### Root Cause
+
+Monte Carlo simulates ~430-word speech snippets, but real Trump speeches are 5,000–10,000+ words. A term that appears in 90%+ of full rallies only shows up in ~40% of short snippets. This compresses all probabilities toward 0.40. Multiple averaging stages (ensemble → final blend) then pull further toward 0.50.
+
+### Contributing Factors
+
+1. **Short snippet length**: `MAX_NEW_TOKENS=512` ≈ 430 words. Terms need more text to appear.
+2. **Temporal & trend signals anchor at 0.50**: When data is sparse, `_temporal_score()` and `_trend_score()` return 0.5, diluting good signals (25% combined weight).
+3. **Arithmetic averaging compresses extremes**: If Monte Carlo says 0.40 and historical says 0.90, the blend gives ~0.65 instead of recognizing the MC signal is suppressed.
+4. **`speech_frequency` capped**: `min(1.0, hist_rate * 3)` in the final blend may underweight strong historical signals.
+
+### Proposed Solutions (prioritized)
+
+#### Tier 1 — Implement first (highest ROI, no Colab re-run needed)
+
+**Fix A: Poisson length normalization** (the main fix)
+The `avg_mentions_per_speech` field already exists in `predictions_latest.json`. Use it to compute the probability for a full-length speech:
+
+```python
+import math
+TARGET_WORDS = 7000  # typical rally
+snippet_words = 430  # from simulation avg
+lambda_per_word = avg_mentions_per_speech / snippet_words
+corrected_probability = 1.0 - math.exp(-lambda_per_word * TARGET_WORDS)
+```
+
+Apply in `colab_integration.py:_load_from_file()` as a post-processing step. A term averaging 0.15 mentions per 430-word snippet → λ=0.000349/word → P(rally)=91.3%. This directly fixes the core bug.
+
+**Fix B: Credibility-weighted historical market rate**
+Scale `historical_market_rate` weight by sample size: `weight = 0.20 + 0.30 * min(1.0, past_total / 10)`. With 10+ past markets it gets 0.50 weight (ground truth); with 0 past markets it stays at 0.20.
+
+#### Tier 2 — Moderate impact, straightforward
+
+**Fix C: Gate temporal/trend on data sufficiency**
+In `predictor.py`, if a term has <20 occurrences, set `temporal` and `trend` to `None` so their weight redistributes to frequency and Colab (the better signals).
+
+**Fix D: Platt scaling calibration**
+Fit `sigmoid(a * raw_pred + b)` on (predicted, actual_outcome) pairs from settled markets. Two parameters, works with 15-20 data points. Stretches the compressed distribution toward true extremes.
+
+#### Tier 3 — Longer-term improvements
+
+**Fix E: Increase MAX_NEW_TOKENS to 2048, reduce to 500 simulations**
+Generates ~1,500 word speeches (3.5x longer), same GPU time. More direct fix but requires Colab re-run. Test coherence at this length first.
+
+**Fix F: Market price as Bayesian prior**
+Instead of averaging, use market price as prior and model prediction as update: `final = market_price + confidence * (our_pred - market_price)`. Market represents crowd wisdom; our model represents our edge.
+
+**Fix G: Per-scenario length normalization**
+Apply Poisson correction per-scenario using actual word counts from each simulated speech type (`chopper_talk` is shorter than `rally`).
+
+### Anti-patterns (do NOT do these)
+
+- **Raw ratio scaling** (multiply by `target/snippet` directly) — gives probabilities >100%.
+- **Geometric mean** — doesn't fix compression, fails when any signal is 0.
+- **Asymmetric thresholds** — fix the probabilities, not the decision boundary.
+
+### Decision
+
+Start with Fix A (Poisson normalization) + Fix B (credibility-weighted markets). These require ~20 lines of code total, no Colab re-run, and directly address the root cause + calibration. Then evaluate if Fixes C/D are still needed after seeing the corrected numbers.

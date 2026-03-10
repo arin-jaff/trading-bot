@@ -347,6 +347,7 @@ class DriveSync:
             'trump_speeches_metadata.json',
             'term_context.json',
             'event_speech_pairs.json',
+            'scenario_context.json',
         ]
 
         for filename in files_to_upload:

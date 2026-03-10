@@ -189,6 +189,107 @@ class DataExporter:
                 'output_path': output_path,
             }
 
+    def export_scenario_context(self, output_name: str = 'scenario_context') -> dict:
+        """Export scenario context for Colab Monte Carlo simulations.
+
+        Builds a JSON file with:
+        - Upcoming event metadata (type, location, date)
+        - Scenario weights (how to split 1000 sims across rally/press/interview/etc)
+        - Trending terms and raw news topics for prompt seeding
+        """
+        from ..database.models import TrumpEvent
+
+        now = datetime.utcnow()
+
+        with get_session() as session:
+            # Get next upcoming event
+            upcoming = session.query(TrumpEvent).filter(
+                TrumpEvent.event_time > now,
+            ).order_by(TrumpEvent.event_time).first()
+
+            # Get trending terms (top 15 by trend score)
+            trending = session.query(Term).filter(
+                Term.trend_score.isnot(None),
+            ).order_by(Term.trend_score.desc()).limit(15).all()
+
+            # Get recently mentioned terms (last 30 days)
+            from sqlalchemy import func
+            thirty_days_ago = now - __import__('datetime').timedelta(days=30)
+            recent_mentions = session.query(
+                Term.normalized_term,
+                func.sum(TermOccurrence.count).label('recent_count'),
+            ).join(TermOccurrence).join(Speech).filter(
+                Speech.date >= thirty_days_ago,
+            ).group_by(Term.normalized_term).order_by(
+                func.sum(TermOccurrence.count).desc()
+            ).limit(20).all()
+
+            # Get recent speech titles as proxy for news topics
+            recent_speeches = session.query(Speech).filter(
+                Speech.date >= thirty_days_ago,
+                Speech.title.isnot(None),
+            ).order_by(Speech.date.desc()).limit(20).all()
+
+        # Derive scenario weights from event type
+        scenario_weights = self._derive_scenario_weights(upcoming)
+
+        context = {
+            'generated_at': now.isoformat(),
+            'upcoming_event': {
+                'type': upcoming.event_type if upcoming else 'rally',
+                'location': upcoming.location if upcoming else 'unknown',
+                'date': upcoming.event_time.isoformat() if upcoming and upcoming.event_time else None,
+                'title': upcoming.title if upcoming else None,
+                'topics': upcoming.topics if upcoming and hasattr(upcoming, 'topics') else [],
+            },
+            'scenario_weights': scenario_weights,
+            'trending_terms': [t.normalized_term for t in trending],
+            'recently_mentioned': [
+                {'term': row.normalized_term, 'count_30d': row.recent_count}
+                for row in recent_mentions
+            ],
+            'raw_news_topics': [s.title for s in recent_speeches if s.title],
+        }
+
+        output_path = os.path.join(EXPORT_DIR, f'{output_name}.json')
+        with open(output_path, 'w') as f:
+            json.dump(context, f, indent=2)
+
+        logger.info(
+            f"Exported scenario context: {len(context['trending_terms'])} trending terms, "
+            f"weights={scenario_weights}"
+        )
+        return {
+            'output_path': output_path,
+            'scenario_weights': scenario_weights,
+            'trending_terms_count': len(context['trending_terms']),
+        }
+
+    @staticmethod
+    def _derive_scenario_weights(event) -> dict:
+        """Derive simulation weights per scenario type from the upcoming event."""
+        base = {
+            'rally': 0.40,
+            'press_conference': 0.20,
+            'chopper_talk': 0.15,
+            'fox_interview': 0.15,
+            'social_media': 0.10,
+        }
+        if not event:
+            return base
+
+        etype = (getattr(event, 'event_type', '') or '').lower()
+        if any(k in etype for k in ('rally', 'maga', 'campaign')):
+            return {'rally': 0.60, 'press_conference': 0.15,
+                    'chopper_talk': 0.10, 'fox_interview': 0.10, 'social_media': 0.05}
+        if any(k in etype for k in ('press', 'briefing', 'conference')):
+            return {'rally': 0.20, 'press_conference': 0.45,
+                    'chopper_talk': 0.20, 'fox_interview': 0.10, 'social_media': 0.05}
+        if 'interview' in etype:
+            return {'rally': 0.20, 'press_conference': 0.10,
+                    'chopper_talk': 0.15, 'fox_interview': 0.45, 'social_media': 0.10}
+        return base
+
     def export_event_history(self, output_name: str = 'event_speech_pairs') -> dict:
         """Export event-speech pairs for event-conditioned generation.
 

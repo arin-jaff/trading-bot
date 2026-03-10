@@ -331,6 +331,7 @@ class ColabPipeline:
             ('corpus', self.exporter.export_training_corpus),
             ('term_context', self.exporter.export_term_context),
             ('event_history', self.exporter.export_event_history),
+            ('scenario_context', self.exporter.export_scenario_context),
         ]:
             try:
                 results[name] = fn()

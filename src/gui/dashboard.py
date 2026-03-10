@@ -74,30 +74,66 @@ with st.sidebar:
     if st.button("Full Refresh", type="primary", width="stretch"):
         result = api_post("/system/full-refresh")
         if result:
-            st.info("Full refresh started...")
+            st.success("Full refresh started. Check status below.")
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Sync Markets", width="stretch"):
             result = api_post("/markets/sync")
             if result:
-                st.info("Syncing...")
+                st.success("Market sync started.")
 
         if st.button("Scrape Speeches", width="stretch"):
             result = api_post("/speeches/scrape")
             if result:
-                st.info("Scraping...")
+                st.success("Speech scraping started.")
 
     with col2:
         if st.button("Update Events", width="stretch"):
             result = api_post("/events/update")
             if result:
-                st.info("Updating...")
+                st.success("Event update started.")
 
         if st.button("Generate Predictions", width="stretch"):
             result = api_post("/predictions/generate")
             if result:
-                st.info("Generating...")
+                st.success("Prediction generation started.")
+
+    if st.button("Pull Predictions from Drive", width="stretch"):
+        with st.spinner("Downloading from Google Drive..."):
+            result = api_post("/drive/download-and-import")
+        if result:
+            st.success("Predictions downloaded and imported!")
+
+    # Job status display
+    jobs = api_get("/jobs/status") or {}
+    active_jobs = {k: v for k, v in jobs.items() if not v.get('done', True)}
+    done_jobs = {k: v for k, v in jobs.items() if v.get('done', True) and not v.get('error')}
+    error_jobs = {k: v for k, v in jobs.items() if v.get('error')}
+
+    if active_jobs:
+        st.markdown("---")
+        st.caption("Running:")
+        for name, status in active_jobs.items():
+            step = status.get('step', '')
+            progress = status.get('progress', 0)
+            total = status.get('total', 0)
+            label = name.replace('_', ' ').title()
+            if total > 0:
+                st.progress(progress / total, text=f"{label}: {step}")
+            else:
+                st.info(f"{label}: {step}")
+
+    if error_jobs:
+        for name, status in error_jobs.items():
+            st.error(f"{name.replace('_', ' ').title()}: {status['error'][:80]}")
+
+    if done_jobs:
+        recent_done = sorted(done_jobs.items(),
+                             key=lambda x: x[1].get('updated_at', ''), reverse=True)[:2]
+        for name, status in recent_done:
+            if status.get('step'):
+                st.caption(f"{status['step']}")
 
     st.divider()
 
@@ -165,9 +201,9 @@ if live_events:
         st.error(f"🔴 LIVE NOW: {event['title']} (started {event.get('start_time', 'unknown')})")
 
 # --- Tab Layout ---
-tab_markets, tab_terms, tab_predictions, tab_trading, tab_events, tab_live, tab_ml, tab_data = st.tabs([
-    "Markets", "Terms Database", "Predictions", "Trading",
-    "Events Calendar", "Live Monitor", "ML Models", "Data Stats"
+tab_markets, tab_terms, tab_final, tab_predictions, tab_trading, tab_events, tab_live, tab_ml, tab_data = st.tabs([
+    "Markets", "Terms Database", "Final Predictions", "Raw Predictions", "Trading",
+    "Events Calendar", "Live Monitor", "TrumpGPT", "Data Stats"
 ])
 
 
@@ -248,7 +284,7 @@ with tab_markets:
                 yaxis_title='Number of Markets',
                 height=400,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Detailed breakdown per week
             for w in weekly_data:
@@ -337,6 +373,114 @@ with tab_terms:
                     st.info("No usage history available yet.")
     else:
         st.info("No terms loaded. Run market sync first.")
+
+
+# --- Final Predictions Tab ---
+with tab_final:
+    st.header("Final Term Predictions")
+    st.caption("Combined probability for each term in upcoming Kalshi markets, "
+               "blending TrumpGPT Monte Carlo, historical speech frequency, and past market outcomes.")
+
+    final_preds = api_get("/predictions/final") or []
+
+    if final_preds:
+        # Summary metrics
+        high_edge = [p for p in final_preds if abs(p.get('edge', 0)) >= 0.10]
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Active Terms", len(final_preds))
+        col2.metric("High Edge (>10%)", len(high_edge))
+        avg_prob = sum(p['final_probability'] for p in final_preds) / len(final_preds)
+        col3.metric("Avg Probability", f"{avg_prob:.1%}")
+        buy_signals = [p for p in final_preds if p['edge'] > 0.05]
+        col4.metric("Buy Signals", len(buy_signals))
+
+        # Main predictions table
+        fp_df = pd.DataFrame(final_preds)
+        fp_df['edge_pct'] = fp_df['edge'].apply(lambda x: f"{x:+.1%}")
+        fp_df['final_pct'] = fp_df['final_probability'].apply(lambda x: f"{x:.1%}")
+        fp_df['market_pct'] = fp_df['market_yes_price'].apply(
+            lambda x: f"{x:.1%}" if x else "—"
+        )
+        fp_df['hist_record'] = fp_df['historical_market_record'].apply(
+            lambda x: f"{x['yes']}W-{x['no']}L" if x.get('yes', 0) + x.get('no', 0) > 0 else "—"
+        )
+
+        st.dataframe(
+            fp_df[['term', 'final_pct', 'market_pct', 'edge_pct', 'hist_record',
+                   'speeches_with_term', 'close_time']],
+            column_config={
+                'term': st.column_config.TextColumn("Term", width="large"),
+                'final_pct': st.column_config.TextColumn("Our Prediction"),
+                'market_pct': st.column_config.TextColumn("Market Price"),
+                'edge_pct': st.column_config.TextColumn("Edge"),
+                'hist_record': st.column_config.TextColumn("Past Record"),
+                'speeches_with_term': st.column_config.NumberColumn("Speeches"),
+                'close_time': st.column_config.TextColumn("Closes"),
+            },
+            width="stretch",
+            hide_index=True,
+        )
+
+        # Edge scatter chart
+        if len(final_preds) > 1:
+            fig = go.Figure()
+            for p in final_preds:
+                color = '#2ecc71' if p['edge'] > 0 else '#e74c3c'
+                fig.add_trace(go.Scatter(
+                    x=[p['market_yes_price']],
+                    y=[p['final_probability']],
+                    mode='markers+text',
+                    text=[p['term']],
+                    textposition='top center',
+                    marker=dict(size=max(8, abs(p['edge']) * 100), color=color, opacity=0.7),
+                    name=p['term'],
+                    showlegend=False,
+                ))
+            # Diagonal line (no edge)
+            fig.add_trace(go.Scatter(
+                x=[0, 1], y=[0, 1], mode='lines',
+                line=dict(dash='dash', color='gray'),
+                name='No Edge', showlegend=True,
+            ))
+            fig.update_layout(
+                title='Our Prediction vs Market Price (above line = BUY YES, below = BUY NO)',
+                xaxis_title='Market Yes Price',
+                yaxis_title='TrumpGPT Prediction',
+                height=500,
+            )
+            st.plotly_chart(fig, width="stretch")
+
+        # Detailed per-term breakdown
+        st.subheader("Detailed Breakdown")
+        for p in final_preds[:20]:
+            edge_icon = "+" if p['edge'] > 0 else ""
+            with st.expander(
+                f"{p['term']} — {p['final_probability']:.0%} "
+                f"(edge: {edge_icon}{p['edge']:.1%})"
+            ):
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Final Probability", f"{p['final_probability']:.1%}")
+                col2.metric("Market Price", f"{p.get('market_yes_price', 0):.1%}")
+                col3.metric("Ensemble", f"{p['ensemble_probability']:.1%}" if p.get('ensemble_probability') else "—")
+                col4.metric("Colab MC", f"{p['colab_probability']:.1%}" if p.get('colab_probability') else "—")
+
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Speech Frequency", f"{p['historical_speech_rate']:.1%}")
+                hist = p.get('historical_market_record', {})
+                col2.metric("Past Markets", f"{hist.get('yes', 0)}W / {hist.get('no', 0)}L")
+                col3.metric("Recency Weight", f"x{p.get('recency_weight', 1.0):.2f}")
+
+                # Scenario breakdown if available
+                by_scenario = p.get('by_scenario', {})
+                if by_scenario:
+                    st.markdown("**Per-scenario probability:**")
+                    sc_cols = st.columns(len(by_scenario))
+                    for i, (sc, sc_data) in enumerate(by_scenario.items()):
+                        with sc_cols[i]:
+                            prob = sc_data.get('probability', 0) if isinstance(sc_data, dict) else sc_data
+                            st.metric(sc.replace('_', ' ').title(), f"{prob:.0%}")
+    else:
+        st.info("No active markets with predictions. Sync markets and generate predictions first.")
 
 
 # --- Predictions Tab ---
@@ -555,13 +699,119 @@ with tab_live:
             "Dashboard auto-refreshes to show latest detections.")
 
 
-# --- ML Models Tab ---
+# --- TrumpGPT Tab ---
 with tab_ml:
-    st.header("ML Model Management")
+    # ASCII art header
+    trump_art = ""
+    try:
+        import pathlib
+        art_path = pathlib.Path(__file__).parent.parent.parent / 'trump.txt'
+        if art_path.exists():
+            trump_art = art_path.read_text()
+    except Exception:
+        pass
 
+    if trump_art:
+        st.code(trump_art, language=None)
+
+    st.header("TrumpGPT")
+    st.caption("LoRA fine-tuned Llama-3.1-8B + Multi-Scenario Monte Carlo Simulation Engine")
+
+    # Model status
+    model_status = api_get("/model/status") or {}
+
+    if model_status.get('model_name'):
+        # Key metrics
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Model", model_status.get('base_model', '—').split('/')[-1])
+        col2.metric("Terms Tracked", model_status.get('total_terms_tracked', 0))
+        col3.metric("Colab Predictions", model_status.get('colab_predictions_count', 0))
+        col4.metric("Discovered Phrases", model_status.get('discovered_phrases_count', 0))
+
+        last_run = model_status.get('last_run', '')
+        if last_run:
+            st.success(f"Last TrumpGPT run: {last_run}")
+        else:
+            st.warning("TrumpGPT has not run yet. Run the Colab notebooks to generate predictions.")
+
+        # New iteration info
+        new_info = model_status.get('new_iteration_info', {})
+        if new_info:
+            if new_info.get('would_retrain'):
+                st.info(f"Ready for retraining: {new_info['new_speeches_last_24h']} new speeches available.")
+            else:
+                st.caption(new_info.get('description', ''))
+
+        # Ensemble weights
+        st.subheader("Ensemble Signal Weights")
+        weights = model_status.get('ensemble_weights', {})
+        if weights:
+            w_df = pd.DataFrame([
+                {'Signal': k.replace('_', ' ').title(), 'Weight': v}
+                for k, v in weights.items()
+            ]).sort_values('Weight', ascending=True)
+            fig = px.bar(w_df, x='Weight', y='Signal', orientation='h',
+                         color='Weight', color_continuous_scale='Blues',
+                         title='How TrumpGPT Blends Prediction Signals')
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, width="stretch")
+
+        # Scenario weights
+        sc_weights = model_status.get('scenario_weights', {})
+        if sc_weights:
+            st.subheader("Monte Carlo Scenario Allocation")
+            sc_counts = model_status.get('scenario_counts', {})
+            sc_df = pd.DataFrame([
+                {
+                    'Scenario': k.replace('_', ' ').title(),
+                    'Weight': v,
+                    'Simulations': sc_counts.get(k, 0),
+                }
+                for k, v in sc_weights.items()
+            ])
+            fig = px.pie(sc_df, values='Weight', names='Scenario',
+                         title='Simulation Budget by Scenario Type',
+                         color_discrete_sequence=px.colors.qualitative.Set2)
+            st.plotly_chart(fig, width="stretch")
+
+        # Gemini enrichment
+        gemini = model_status.get('gemini_enrichment', {})
+        topics = gemini.get('enriched_topics', [])
+        hot_words = gemini.get('scenario_hot_words', {})
+        if topics or hot_words:
+            st.subheader("Gemini Current Events Enrichment")
+            if topics:
+                st.markdown("**Enriched Topics:**")
+                for t in topics:
+                    st.markdown(f"- {t}")
+            if hot_words:
+                st.markdown("**Per-Scenario Hot Words:**")
+                for scenario, words in hot_words.items():
+                    st.markdown(f"- **{scenario.replace('_', ' ').title()}**: {', '.join(words)}")
+
+        # Top predictions from TrumpGPT
+        top_preds = model_status.get('top_predictions', [])
+        if top_preds:
+            st.subheader("Top TrumpGPT Predictions")
+            tp_df = pd.DataFrame(top_preds)
+            st.dataframe(
+                tp_df,
+                column_config={
+                    'term': st.column_config.TextColumn("Term", width="large"),
+                    'probability': st.column_config.ProgressColumn("Probability", min_value=0, max_value=1),
+                    'recency_weight': st.column_config.NumberColumn("Recency Wt", format="%.2f"),
+                },
+                width="stretch",
+                hide_index=True,
+            )
+
+    st.divider()
+
+    # Local ML model training (existing functionality)
+    st.subheader("Local ML Models")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Train Models", type="primary", width="stretch"):
+        if st.button("Train Local Models", type="primary", width="stretch"):
             result = api_post("/ml/train")
             if result:
                 st.info("Training started... This may take a few minutes.")
@@ -572,26 +822,20 @@ with tab_ml:
             if ml_preds:
                 st.session_state['ml_predictions'] = ml_preds
 
-    # Model info
     model_info = api_get("/ml/info") or {}
 
     if 'results' in model_info:
-        st.subheader("Training Results")
-        st.text(f"Last trained: {model_info.get('timestamp', 'unknown')}")
-
         for model_name, metrics in model_info.get('results', {}).items():
             if 'error' in metrics:
                 st.error(f"{model_name}: {metrics['error']}")
                 continue
 
-            with st.expander(f"{model_name} (CV AUC: {metrics.get('cv_auc_mean', 0):.3f})", expanded=True):
+            with st.expander(f"{model_name} (CV AUC: {metrics.get('cv_auc_mean', 0):.3f})"):
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("CV AUC", f"{metrics.get('cv_auc_mean', 0):.3f}")
                 col2.metric("Accuracy", f"{metrics.get('train_accuracy', 0):.1%}")
                 col3.metric("F1 Score", f"{metrics.get('train_f1', 0):.3f}")
                 col4.metric("Brier Score", f"{metrics.get('train_brier', 0):.4f}")
-
-                st.text(f"Samples: {metrics.get('n_samples', 0)} | Features: {metrics.get('n_features', 0)}")
 
                 top_features = metrics.get('top_features', {})
                 if top_features:
@@ -599,21 +843,15 @@ with tab_ml:
                         {'feature': k, 'importance': v}
                         for k, v in top_features.items()
                     ]).sort_values('importance', ascending=True)
-
                     fig = px.bar(feat_df, x='importance', y='feature',
                                  orientation='h', title=f"{model_name} Feature Importance")
                     st.plotly_chart(fig, width="stretch")
 
-    else:
-        st.info("No models trained yet. Click 'Train Models' to start.")
-
-    # ML predictions display
     ml_preds = st.session_state.get('ml_predictions', [])
     if ml_preds:
         st.subheader("ML Model Predictions")
         ml_df = pd.DataFrame(ml_preds)
         ml_df = ml_df.sort_values('probability', ascending=False)
-
         st.dataframe(
             ml_df[['term', 'probability', 'confidence', 'model_name']],
             column_config={
@@ -624,24 +862,6 @@ with tab_ml:
             width="stretch",
             hide_index=True,
         )
-
-        # Model agreement chart
-        if 'model_probabilities' in ml_df.columns:
-            st.subheader("Model Agreement")
-            for _, row in ml_df.head(10).iterrows():
-                model_probs = row.get('model_probabilities', {})
-                if model_probs:
-                    fig = go.Figure(data=[
-                        go.Bar(x=list(model_probs.keys()),
-                               y=list(model_probs.values()),
-                               name=row['term'])
-                    ])
-                    fig.update_layout(
-                        title=f"'{row['term']}' - Model Predictions",
-                        yaxis_title="Probability",
-                        height=300,
-                    )
-                    st.plotly_chart(fig, width="stretch")
 
 
 # --- Data Stats Tab ---

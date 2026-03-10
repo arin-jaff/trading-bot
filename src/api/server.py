@@ -1,6 +1,7 @@
 """FastAPI backend server for the trading bot."""
 
 import os
+import json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -26,6 +27,25 @@ from ..alerts import alert_manager
 from ..config import config as app_config
 
 app = FastAPI(title="Trump Mentions Trading Bot", version="1.0.0")
+
+# --- In-memory job status tracker ---
+import threading
+
+_job_status: dict[str, dict] = {}
+_job_lock = threading.Lock()
+
+
+def _update_job(job_name: str, step: str, progress: int = 0,
+                total: int = 0, done: bool = False, error: str = ''):
+    with _job_lock:
+        _job_status[job_name] = {
+            'step': step,
+            'progress': progress,
+            'total': total,
+            'done': done,
+            'error': error,
+            'updated_at': datetime.utcnow().isoformat(),
+        }
 
 app.add_middleware(
     CORSMiddleware,
@@ -136,10 +156,12 @@ def sync_markets(background_tasks: BackgroundTasks):
 
 def _run_market_sync():
     try:
-        # Market data is public, no auth needed
+        _update_job('market_sync', 'Fetching markets from Kalshi...')
         stats = market_sync.sync_markets()
+        _update_job('market_sync', f'Done: {stats}', done=True)
         logger.info(f"Market sync: {stats}")
     except Exception as e:
+        _update_job('market_sync', '', done=True, error=str(e))
         logger.error(f"Market sync failed: {e}")
 
 
@@ -174,12 +196,14 @@ def scrape_speeches(background_tasks: BackgroundTasks):
 
 def _run_speech_scrape():
     try:
+        _update_job('speech_scrape', 'Scraping speeches from 10 sources...')
         stats = speech_scraper.scrape_all_sources()
-        logger.info(f"Speech scrape: {stats}")
-        # Auto-analyze after scraping
+        _update_job('speech_scrape', f'Scraped {stats}. Analyzing terms...')
         processed = term_analyzer.process_all_unprocessed()
-        logger.info(f"Processed {processed} speeches")
+        _update_job('speech_scrape', f'Done: {stats}, processed {processed} speeches', done=True)
+        logger.info(f"Speech scrape: {stats}, processed {processed}")
     except Exception as e:
+        _update_job('speech_scrape', '', done=True, error=str(e))
         logger.error(f"Speech scrape failed: {e}")
 
 
@@ -239,10 +263,14 @@ def generate_predictions(background_tasks: BackgroundTasks):
 
 def _run_predictions():
     try:
+        _update_job('predictions', 'Loading Colab predictions...')
         preds = predictor.predict_all_terms()
+        _update_job('predictions', f'Saving {len(preds)} predictions...')
         predictor.save_predictions(preds)
+        _update_job('predictions', f'Done: {len(preds)} predictions generated', done=True)
         logger.info(f"Generated {len(preds)} predictions")
     except Exception as e:
+        _update_job('predictions', '', done=True, error=str(e))
         logger.error(f"Prediction generation failed: {e}")
 
 
@@ -327,16 +355,23 @@ def full_refresh(background_tasks: BackgroundTasks):
 
 def _full_refresh():
     try:
-        # Try auth for trading features, but market data works without it
+        _update_job('full_refresh', 'Step 1/6: Logging in to Kalshi...')
         kalshi_client.login()
+        _update_job('full_refresh', 'Step 2/6: Syncing markets...', progress=1, total=6)
         market_sync.sync_markets()
+        _update_job('full_refresh', 'Step 3/6: Scraping speeches...', progress=2, total=6)
         speech_scraper.scrape_all_sources()
+        _update_job('full_refresh', 'Step 4/6: Analyzing terms...', progress=3, total=6)
         term_analyzer.process_all_unprocessed()
+        _update_job('full_refresh', 'Step 5/6: Updating events...', progress=4, total=6)
         event_tracker.update_events()
+        _update_job('full_refresh', 'Step 6/6: Generating predictions...', progress=5, total=6)
         preds = predictor.predict_all_terms()
         predictor.save_predictions(preds)
+        _update_job('full_refresh', f'Done: {len(preds)} predictions', progress=6, total=6, done=True)
         logger.info("Full refresh complete")
     except Exception as e:
+        _update_job('full_refresh', '', done=True, error=str(e))
         logger.error(f"Full refresh failed: {e}")
 
 
@@ -373,9 +408,12 @@ def train_models(background_tasks: BackgroundTasks):
 
 def _train_models():
     try:
+        _update_job('ml_train', 'Training local ML models...')
         results = model_trainer.train()
+        _update_job('ml_train', f'Done: {len(results)} models trained', done=True)
         logger.info(f"Model training results: {results}")
     except Exception as e:
+        _update_job('ml_train', '', done=True, error=str(e))
         logger.error(f"Model training failed: {e}")
 
 
@@ -443,9 +481,12 @@ def pipeline_export_upload(background_tasks: BackgroundTasks):
 
 def _run_export_upload():
     try:
+        _update_job('export_upload', 'Exporting training data...')
         result = colab_pipeline.export_and_upload()
+        _update_job('export_upload', f'Done: {result}', done=True)
         logger.info(f"Export & upload result: {result}")
     except Exception as e:
+        _update_job('export_upload', '', done=True, error=str(e))
         logger.error(f"Export & upload failed: {e}")
 
 
@@ -487,7 +528,44 @@ def download_predictions_from_drive():
     return drive_sync.download_predictions()
 
 
-# --- System endpoints ---
+# --- Job status endpoint ---
+
+@app.get("/api/jobs/status")
+def get_job_statuses():
+    """Get status of all background jobs."""
+    with _job_lock:
+        return dict(_job_status)
+
+
+@app.get("/api/jobs/status/{job_name}")
+def get_job_status(job_name: str):
+    """Get status of a specific background job."""
+    with _job_lock:
+        return _job_status.get(job_name, {'step': 'idle', 'done': True})
+
+
+@app.post("/api/drive/download-and-import")
+def download_and_import_predictions(background_tasks: BackgroundTasks):
+    """Download predictions from Drive and import into DB."""
+    background_tasks.add_task(_run_download_import)
+    return {"status": "downloading predictions from Drive..."}
+
+
+def _run_download_import():
+    try:
+        _update_job('drive_download', 'Downloading predictions_latest.json from Drive...')
+        result = drive_sync.download_predictions()
+        if 'error' in result:
+            _update_job('drive_download', '', done=True, error=result['error'])
+            return
+        _update_job('drive_download', 'Saving to database...')
+        colab_predictor.save_to_database()
+        _update_job('drive_download', 'Done: predictions imported', done=True)
+        logger.info(f"Drive download & import: {result}")
+    except Exception as e:
+        _update_job('drive_download', '', done=True, error=str(e))
+        logger.error(f"Drive download failed: {e}")
+
 
 # --- Alert endpoints ---
 
@@ -520,6 +598,188 @@ def get_config_status():
 
 
 # --- System endpoints ---
+
+@app.get("/api/model/status")
+def get_model_status():
+    """Get TrumpGPT model status: weights, terms, scenario info, last run."""
+    # Load latest Colab predictions file for metadata
+    import glob as _glob
+    pred_dir = os.path.join('data', 'predictions')
+    latest_path = os.path.join(pred_dir, 'predictions_latest.json')
+    colab_meta = {}
+    term_predictions = []
+
+    if os.path.exists(latest_path):
+        with open(latest_path) as f:
+            colab_meta = json.load(f)
+        term_predictions = colab_meta.get('term_predictions', [])
+
+    # Ensemble weights from the local predictor
+    ensemble_weights = predictor.model_weights
+
+    # Count terms in DB
+    with get_session() as session:
+        total_terms = session.query(Term).count()
+        total_predictions = session.query(TermPrediction).count()
+
+    # What a new iteration would bring
+    from ..database.models import Speech
+    with get_session() as session:
+        new_speeches = session.query(Speech).filter(
+            Speech.is_processed == True,
+            Speech.created_at >= datetime.utcnow() - timedelta(days=1),
+        ).count()
+
+    return {
+        'model_name': 'TrumpGPT',
+        'base_model': colab_meta.get('simulation_params', {}).get('base_model', 'unsloth/Meta-Llama-3.1-8B'),
+        'method': 'LoRA fine-tune + Monte Carlo simulation',
+        'ensemble_weights': ensemble_weights,
+        'last_run': colab_meta.get('generated_at'),
+        'simulation_params': colab_meta.get('simulation_params', {}),
+        'scenario_weights': colab_meta.get('scenario_weights_used', {}),
+        'scenario_counts': colab_meta.get('scenario_counts', {}),
+        'gemini_enrichment': colab_meta.get('gemini_enrichment', {}),
+        'total_terms_tracked': total_terms,
+        'total_predictions_in_db': total_predictions,
+        'colab_predictions_count': len(term_predictions),
+        'discovered_phrases_count': len(colab_meta.get('discovered_phrases', [])),
+        'new_iteration_info': {
+            'new_speeches_last_24h': new_speeches,
+            'would_retrain': new_speeches >= 5,
+            'description': f'{new_speeches} new speeches scraped in last 24h. '
+                           f'{"Ready for retraining." if new_speeches >= 5 else "Need " + str(5 - new_speeches) + " more for retrain trigger."}',
+        },
+        'top_predictions': [
+            {'term': p['term'], 'probability': p['probability'],
+             'recency_weight': p.get('recency_weight', 1.0)}
+            for p in term_predictions[:15]
+        ],
+    }
+
+
+@app.get("/api/predictions/final")
+def get_final_predictions():
+    """Get final combined predictions for upcoming markets.
+
+    Blends:
+    - Historical market results (what he said vs didn't)
+    - TrumpGPT Monte Carlo predictions
+    - Local ensemble predictor
+    """
+    from collections import defaultdict
+    from ..database.models import Speech, TermOccurrence
+
+    with get_session() as session:
+        # Get active markets
+        active_markets = session.query(Market).filter(
+            Market.status.in_(['active', 'open'])
+        ).order_by(Market.close_time).all()
+
+        if not active_markets:
+            return []
+
+        # Historical data: for each term, how often has he said it?
+        total_processed = session.query(Speech).filter_by(is_processed=True).count()
+
+        # Get latest ensemble predictions
+        ensemble_preds = {}
+        try:
+            all_preds = predictor.predict_all_terms()
+            ensemble_preds = {p['term'].lower().strip(): p for p in all_preds}
+        except Exception as e:
+            logger.warning(f"Ensemble predictions failed: {e}")
+
+        # Load Colab predictions
+        colab_preds = {}
+        try:
+            colab = colab_predictor.get_predictions()
+            colab_preds = {p['term'].lower().strip(): p for p in colab}
+        except Exception:
+            pass
+
+        # Historical settled results for context
+        settled = session.query(Market).filter(
+            Market.result.in_(['yes', 'no'])
+        ).all()
+        historical_results = defaultdict(lambda: {'yes': 0, 'no': 0})
+        for m in settled:
+            for t in m.terms:
+                historical_results[t.normalized_term][m.result] += 1
+
+        results = []
+        for market in active_markets:
+            for term in market.terms:
+                norm = term.normalized_term.lower().strip()
+
+                # Historical stats
+                occ_count = session.query(TermOccurrence).filter_by(
+                    term_id=term.id
+                ).count()
+                speeches_with_term = session.query(
+                    TermOccurrence.speech_id
+                ).filter_by(term_id=term.id).distinct().count()
+                hist_rate = speeches_with_term / max(1, total_processed)
+
+                # Past market outcomes for this term
+                hist = historical_results.get(norm, {'yes': 0, 'no': 0})
+                past_yes = hist['yes']
+                past_no = hist['no']
+                past_total = past_yes + past_no
+                historical_market_rate = past_yes / max(1, past_total) if past_total > 0 else None
+
+                # Ensemble prediction
+                ens = ensemble_preds.get(norm, {})
+                ensemble_prob = ens.get('probability')
+                component_scores = ens.get('component_scores', {})
+
+                # Colab prediction
+                col = colab_preds.get(norm, {})
+                colab_prob = col.get('probability')
+                recency_weight = col.get('recency_weight', 1.0)
+                by_scenario = col.get('by_scenario', {})
+
+                # Final blended probability
+                signals = []
+                if ensemble_prob is not None:
+                    signals.append(('ensemble', ensemble_prob, 0.5))
+                if historical_market_rate is not None:
+                    signals.append(('historical_markets', historical_market_rate, 0.2))
+                if hist_rate > 0:
+                    signals.append(('speech_frequency', min(1.0, hist_rate * 3), 0.3))
+
+                if signals:
+                    total_w = sum(s[2] for s in signals)
+                    final_prob = sum(s[1] * s[2] / total_w for s in signals)
+                else:
+                    final_prob = market.yes_price or 0.5
+
+                results.append({
+                    'market_ticker': market.kalshi_ticker,
+                    'market_title': market.title,
+                    'term': term.term,
+                    'close_time': market.close_time.isoformat() if market.close_time else None,
+                    'market_yes_price': market.yes_price,
+                    'market_no_price': market.no_price,
+                    'final_probability': round(final_prob, 4),
+                    'edge': round(final_prob - (market.yes_price or 0.5), 4),
+                    'ensemble_probability': ensemble_prob,
+                    'colab_probability': colab_prob,
+                    'recency_weight': recency_weight,
+                    'historical_speech_rate': round(hist_rate, 4),
+                    'historical_market_record': {
+                        'yes': past_yes, 'no': past_no,
+                        'rate': round(historical_market_rate, 4) if historical_market_rate else None,
+                    },
+                    'speeches_with_term': speeches_with_term,
+                    'total_occurrences': occ_count,
+                    'component_scores': component_scores,
+                    'by_scenario': by_scenario,
+                })
+
+        results.sort(key=lambda x: abs(x['edge']), reverse=True)
+        return results
+
 
 @app.get("/api/system/health")
 def health_check():

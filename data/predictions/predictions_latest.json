@@ -1,0 +1,6353 @@
+{
+  "generated_at": "2026-03-09T18:23:54.615170",
+  "event_context": {
+    "event_type": "rally",
+    "location": "unknown",
+    "date": "upcoming",
+    "title": "",
+    "topics": []
+  },
+  "simulation_params": {
+    "num_simulations": 1000,
+    "temperature": 0.75,
+    "top_p": 0.9,
+    "max_tokens": 512,
+    "base_model": "unsloth/Meta-Llama-3.1-8B",
+    "recency_half_life_days": 60
+  },
+  "scenario_weights_used": {
+    "rally": 0.4,
+    "press_conference": 0.2,
+    "chopper_talk": 0.15,
+    "fox_interview": 0.15,
+    "social_media": 0.1
+  },
+  "scenario_counts": {
+    "rally": 400,
+    "chopper_talk": 150,
+    "fox_interview": 150,
+    "social_media": 100,
+    "press_conference": 200
+  },
+  "gemini_enrichment": {
+    "enriched_topics": [],
+    "scenario_hot_words": {}
+  },
+  "term_predictions": [
+    {
+      "term": "tds / trump",
+      "probability": 0.531,
+      "raw_probability": 0.531,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 531,
+      "total_mentions": 1175,
+      "avg_mentions_per_speech": 1.18,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.46,
+          "speeches_containing": 184,
+          "total_in_scenario": 400,
+          "mentions": 275
+        },
+        "chopper_talk": {
+          "probability": 0.48,
+          "speeches_containing": 72,
+          "total_in_scenario": 150,
+          "mentions": 139
+        },
+        "fox_interview": {
+          "probability": 0.5067,
+          "speeches_containing": 76,
+          "total_in_scenario": 150,
+          "mentions": 208
+        },
+        "social_media": {
+          "probability": 0.66,
+          "speeches_containing": 66,
+          "total_in_scenario": 100,
+          "mentions": 199
+        },
+        "press_conference": {
+          "probability": 0.665,
+          "speeches_containing": 133,
+          "total_in_scenario": 200,
+          "mentions": 354
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "who are you with / where",
+      "probability": 0.461,
+      "raw_probability": 0.461,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 461,
+      "total_mentions": 556,
+      "avg_mentions_per_speech": 0.56,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.4825,
+          "speeches_containing": 193,
+          "total_in_scenario": 400,
+          "mentions": 238
+        },
+        "chopper_talk": {
+          "probability": 0.42,
+          "speeches_containing": 63,
+          "total_in_scenario": 150,
+          "mentions": 73
+        },
+        "fox_interview": {
+          "probability": 0.5133,
+          "speeches_containing": 77,
+          "total_in_scenario": 150,
+          "mentions": 88
+        },
+        "social_media": {
+          "probability": 0.31,
+          "speeches_containing": 31,
+          "total_in_scenario": 100,
+          "mentions": 39
+        },
+        "press_conference": {
+          "probability": 0.485,
+          "speeches_containing": 97,
+          "total_in_scenario": 200,
+          "mentions": 118
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "stock market",
+      "probability": 0.403,
+      "raw_probability": 0.403,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 403,
+      "total_mentions": 595,
+      "avg_mentions_per_speech": 0.59,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.4925,
+          "speeches_containing": 197,
+          "total_in_scenario": 400,
+          "mentions": 278
+        },
+        "chopper_talk": {
+          "probability": 0.3333,
+          "speeches_containing": 50,
+          "total_in_scenario": 150,
+          "mentions": 87
+        },
+        "fox_interview": {
+          "probability": 0.4733,
+          "speeches_containing": 71,
+          "total_in_scenario": 150,
+          "mentions": 105
+        },
+        "social_media": {
+          "probability": 0.17,
+          "speeches_containing": 17,
+          "total_in_scenario": 100,
+          "mentions": 21
+        },
+        "press_conference": {
+          "probability": 0.34,
+          "speeches_containing": 68,
+          "total_in_scenario": 200,
+          "mentions": 104
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "50",
+      "probability": 0.208,
+      "raw_probability": 0.208,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 208,
+      "total_mentions": 243,
+      "avg_mentions_per_speech": 0.24,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.275,
+          "speeches_containing": 110,
+          "total_in_scenario": 400,
+          "mentions": 126
+        },
+        "chopper_talk": {
+          "probability": 0.14,
+          "speeches_containing": 21,
+          "total_in_scenario": 150,
+          "mentions": 26
+        },
+        "fox_interview": {
+          "probability": 0.22,
+          "speeches_containing": 33,
+          "total_in_scenario": 150,
+          "mentions": 41
+        },
+        "social_media": {
+          "probability": 0.1,
+          "speeches_containing": 10,
+          "total_in_scenario": 100,
+          "mentions": 10
+        },
+        "press_conference": {
+          "probability": 0.17,
+          "speeches_containing": 34,
+          "total_in_scenario": 200,
+          "mentions": 40
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "fake news",
+      "probability": 0.189,
+      "raw_probability": 0.189,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 189,
+      "total_mentions": 239,
+      "avg_mentions_per_speech": 0.24,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.31,
+          "speeches_containing": 124,
+          "total_in_scenario": 400,
+          "mentions": 138
+        },
+        "chopper_talk": {
+          "probability": 0.1,
+          "speeches_containing": 15,
+          "total_in_scenario": 150,
+          "mentions": 26
+        },
+        "fox_interview": {
+          "probability": 0.0667,
+          "speeches_containing": 10,
+          "total_in_scenario": 150,
+          "mentions": 19
+        },
+        "social_media": {
+          "probability": 0.3,
+          "speeches_containing": 30,
+          "total_in_scenario": 100,
+          "mentions": 42
+        },
+        "press_conference": {
+          "probability": 0.05,
+          "speeches_containing": 10,
+          "total_in_scenario": 200,
+          "mentions": 14
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nobel prize / peace",
+      "probability": 0.166,
+      "raw_probability": 0.166,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 166,
+      "total_mentions": 330,
+      "avg_mentions_per_speech": 0.33,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.175,
+          "speeches_containing": 70,
+          "total_in_scenario": 400,
+          "mentions": 110
+        },
+        "chopper_talk": {
+          "probability": 0.14,
+          "speeches_containing": 21,
+          "total_in_scenario": 150,
+          "mentions": 68
+        },
+        "fox_interview": {
+          "probability": 0.1933,
+          "speeches_containing": 29,
+          "total_in_scenario": 150,
+          "mentions": 60
+        },
+        "social_media": {
+          "probability": 0.07,
+          "speeches_containing": 7,
+          "total_in_scenario": 100,
+          "mentions": 13
+        },
+        "press_conference": {
+          "probability": 0.195,
+          "speeches_containing": 39,
+          "total_in_scenario": 200,
+          "mentions": 79
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "new york",
+      "probability": 0.091,
+      "raw_probability": 0.091,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 91,
+      "total_mentions": 116,
+      "avg_mentions_per_speech": 0.12,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0775,
+          "speeches_containing": 31,
+          "total_in_scenario": 400,
+          "mentions": 40
+        },
+        "chopper_talk": {
+          "probability": 0.12,
+          "speeches_containing": 18,
+          "total_in_scenario": 150,
+          "mentions": 18
+        },
+        "fox_interview": {
+          "probability": 0.0733,
+          "speeches_containing": 11,
+          "total_in_scenario": 150,
+          "mentions": 17
+        },
+        "social_media": {
+          "probability": 0.08,
+          "speeches_containing": 8,
+          "total_in_scenario": 100,
+          "mentions": 10
+        },
+        "press_conference": {
+          "probability": 0.115,
+          "speeches_containing": 23,
+          "total_in_scenario": 200,
+          "mentions": 31
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "email",
+      "probability": 0.088,
+      "raw_probability": 0.088,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 88,
+      "total_mentions": 95,
+      "avg_mentions_per_speech": 0.1,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.02,
+          "speeches_containing": 8,
+          "total_in_scenario": 400,
+          "mentions": 8
+        },
+        "chopper_talk": {
+          "probability": 0.1467,
+          "speeches_containing": 22,
+          "total_in_scenario": 150,
+          "mentions": 22
+        },
+        "fox_interview": {
+          "probability": 0.12,
+          "speeches_containing": 18,
+          "total_in_scenario": 150,
+          "mentions": 18
+        },
+        "social_media": {
+          "probability": 0.26,
+          "speeches_containing": 26,
+          "total_in_scenario": 100,
+          "mentions": 33
+        },
+        "press_conference": {
+          "probability": 0.07,
+          "speeches_containing": 14,
+          "total_in_scenario": 200,
+          "mentions": 14
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "bill clinton",
+      "probability": 0.06,
+      "raw_probability": 0.06,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 60,
+      "total_mentions": 65,
+      "avg_mentions_per_speech": 0.07,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.015,
+          "speeches_containing": 6,
+          "total_in_scenario": 400,
+          "mentions": 6
+        },
+        "chopper_talk": {
+          "probability": 0.1267,
+          "speeches_containing": 19,
+          "total_in_scenario": 150,
+          "mentions": 19
+        },
+        "fox_interview": {
+          "probability": 0.0733,
+          "speeches_containing": 11,
+          "total_in_scenario": 150,
+          "mentions": 11
+        },
+        "social_media": {
+          "probability": 0.15,
+          "speeches_containing": 15,
+          "total_in_scenario": 100,
+          "mentions": 20
+        },
+        "press_conference": {
+          "probability": 0.045,
+          "speeches_containing": 9,
+          "total_in_scenario": 200,
+          "mentions": 9
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "epstein",
+      "probability": 0.058,
+      "raw_probability": 0.058,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 58,
+      "total_mentions": 114,
+      "avg_mentions_per_speech": 0.11,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.015,
+          "speeches_containing": 6,
+          "total_in_scenario": 400,
+          "mentions": 12
+        },
+        "chopper_talk": {
+          "probability": 0.1267,
+          "speeches_containing": 19,
+          "total_in_scenario": 150,
+          "mentions": 38
+        },
+        "fox_interview": {
+          "probability": 0.08,
+          "speeches_containing": 12,
+          "total_in_scenario": 150,
+          "mentions": 23
+        },
+        "social_media": {
+          "probability": 0.11,
+          "speeches_containing": 11,
+          "total_in_scenario": 100,
+          "mentions": 22
+        },
+        "press_conference": {
+          "probability": 0.05,
+          "speeches_containing": 10,
+          "total_in_scenario": 200,
+          "mentions": 19
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "recession",
+      "probability": 0.056,
+      "raw_probability": 0.056,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 56,
+      "total_mentions": 86,
+      "avg_mentions_per_speech": 0.09,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.07,
+          "speeches_containing": 28,
+          "total_in_scenario": 400,
+          "mentions": 41
+        },
+        "chopper_talk": {
+          "probability": 0.0267,
+          "speeches_containing": 4,
+          "total_in_scenario": 150,
+          "mentions": 6
+        },
+        "fox_interview": {
+          "probability": 0.0733,
+          "speeches_containing": 11,
+          "total_in_scenario": 150,
+          "mentions": 21
+        },
+        "social_media": {
+          "probability": 0.03,
+          "speeches_containing": 3,
+          "total_in_scenario": 100,
+          "mentions": 5
+        },
+        "press_conference": {
+          "probability": 0.05,
+          "speeches_containing": 10,
+          "total_in_scenario": 200,
+          "mentions": 13
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "autopen / auto",
+      "probability": 0.046,
+      "raw_probability": 0.046,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 46,
+      "total_mentions": 58,
+      "avg_mentions_per_speech": 0.06,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0475,
+          "speeches_containing": 19,
+          "total_in_scenario": 400,
+          "mentions": 24
+        },
+        "chopper_talk": {
+          "probability": 0.04,
+          "speeches_containing": 6,
+          "total_in_scenario": 150,
+          "mentions": 8
+        },
+        "fox_interview": {
+          "probability": 0.0533,
+          "speeches_containing": 8,
+          "total_in_scenario": 150,
+          "mentions": 9
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.055,
+          "speeches_containing": 11,
+          "total_in_scenario": 200,
+          "mentions": 15
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "dead country",
+      "probability": 0.039,
+      "raw_probability": 0.039,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 39,
+      "total_mentions": 47,
+      "avg_mentions_per_speech": 0.05,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.055,
+          "speeches_containing": 22,
+          "total_in_scenario": 400,
+          "mentions": 25
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "fox_interview": {
+          "probability": 0.0533,
+          "speeches_containing": 8,
+          "total_in_scenario": 150,
+          "mentions": 11
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "witch hunt",
+      "probability": 0.037,
+      "raw_probability": 0.037,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 37,
+      "total_mentions": 74,
+      "avg_mentions_per_speech": 0.07,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.2467,
+          "speeches_containing": 37,
+          "total_in_scenario": 150,
+          "mentions": 74
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "shutdown / shut",
+      "probability": 0.034,
+      "raw_probability": 0.034,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 34,
+      "total_mentions": 47,
+      "avg_mentions_per_speech": 0.05,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.04,
+          "speeches_containing": 16,
+          "total_in_scenario": 400,
+          "mentions": 25
+        },
+        "chopper_talk": {
+          "probability": 0.0333,
+          "speeches_containing": 5,
+          "total_in_scenario": 150,
+          "mentions": 5
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "social_media": {
+          "probability": 0.04,
+          "speeches_containing": 4,
+          "total_in_scenario": 100,
+          "mentions": 5
+        },
+        "press_conference": {
+          "probability": 0.035,
+          "speeches_containing": 7,
+          "total_in_scenario": 200,
+          "mentions": 8
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "green new scam",
+      "probability": 0.033,
+      "raw_probability": 0.033,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 33,
+      "total_mentions": 39,
+      "avg_mentions_per_speech": 0.04,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0475,
+          "speeches_containing": 19,
+          "total_in_scenario": 400,
+          "mentions": 21
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 5
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.07,
+          "speeches_containing": 7,
+          "total_in_scenario": 100,
+          "mentions": 7
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "shutdown / shut down",
+      "probability": 0.029,
+      "raw_probability": 0.029,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 29,
+      "total_mentions": 41,
+      "avg_mentions_per_speech": 0.04,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0375,
+          "speeches_containing": 15,
+          "total_in_scenario": 400,
+          "mentions": 23
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "social_media": {
+          "probability": 0.04,
+          "speeches_containing": 4,
+          "total_in_scenario": 100,
+          "mentions": 5
+        },
+        "press_conference": {
+          "probability": 0.03,
+          "speeches_containing": 6,
+          "total_in_scenario": 200,
+          "mentions": 7
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "rigged election / stolen",
+      "probability": 0.028,
+      "raw_probability": 0.028,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 28,
+      "total_mentions": 36,
+      "avg_mentions_per_speech": 0.04,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0325,
+          "speeches_containing": 13,
+          "total_in_scenario": 400,
+          "mentions": 20
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.08,
+          "speeches_containing": 8,
+          "total_in_scenario": 100,
+          "mentions": 8
+        },
+        "press_conference": {
+          "probability": 0.015,
+          "speeches_containing": 3,
+          "total_in_scenario": 200,
+          "mentions": 3
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "shutdown",
+      "probability": 0.019,
+      "raw_probability": 0.019,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 19,
+      "total_mentions": 25,
+      "avg_mentions_per_speech": 0.03,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0175,
+          "speeches_containing": 7,
+          "total_in_scenario": 400,
+          "mentions": 11
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.04,
+          "speeches_containing": 4,
+          "total_in_scenario": 100,
+          "mentions": 5
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "maduro",
+      "probability": 0.018,
+      "raw_probability": 0.018,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 18,
+      "total_mentions": 20,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0075,
+          "speeches_containing": 3,
+          "total_in_scenario": 400,
+          "mentions": 3
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0267,
+          "speeches_containing": 4,
+          "total_in_scenario": 150,
+          "mentions": 6
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.045,
+          "speeches_containing": 9,
+          "total_in_scenario": 200,
+          "mentions": 9
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "communist / communism",
+      "probability": 0.017,
+      "raw_probability": 0.017,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 17,
+      "total_mentions": 21,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.015,
+          "speeches_containing": 6,
+          "total_in_scenario": 400,
+          "mentions": 9
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "communist",
+      "probability": 0.015,
+      "raw_probability": 0.015,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 15,
+      "total_mentions": 18,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0125,
+          "speeches_containing": 5,
+          "total_in_scenario": 400,
+          "mentions": 7
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "50,000",
+      "probability": 0.014,
+      "raw_probability": 0.014,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 14,
+      "total_mentions": 18,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0175,
+          "speeches_containing": 7,
+          "total_in_scenario": 400,
+          "mentions": 9
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 6
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "transgender",
+      "probability": 0.013,
+      "raw_probability": 0.013,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 13,
+      "total_mentions": 15,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.02,
+          "speeches_containing": 8,
+          "total_in_scenario": 400,
+          "mentions": 9
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "bibi / netanyahu",
+      "probability": 0.013,
+      "raw_probability": 0.013,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 13,
+      "total_mentions": 20,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0075,
+          "speeches_containing": 3,
+          "total_in_scenario": 400,
+          "mentions": 7
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 6
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.025,
+          "speeches_containing": 5,
+          "total_in_scenario": 200,
+          "mentions": 5
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "rigged election / stolen election",
+      "probability": 0.013,
+      "raw_probability": 0.013,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 13,
+      "total_mentions": 16,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0125,
+          "speeches_containing": 5,
+          "total_in_scenario": 400,
+          "mentions": 7
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.03,
+          "speeches_containing": 3,
+          "total_in_scenario": 100,
+          "mentions": 3
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "rigged election",
+      "probability": 0.013,
+      "raw_probability": 0.013,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 13,
+      "total_mentions": 16,
+      "avg_mentions_per_speech": 0.02,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0125,
+          "speeches_containing": 5,
+          "total_in_scenario": 400,
+          "mentions": 7
+        },
+        "chopper_talk": {
+          "probability": 0.02,
+          "speeches_containing": 3,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.03,
+          "speeches_containing": 3,
+          "total_in_scenario": 100,
+          "mentions": 3
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "beef",
+      "probability": 0.012,
+      "raw_probability": 0.012,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 12,
+      "total_mentions": 12,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.02,
+          "speeches_containing": 8,
+          "total_in_scenario": 400,
+          "mentions": 8
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "barack hussein obama",
+      "probability": 0.011,
+      "raw_probability": 0.011,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 11,
+      "total_mentions": 11,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0125,
+          "speeches_containing": 5,
+          "total_in_scenario": 400,
+          "mentions": 5
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.02,
+          "speeches_containing": 4,
+          "total_in_scenario": 200,
+          "mentions": 4
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "christmas",
+      "probability": 0.009,
+      "raw_probability": 0.009,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 9,
+      "total_mentions": 10,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0125,
+          "speeches_containing": 5,
+          "total_in_scenario": 400,
+          "mentions": 5
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "manhattan",
+      "probability": 0.008,
+      "raw_probability": 0.008,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 8,
+      "total_mentions": 12,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0075,
+          "speeches_containing": 3,
+          "total_in_scenario": 400,
+          "mentions": 6
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.015,
+          "speeches_containing": 3,
+          "total_in_scenario": 200,
+          "mentions": 3
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "sleepy joe",
+      "probability": 0.007,
+      "raw_probability": 0.007,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 7,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.015,
+          "speeches_containing": 6,
+          "total_in_scenario": 400,
+          "mentions": 6
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "melania",
+      "probability": 0.007,
+      "raw_probability": 0.007,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 7,
+      "total_mentions": 8,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.015,
+          "speeches_containing": 6,
+          "total_in_scenario": 400,
+          "mentions": 7
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "zelenskyy",
+      "probability": 0.007,
+      "raw_probability": 0.007,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 7,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.015,
+          "speeches_containing": 3,
+          "total_in_scenario": 200,
+          "mentions": 3
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "bibi",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 3
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "turkey",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 7,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 2
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "football",
+      "probability": 0.005,
+      "raw_probability": 0.005,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 5,
+      "total_mentions": 6,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0075,
+          "speeches_containing": 3,
+          "total_in_scenario": 400,
+          "mentions": 4
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "world cup",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 3
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "thug",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 6,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 4
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "argentina",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0075,
+          "speeches_containing": 3,
+          "total_in_scenario": 400,
+          "mentions": 3
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "hoax",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "king",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.02,
+          "speeches_containing": 2,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "africa",
+      "probability": 0.004,
+      "raw_probability": 0.004,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 4,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.01,
+          "speeches_containing": 2,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "elon / musk",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 5,
+      "avg_mentions_per_speech": 0.01,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 3
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 2
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "elon",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 2
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "palestine",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "aoc",
+      "probability": 0.003,
+      "raw_probability": 0.003,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 3,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 2
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "cookie",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 2
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "space force",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 2
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nobel",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 4
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "iq",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "tiktok",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0133,
+          "speeches_containing": 2,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nobel prize / peace prize",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 4,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.005,
+          "speeches_containing": 2,
+          "total_in_scenario": 400,
+          "mentions": 4
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "pelosi",
+      "probability": 0.002,
+      "raw_probability": 0.002,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 2,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 1
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "who are you with / where are you from",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "marijuana / weed / cannabis",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "marijuana / weed",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "marijuana",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "somalia / somali / somalian",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "somalia / somali",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "somalia",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mental institution",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "soros",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "insurrection",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nobel prize",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 3,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 3
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "desantis",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 1
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mcdonald",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "schiff",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.01,
+          "speeches_containing": 1,
+          "total_in_scenario": 100,
+          "mentions": 2
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "loomer",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "hunter",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.005,
+          "speeches_containing": 1,
+          "total_in_scenario": 200,
+          "mentions": 1
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "con job",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 1,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0025,
+          "speeches_containing": 1,
+          "total_in_scenario": 400,
+          "mentions": 1
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "ballroom",
+      "probability": 0.001,
+      "raw_probability": 0.001,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 1,
+      "total_mentions": 2,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0067,
+          "speeches_containing": 1,
+          "total_in_scenario": 150,
+          "mentions": 2
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "windmill",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "golden dome",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "drill baby drill",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "crypto / bitcoin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "crypto",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "predict / prediction",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "predict",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "discombobulator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "who are you with",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mog / mogged / mogging",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mog / mogged",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mog",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "autopen / auto pen",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "autopen",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "tds / trump derangement syndrome",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "tds",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "newscum",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "olympics",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "hockey",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "paid agitator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "antifa",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "insurrection act",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "paid agitator / professional agitator",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "paid agitator / professional",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "penguin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "stimulus / dividend",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "stimulus",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "central casting",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nine war",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "fat shot / ozempic",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "fat shot",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "sedition",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "bbc",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "marjorie taylor greene",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "olympic",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "autism",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "slopadopoulos",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "kim jong un",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "zohran / mamdani",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "zohran",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "halloween",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "ghislaine / maxwell",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "ghislaine",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "soybean",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "amish",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "ufc",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "buttigieg",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "tylenol",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "panican",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "taylor swift",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "mcdonald\u2019s",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "cracker barrel",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "in aug 2025",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "south park",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "lyin kamala",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "bitcoin",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "sydney sweeney",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "too big to rig",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "swamp",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "two-state",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "paramount",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "nest egg",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "massie",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "larry summers",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "lisa monaco",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "crooked hillary",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "comey",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "colbert",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    },
+    {
+      "term": "clean beautiful coal",
+      "probability": 0.0,
+      "raw_probability": 0.0,
+      "recency_weight": 1.0,
+      "confidence": 1.0,
+      "speeches_containing": 0,
+      "total_mentions": 0,
+      "avg_mentions_per_speech": 0.0,
+      "by_scenario": {
+        "rally": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 400,
+          "mentions": 0
+        },
+        "chopper_talk": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "fox_interview": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 150,
+          "mentions": 0
+        },
+        "social_media": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 100,
+          "mentions": 0
+        },
+        "press_conference": {
+          "probability": 0.0,
+          "speeches_containing": 0,
+          "total_in_scenario": 200,
+          "mentions": 0
+        }
+      },
+      "model_name": "monte_carlo_multiscenario"
+    }
+  ],
+  "discovered_phrases": [
+    {
+      "phrase": "we re",
+      "probability": 2.975,
+      "total_mentions": 2975
+    },
+    {
+      "phrase": "it s",
+      "probability": 2.561,
+      "total_mentions": 2561
+    },
+    {
+      "phrase": "that s",
+      "probability": 2.074,
+      "total_mentions": 2074
+    },
+    {
+      "phrase": "our country",
+      "probability": 1.586,
+      "total_mentions": 1586
+    },
+    {
+      "phrase": "they re",
+      "probability": 1.377,
+      "total_mentions": 1377
+    },
+    {
+      "phrase": "want to",
+      "probability": 1.328,
+      "total_mentions": 1328
+    },
+    {
+      "phrase": "going to",
+      "probability": 1.323,
+      "total_mentions": 1323
+    },
+    {
+      "phrase": "don t",
+      "probability": 1.297,
+      "total_mentions": 1297
+    },
+    {
+      "phrase": "we ve",
+      "probability": 1.194,
+      "total_mentions": 1194
+    },
+    {
+      "phrase": "usa usa",
+      "probability": 0.958,
+      "total_mentions": 958
+    },
+    {
+      "phrase": "if you",
+      "probability": 0.956,
+      "total_mentions": 956
+    },
+    {
+      "phrase": "usa usa usa",
+      "probability": 0.93,
+      "total_mentions": 930
+    },
+    {
+      "phrase": "usa usa usa usa",
+      "probability": 0.903,
+      "total_mentions": 903
+    },
+    {
+      "phrase": "thank you",
+      "probability": 0.895,
+      "total_mentions": 895
+    },
+    {
+      "phrase": "usa usa usa usa usa",
+      "probability": 0.884,
+      "total_mentions": 884
+    },
+    {
+      "phrase": "the world",
+      "probability": 0.871,
+      "total_mentions": 871
+    },
+    {
+      "phrase": "the economy",
+      "probability": 0.854,
+      "total_mentions": 854
+    },
+    {
+      "phrase": "i m",
+      "probability": 0.727,
+      "total_mentions": 727
+    },
+    {
+      "phrase": "now we",
+      "probability": 0.708,
+      "total_mentions": 708
+    },
+    {
+      "phrase": "i think",
+      "probability": 0.648,
+      "total_mentions": 648
+    },
+    {
+      "phrase": "s a",
+      "probability": 0.62,
+      "total_mentions": 620
+    },
+    {
+      "phrase": "look at",
+      "probability": 0.602,
+      "total_mentions": 602
+    },
+    {
+      "phrase": "stock market",
+      "probability": 0.595,
+      "total_mentions": 595
+    },
+    {
+      "phrase": "of dollars",
+      "probability": 0.594,
+      "total_mentions": 594
+    },
+    {
+      "phrase": "way down",
+      "probability": 0.589,
+      "total_mentions": 589
+    },
+    {
+      "phrase": "donald trump",
+      "probability": 0.581,
+      "total_mentions": 581
+    },
+    {
+      "phrase": "re going",
+      "probability": 0.577,
+      "total_mentions": 577
+    },
+    {
+      "phrase": "you know",
+      "probability": 0.57,
+      "total_mentions": 570
+    },
+    {
+      "phrase": "didn t",
+      "probability": 0.564,
+      "total_mentions": 564
+    },
+    {
+      "phrase": "so we",
+      "probability": 0.552,
+      "total_mentions": 552
+    },
+    {
+      "phrase": "in the world",
+      "probability": 0.541,
+      "total_mentions": 541
+    },
+    {
+      "phrase": "and now",
+      "probability": 0.536,
+      "total_mentions": 536
+    },
+    {
+      "phrase": "into our",
+      "probability": 0.53,
+      "total_mentions": 530
+    },
+    {
+      "phrase": "re going to",
+      "probability": 0.529,
+      "total_mentions": 529
+    },
+    {
+      "phrase": "he s",
+      "probability": 0.526,
+      "total_mentions": 526
+    },
+    {
+      "phrase": "right now",
+      "probability": 0.52,
+      "total_mentions": 520
+    },
+    {
+      "phrase": "s why",
+      "probability": 0.516,
+      "total_mentions": 516
+    },
+    {
+      "phrase": "that s why",
+      "probability": 0.515,
+      "total_mentions": 515
+    },
+    {
+      "phrase": "and we re",
+      "probability": 0.501,
+      "total_mentions": 501
+    },
+    {
+      "phrase": "into our country",
+      "probability": 0.49,
+      "total_mentions": 490
+    },
+    {
+      "phrase": "a lot",
+      "probability": 0.486,
+      "total_mentions": 486
+    },
+    {
+      "phrase": "national security",
+      "probability": 0.484,
+      "total_mentions": 484
+    },
+    {
+      "phrase": "economy and",
+      "probability": 0.481,
+      "total_mentions": 481
+    },
+    {
+      "phrase": "re doing",
+      "probability": 0.474,
+      "total_mentions": 474
+    },
+    {
+      "phrase": "if we",
+      "probability": 0.458,
+      "total_mentions": 458
+    },
+    {
+      "phrase": "there s",
+      "probability": 0.449,
+      "total_mentions": 449
+    },
+    {
+      "phrase": "we ll",
+      "probability": 0.448,
+      "total_mentions": 448
+    },
+    {
+      "phrase": "the economy and",
+      "probability": 0.436,
+      "total_mentions": 436
+    },
+    {
+      "phrase": "tell you",
+      "probability": 0.43,
+      "total_mentions": 430
+    },
+    {
+      "phrase": "talk about",
+      "probability": 0.428,
+      "total_mentions": 428
+    }
+  ]
+}

@@ -7,14 +7,20 @@ Wants=trumpbot-api.service
 Type=simple
 User=arin
 WorkingDirectory=/home/arin/trading-bot
-ExecStart=/home/arin/trading-bot/venv/bin/streamlit run run_gui.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+ExecStart=/home/arin/trading-bot/venv/bin/streamlit run run_gui.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.fileWatcherType none
+ExecStop=/usr/bin/fuser -k 8501/tcp
 Restart=always
-RestartSec=30
+RestartSec=10
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/home/arin/trading-bot/.env
 
-# Resource limits
-MemoryMax=512M
+# Kill all child processes when stopping
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+# Resource limits — Streamlit needs more than 512M
+MemoryMax=1G
 
 # Logging
 StandardOutput=journal

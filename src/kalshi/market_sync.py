@@ -118,12 +118,14 @@ class MarketSync:
         """Fetch all Trump Mentions markets and sync to database.
 
         Returns summary of sync results.
+        3A: Detects newly created markets and adds them to new_market_tickers.
         """
         logger.info("Starting market sync...")
         raw_markets = self.client.find_trump_mentions_markets()
 
         stats = {'markets_found': len(raw_markets), 'new_markets': 0,
-                 'updated_markets': 0, 'new_terms': 0}
+                 'updated_markets': 0, 'new_terms': 0,
+                 'new_market_tickers': []}  # 3A: track new markets
 
         with get_session() as session:
             for market_data in raw_markets:
@@ -137,6 +139,7 @@ class MarketSync:
                     market = Market(kalshi_ticker=ticker)
                     session.add(market)
                     stats['new_markets'] += 1
+                    stats['new_market_tickers'].append(ticker)  # 3A
                 else:
                     stats['updated_markets'] += 1
 

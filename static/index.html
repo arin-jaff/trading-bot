@@ -235,6 +235,8 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <tr><td style="color:var(--accent)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
         <tr><td style="color:var(--accent)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for new transcripts</td></tr>
         <tr><td style="color:var(--accent)">Arbitrage Scan</td><td>Every 10m</td><td>Scan for mispriced YES/NO spreads</td></tr>
+        <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
+        <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
         <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
         <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM UTC</td><td>Email P&L summary</td></tr>
       </tbody>
@@ -398,6 +400,43 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </div>
   </template>
 
+  <!-- MODEL ACCURACY (1C) -->
+  <h2>Model Accuracy</h2>
+  <template x-if="accuracy && !accuracy.error">
+    <div class="card" style="margin-bottom:14px" :style="accuracy.ready_for_live?'border-color:var(--green)':'border-color:var(--red)'">
+      <div class="grid g4" style="margin-bottom:10px">
+        <div class="card" style="text-align:center"><div class="label">Brier Score</div><div class="val" :style="'color:'+(accuracy.brier_score<0.25?'var(--green)':'var(--red)')" x-text="accuracy.brier_score.toFixed(4)"></div></div>
+        <div class="card" style="text-align:center"><div class="label">Hit Rate</div><div class="val" x-text="(accuracy.hit_rate*100).toFixed(1)+'%'"></div></div>
+        <div class="card" style="text-align:center"><div class="label">Data Points</div><div class="val" x-text="accuracy.total_data_points"></div></div>
+        <div class="card" style="text-align:center"><div class="label">Live Ready</div><div class="val" :style="'color:'+(accuracy.ready_for_live?'var(--green)':'var(--red)')" x-text="accuracy.ready_for_live?'YES':'NO'"></div></div>
+      </div>
+      <template x-if="Object.keys(accuracy.calibration||{}).length>0">
+        <div>
+          <h3>Calibration (predicted vs actual)</h3>
+          <table>
+            <thead><tr><th>Bucket</th><th>Avg Predicted</th><th>Avg Actual</th><th>Count</th></tr></thead>
+            <tbody>
+              <template x-for="[bucket,data] in Object.entries(accuracy.calibration)" :key="bucket">
+                <tr>
+                  <td x-text="bucket"></td>
+                  <td x-text="(data.avg_predicted*100).toFixed(1)+'%'"></td>
+                  <td x-text="(data.avg_actual*100).toFixed(1)+'%'"></td>
+                  <td x-text="data.count"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
+  </template>
+  <template x-if="accuracy && accuracy.error">
+    <div class="alert info" x-text="accuracy.error" style="margin-bottom:14px"></div>
+  </template>
+  <template x-if="!accuracy">
+    <div style="color:var(--dim);text-align:center;padding:12px;margin-bottom:14px">Loading accuracy data...</div>
+  </template>
+
   <!-- MODEL VERSIONS -->
   <h2>Model Versions</h2>
   <template x-for="v in versions" :key="v.id">
@@ -439,7 +478,7 @@ function app(){return{
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
-  versions:[], hw:null, pipelineLog:[],
+  versions:[], hw:null, pipelineLog:[], accuracy:null,
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -506,8 +545,8 @@ function app(){return{
   },
 
   async loadSystem(){
-    const[h,v]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions')]);
-    this.hw=h;this.versions=Array.isArray(v)?v:[];
+    const[h,v,a]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy')]);
+    this.hw=h;this.versions=Array.isArray(v)?v:[];this.accuracy=a;
   },
 
   async togglePaper(){await this.apiPut('/trading/config',{paper_mode:!this.botCfg.paper_mode});this.botCfg=await this.api('/trading/config')||this.botCfg},

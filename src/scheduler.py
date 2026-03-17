@@ -129,12 +129,52 @@ def create_scheduler() -> BackgroundScheduler:
         name='Scan for arbitrage opportunities',
     )
 
+    # 2A: News enrichment via Gemini — every hour
+    scheduler.add_job(
+        _refresh_news_enrichment, IntervalTrigger(hours=1),
+        id='news_enrichment', replace_existing=True,
+        name='Refresh Gemini news enrichment',
+    )
+
+    # 3B: Position management (profit-taking + stop-loss) — every 5 minutes
+    scheduler.add_job(
+        _manage_positions, IntervalTrigger(minutes=5),
+        args=[trading_bot],
+        id='position_management', replace_existing=True,
+        name='Manage open positions (profit-take/stop-loss)',
+    )
+
     return scheduler
 
 
 def _sync_markets(client: KalshiClient, sync: MarketSync):
+    """3A: Detect new markets and alert on front-running opportunities."""
     try:
-        sync.sync_markets()
+        stats = sync.sync_markets()
+        new_tickers = stats.get('new_market_tickers', [])
+        if new_tickers:
+            logger.info(f"3A: {len(new_tickers)} new markets detected: {new_tickers}")
+            from .alerts import alert_manager
+            for ticker in new_tickers:
+                alert_manager.add_alert(
+                    'new_market',
+                    f"New Market: {ticker}",
+                    f"New Trump Mentions market created. "
+                    f"Check for front-running opportunity — market may open at 50c.",
+                    severity='warning',
+                    data={'ticker': ticker},
+                )
+            # Send email for new markets
+            try:
+                from .notifications.email_notifier import email_notifier
+                if email_notifier.enabled:
+                    email_notifier.send_critical_alert(
+                        f'{len(new_tickers)} New Kalshi Markets',
+                        f'New markets: {", ".join(new_tickers)}. Check for front-running.',
+                        {'tickers': new_tickers},
+                    )
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"Scheduled market sync failed: {e}")
 
@@ -236,3 +276,32 @@ def _scan_arbitrage(bot: TradingBot):
                 )
     except Exception as e:
         logger.error(f"Arbitrage scan failed: {e}")
+
+
+def _refresh_news_enrichment():
+    """2A: Refresh current events enrichment from Gemini."""
+    try:
+        from .ml.news_enrichment import news_enricher
+        news_enricher.refresh()
+    except Exception as e:
+        logger.error(f"News enrichment refresh failed: {e}")
+
+
+def _manage_positions(bot: TradingBot):
+    """3B: Active position management — profit-taking and stop-loss."""
+    try:
+        actions = bot.manage_positions()
+        if actions:
+            from .alerts import alert_manager
+            for action in actions:
+                alert_manager.add_alert(
+                    'position_management',
+                    f"{action['type'].replace('_', ' ').title()}: {action['ticker']}",
+                    f"{action['type']}: {action['quantity']}x {action['side']} "
+                    f"(entry: {action['entry_price']:.2f}, now: {action['current_price']:.2f}, "
+                    f"unrealized: {action['unrealized']:+.4f})",
+                    severity='info',
+                    data=action,
+                )
+    except Exception as e:
+        logger.error(f"Position management failed: {e}")

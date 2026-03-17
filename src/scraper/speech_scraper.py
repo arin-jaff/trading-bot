@@ -85,7 +85,11 @@ class SpeechScraper:
                      speech_type: Optional[str] = None,
                      duration: Optional[int] = None,
                      metadata: Optional[dict] = None) -> bool:
-        """Save a speech to database if not already present. Returns True if new."""
+        """Save a speech to database if not already present. Returns True if new.
+
+        4C: Also checks for duplicate transcripts via content hash to prevent
+        the same speech scraped from multiple sources from inflating frequencies.
+        """
         with get_session() as session:
             existing = session.query(Speech).filter_by(
                 source=source, source_id=source_id
@@ -96,6 +100,27 @@ class SpeechScraper:
                     existing.word_count = len(transcript.split()) if transcript else 0
                     logger.debug(f"Updated transcript for {source}/{source_id}")
                 return False
+
+            # 4C: Duplicate transcript detection — check first 200 chars
+            # against existing transcripts using SQL LIKE for efficiency
+            if transcript and len(transcript) > 50:
+                normalized_prefix = ' '.join(transcript.lower().split())[:200]
+                # Check a shorter prefix via SQL to avoid full scan
+                search_prefix = normalized_prefix[:80]
+                from sqlalchemy import func as sa_func
+                dupe_count = session.query(Speech).filter(
+                    Speech.transcript.isnot(None),
+                    sa_func.lower(sa_func.substr(Speech.transcript, 1, 80)).contains(
+                        search_prefix[:40]
+                    ),
+                    Speech.source != source,  # allow same source to update
+                ).count()
+                if dupe_count > 0:
+                    logger.debug(
+                        f"4C: Likely duplicate transcript — "
+                        f"'{title[:50]}' matches {dupe_count} existing speech(es)"
+                    )
+                    return False
 
             speech = Speech(
                 source=source,

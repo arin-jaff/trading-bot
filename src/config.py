@@ -27,6 +27,9 @@ class AppConfig(BaseModel):
     # YouTube
     youtube_api_key: str = os.getenv('YOUTUBE_API_KEY', '')
 
+    # Gemini (for news enrichment)
+    gemini_api_key: str = os.getenv('GEMINI_API_KEY', '')
+
     # Email notifications
     email_enabled: bool = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
     email_smtp_host: str = os.getenv('EMAIL_SMTP_HOST', 'smtp.gmail.com')

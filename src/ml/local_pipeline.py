@@ -13,7 +13,7 @@ from typing import Optional
 from loguru import logger
 
 from ..database.db import get_session
-from ..database.models import Speech, Term, ModelVersion
+from ..database.models import Speech, Term, ModelVersion, TrumpEvent
 from .markov_trainer import MarkovChainTrainer
 from .colab_integration import ColabPredictor
 from ..config import config
@@ -163,12 +163,15 @@ class LocalPipeline:
 
             self._log_event(f'Phase 2: Loaded {len(term_list)} terms to predict')
 
-            # Phase 3: Run Monte Carlo
+            # Phase 3: Run Monte Carlo (2C: per-event scenario weighting)
+            scenario_weights = self._get_event_scenario_weights()
             self._status.update(stage='Running Monte Carlo', progress=0.3)
-            self._log_event(f'Phase 3: Running {config.monte_carlo_simulations} Monte Carlo simulations...')
+            weight_info = f' (scenario weights: {scenario_weights})' if scenario_weights else ''
+            self._log_event(f'Phase 3: Running {config.monte_carlo_simulations} Monte Carlo simulations...{weight_info}')
             predictions_data = self.trainer.run_monte_carlo(
                 terms=term_list,
                 num_simulations=config.monte_carlo_simulations,
+                scenario_weights=scenario_weights,
             )
 
             if not predictions_data or not predictions_data.get('term_predictions'):
@@ -287,6 +290,39 @@ class LocalPipeline:
                 )
         except Exception as e:
             logger.debug(f"Training notification email failed: {e}")
+
+    def _get_event_scenario_weights(self) -> Optional[dict]:
+        """2C: Compute scenario weights based on the next known Trump event.
+
+        If the next event is a rally, heavily weight rally simulations.
+        Falls back to None (use default weights) if no upcoming event.
+        """
+        EVENT_TYPE_MAP = {
+            'rally': {'rally': 0.85, 'press_conference': 0.05, 'chopper_talk': 0.03, 'fox_interview': 0.05, 'social_media': 0.02},
+            'press_conference': {'rally': 0.05, 'press_conference': 0.80, 'chopper_talk': 0.05, 'fox_interview': 0.05, 'social_media': 0.05},
+            'interview': {'rally': 0.05, 'press_conference': 0.05, 'chopper_talk': 0.05, 'fox_interview': 0.80, 'social_media': 0.05},
+            'fox_interview': {'rally': 0.05, 'press_conference': 0.05, 'chopper_talk': 0.05, 'fox_interview': 0.80, 'social_media': 0.05},
+            'state_dinner': {'rally': 0.10, 'press_conference': 0.60, 'chopper_talk': 0.10, 'fox_interview': 0.10, 'social_media': 0.10},
+            'signing_ceremony': {'rally': 0.10, 'press_conference': 0.60, 'chopper_talk': 0.10, 'fox_interview': 0.10, 'social_media': 0.10},
+        }
+
+        try:
+            with get_session() as session:
+                next_event = session.query(TrumpEvent).filter(
+                    TrumpEvent.start_time >= datetime.utcnow(),
+                    TrumpEvent.is_confirmed == True,
+                ).order_by(TrumpEvent.start_time).first()
+
+                if next_event and next_event.event_type:
+                    event_type = next_event.event_type.lower().strip()
+                    weights = EVENT_TYPE_MAP.get(event_type)
+                    if weights:
+                        logger.info(f"2C: Next event is '{event_type}' — adjusting scenario weights")
+                        return weights
+        except Exception as e:
+            logger.debug(f"Could not get event scenario weights: {e}")
+
+        return None
 
     def _notify_failure(self, error: str):
         """Send email notification on pipeline failure."""

@@ -980,6 +980,14 @@ def get_model_versions():
         ]
 
 
+# --- Model accuracy endpoint (1C) ---
+
+@app.get("/api/model/accuracy")
+def get_model_accuracy():
+    """1C: Get prediction accuracy metrics against settled markets."""
+    return predictor.evaluate_accuracy()
+
+
 @app.get("/api/system/health")
 def health_check():
     return {

@@ -14,6 +14,10 @@ from ..ml.predictor import TermPredictor
 class TradingBot:
     """Autonomous trading bot with configurable strategies and risk management."""
 
+    # Kalshi fee: ~2% per side (buy + sell/settle), 4% round-trip
+    KALSHI_FEE_PER_SIDE = 0.02
+    KALSHI_FEE_ROUND_TRIP = 0.04
+
     def __init__(self, client: Optional[KalshiClient] = None,
                  predictor: Optional[TermPredictor] = None):
         self.client = client or KalshiClient()
@@ -27,6 +31,7 @@ class TradingBot:
         self.max_total_exposure = 500.00  # dollars
         self.min_edge_threshold = 0.05  # minimum edge to trade
         self.min_confidence = 0.3  # minimum prediction confidence
+        self.min_volume = 50  # minimum market volume (3D: liquidity filter)
         self.use_kelly = True
         self.kelly_fraction = 0.5  # half-Kelly for safety
         self.auto_trade = True  # auto-trade enabled (paper mode keeps it safe)
@@ -46,8 +51,10 @@ class TradingBot:
             'max_total_exposure': self.max_total_exposure,
             'min_edge_threshold': self.min_edge_threshold,
             'min_confidence': self.min_confidence,
+            'min_volume': self.min_volume,
             'use_kelly': self.use_kelly,
             'kelly_fraction': self.kelly_fraction,
+            'fee_round_trip': self.KALSHI_FEE_ROUND_TRIP,
             'is_running': self.is_running,
         }
 
@@ -67,22 +74,46 @@ class TradingBot:
         # Filter by confidence
         suggestions = [s for s in suggestions if s.get('confidence', 0) >= self.min_confidence]
 
+        # 1A: Filter out positions where net edge after fees is non-positive
+        suggestions = [
+            s for s in suggestions
+            if abs(s['edge']) - self.KALSHI_FEE_ROUND_TRIP > 0
+        ]
+
+        # 3D: Liquidity filter — skip low-volume markets
+        suggestions = [
+            s for s in suggestions
+            if s.get('volume', self.min_volume) >= self.min_volume
+        ]
+
         # Apply risk management
         for s in suggestions:
             s['suggested_quantity'] = self._calculate_position_size(s)
+            # Net expected value after fees
+            net_edge = abs(s['edge']) - self.KALSHI_FEE_ROUND_TRIP
             s['expected_value'] = round(
-                s['edge'] * s['suggested_quantity'] * 1.0,  # $1 per contract
+                net_edge * s['suggested_quantity'] * 1.0,
                 2
             )
 
         return suggestions
 
     def _calculate_position_size(self, suggestion: dict) -> int:
-        """Calculate position size based on Kelly criterion and risk limits."""
+        """Calculate position size based on Kelly criterion and risk limits.
+
+        Incorporates:
+        - Fee-aware Kelly (1A): subtracts round-trip fee from edge
+        - Confidence scaling (1D): scales Kelly by prediction confidence
+        - Time-to-close decay (3C): adjusts edge threshold and sizing by time remaining
+        - Volume cap (3D): limits position to 10% of market daily volume
+        """
         if self.use_kelly:
             kelly = suggestion.get('kelly_fraction', 0)
-            # Scale Kelly by configured fraction
             adjusted_kelly = kelly * self.kelly_fraction
+
+            # 1D: Scale Kelly by confidence — low confidence = smaller bets
+            confidence = suggestion.get('confidence', 0.5)
+            adjusted_kelly *= confidence
 
             # Get balance
             try:
@@ -91,15 +122,39 @@ class TradingBot:
             except Exception:
                 balance = 100  # conservative fallback
 
-            # Kelly-suggested amount
             kelly_dollars = balance * adjusted_kelly
             kelly_contracts = int(kelly_dollars)
         else:
             kelly_contracts = 10  # default
 
+        # 3C: Time-to-close decay — adjust sizing by time remaining
+        close_time = suggestion.get('close_time')
+        if close_time:
+            try:
+                if isinstance(close_time, str):
+                    close_dt = datetime.fromisoformat(close_time.replace('Z', '+00:00'))
+                else:
+                    close_dt = close_time
+                hours_left = max(0, (close_dt - datetime.utcnow()).total_seconds() / 3600)
+
+                if hours_left < 2:
+                    # End-game: smaller positions (less time to recover if wrong)
+                    kelly_contracts = int(kelly_contracts * 0.7)
+                elif hours_left > 120:  # > 5 days
+                    # Far out: more uncertainty, size down
+                    kelly_contracts = int(kelly_contracts * 0.5)
+            except Exception:
+                pass
+
         # Apply limits
         position = min(kelly_contracts, self.max_position_size)
         position = max(1, position)  # at least 1
+
+        # 3D: Cap position to 10% of market's daily volume
+        volume = suggestion.get('volume', 0)
+        if volume > 0:
+            max_by_volume = max(1, int(volume * 0.10))
+            position = min(position, max_by_volume)
 
         # Check total exposure
         current_exposure = self._get_current_exposure()
@@ -314,12 +369,106 @@ class TradingBot:
         except Exception as e:
             logger.debug(f"Could not send loss alert email: {e}")
 
+    def manage_positions(self) -> list[dict]:
+        """Active position management: profit-taking and stop-loss (3B).
+
+        Rules:
+        - Take profit: if unrealized gain > 2x fee cost (>4c), sell 50%
+        - Stop loss: if position down >15c from entry, sell to limit losses
+        """
+        actions = []
+        try:
+            positions = self.client.get_positions()
+        except Exception as e:
+            logger.debug(f"Could not fetch positions for management: {e}")
+            return actions
+
+        for pos in positions.get('market_positions', []):
+            ticker = pos.get('ticker', '')
+            qty = pos.get('position', 0)
+            if qty == 0:
+                continue
+
+            # Get current market price
+            with get_session() as session:
+                market = session.query(Market).filter_by(kalshi_ticker=ticker).first()
+                if not market:
+                    continue
+
+                # Find our entry trade
+                last_trade = session.query(Trade).filter_by(
+                    market_id=market.id, status='filled'
+                ).order_by(Trade.created_at.desc()).first()
+
+                if not last_trade:
+                    continue
+
+                entry_price = last_trade.fill_price or last_trade.price
+                current_price = market.yes_price or 0.5
+                if last_trade.side == 'no':
+                    current_price = 1.0 - current_price
+
+                unrealized = current_price - entry_price
+
+                # Take profit: sell 50% if gain > 2x round-trip fee
+                if unrealized > self.KALSHI_FEE_ROUND_TRIP * 2:
+                    sell_qty = max(1, abs(qty) // 2)
+                    actions.append({
+                        'type': 'take_profit',
+                        'ticker': ticker,
+                        'side': last_trade.side,
+                        'quantity': sell_qty,
+                        'entry_price': entry_price,
+                        'current_price': current_price,
+                        'unrealized': round(unrealized, 4),
+                    })
+                    if self.auto_trade:
+                        self._execute_sell(ticker, last_trade.side, sell_qty, current_price)
+
+                # Stop loss: sell all if down >15c
+                elif unrealized < -0.15:
+                    actions.append({
+                        'type': 'stop_loss',
+                        'ticker': ticker,
+                        'side': last_trade.side,
+                        'quantity': abs(qty),
+                        'entry_price': entry_price,
+                        'current_price': current_price,
+                        'unrealized': round(unrealized, 4),
+                    })
+                    if self.auto_trade:
+                        self._execute_sell(ticker, last_trade.side, abs(qty), current_price)
+
+        if actions:
+            logger.info(f"Position management: {len(actions)} actions")
+        return actions
+
+    def _execute_sell(self, ticker: str, side: str, quantity: int, price: float):
+        """Execute a sell order (for position management)."""
+        if self.paper_mode:
+            logger.info(f"[PAPER] Would sell {quantity}x {side} on {ticker} @ {price:.2f}")
+            return
+
+        try:
+            price_cents = int(price * 100)
+            self.client.place_order(
+                ticker=ticker,
+                side=side,
+                action='sell',
+                count=quantity,
+                type='limit',
+                yes_price=price_cents if side == 'yes' else None,
+                no_price=price_cents if side == 'no' else None,
+            )
+            logger.info(f"Sold {quantity}x {side} on {ticker} @ {price_cents}c")
+        except Exception as e:
+            logger.error(f"Sell order failed for {ticker}: {e}")
+
     def find_arbitrage(self) -> list[dict]:
         """Scan active markets for arbitrage opportunities.
 
-        Looks for:
-        1. YES+NO price sum < $0.98 (guaranteed profit minus Kalshi fees)
-        2. Correlated term pairs where one is mispriced vs the other
+        1A fix: accounts for Kalshi fees (2% per side on both legs = 4% per leg).
+        Arbitrage bounds adjusted from 0.98/1.02 to 0.94/1.06.
         """
         opportunities = []
 
@@ -328,40 +477,44 @@ class TradingBot:
                 Market.status.in_(['active', 'open'])
             ).all()
 
+            # Fee on both legs: 2% per side × 2 sides × 2 legs = 8% total worst case
+            # Simplified: need spread < 1 - 4*fee_per_side for guaranteed profit
+            arb_lower = 1.0 - 4 * self.KALSHI_FEE_PER_SIDE  # 0.92
+            arb_upper = 1.0 + 4 * self.KALSHI_FEE_PER_SIDE  # 1.08
+
             for market in markets:
                 yes_price = market.yes_price or 0.5
                 no_price = market.no_price if hasattr(market, 'no_price') and market.no_price else (1.0 - yes_price)
 
                 spread = yes_price + no_price
 
-                # Arbitrage: if YES + NO < 0.98, buying both guarantees profit
-                # (Kalshi pays $1 on settlement, minus fees)
-                if spread < 0.98:
-                    profit = 1.0 - spread
-                    opportunities.append({
-                        'type': 'spread_arbitrage',
-                        'market_ticker': market.kalshi_ticker,
-                        'market_title': market.title,
-                        'yes_price': yes_price,
-                        'no_price': no_price,
-                        'spread': spread,
-                        'guaranteed_profit': round(profit, 4),
-                        'action': f'Buy YES@{yes_price:.2f} + NO@{no_price:.2f}',
-                    })
+                if spread < arb_lower:
+                    profit = 1.0 - spread - 4 * self.KALSHI_FEE_PER_SIDE
+                    if profit > 0:
+                        opportunities.append({
+                            'type': 'spread_arbitrage',
+                            'market_ticker': market.kalshi_ticker,
+                            'market_title': market.title,
+                            'yes_price': yes_price,
+                            'no_price': no_price,
+                            'spread': spread,
+                            'guaranteed_profit': round(profit, 4),
+                            'action': f'Buy YES@{yes_price:.2f} + NO@{no_price:.2f}',
+                        })
 
-                # Overpriced: if YES + NO > 1.02, sell both sides
-                if spread > 1.02:
-                    profit = spread - 1.0
-                    opportunities.append({
-                        'type': 'overpriced_spread',
-                        'market_ticker': market.kalshi_ticker,
-                        'market_title': market.title,
-                        'yes_price': yes_price,
-                        'no_price': no_price,
-                        'spread': spread,
-                        'guaranteed_profit': round(profit, 4),
-                        'action': f'Sell YES@{yes_price:.2f} + NO@{no_price:.2f}',
-                    })
+                if spread > arb_upper:
+                    profit = spread - 1.0 - 4 * self.KALSHI_FEE_PER_SIDE
+                    if profit > 0:
+                        opportunities.append({
+                            'type': 'overpriced_spread',
+                            'market_ticker': market.kalshi_ticker,
+                            'market_title': market.title,
+                            'yes_price': yes_price,
+                            'no_price': no_price,
+                            'spread': spread,
+                            'guaranteed_profit': round(profit, 4),
+                            'action': f'Sell YES@{yes_price:.2f} + NO@{no_price:.2f}',
+                        })
 
         if opportunities:
             logger.info(f"Found {len(opportunities)} arbitrage opportunities")

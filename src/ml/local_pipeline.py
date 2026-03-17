@@ -42,10 +42,23 @@ class LocalPipeline:
     def get_status(self) -> dict:
         """Get pipeline status including trainer progress."""
         status = self._status.copy()
-        # Merge in trainer-level progress when simulating
+
+        # Compute elapsed time
+        if status.get('started_at'):
+            try:
+                started = datetime.fromisoformat(status['started_at'])
+                elapsed = (datetime.utcnow() - started).total_seconds()
+                status['elapsed_seconds'] = round(elapsed, 1)
+            except Exception:
+                status['elapsed_seconds'] = None
+        else:
+            status['elapsed_seconds'] = None
+
+        # Merge in trainer-level progress when running
         if status['state'] == 'running':
             trainer_status = self.trainer.get_status()
             status['trainer'] = trainer_status
+
             # If trainer is simulating, use its detailed progress
             if trainer_status['state'] == 'simulating':
                 status['stage'] = (
@@ -53,6 +66,20 @@ class LocalPipeline:
                     f"/{trainer_status['total_simulations']}"
                 )
                 status['progress'] = 0.3 + 0.6 * trainer_status['progress']
+
+            # Compute overall ETA from progress
+            progress = status.get('progress', 0)
+            elapsed = status.get('elapsed_seconds')
+            if progress > 0.01 and elapsed:
+                total_estimated = elapsed / progress
+                status['eta_seconds'] = round(total_estimated - elapsed, 1)
+            elif trainer_status.get('eta_seconds'):
+                status['eta_seconds'] = trainer_status['eta_seconds']
+            else:
+                status['eta_seconds'] = None
+        else:
+            status['eta_seconds'] = None
+
         return status
 
     def should_retrain(self) -> bool:

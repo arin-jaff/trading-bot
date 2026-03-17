@@ -864,29 +864,81 @@ with tab_ml:
     _ver = model_status.get('version', '')
     st.caption(f"{_method}" + (f" | v{_ver}" if _ver else ""))
 
-    # Training status bar (shown when pipeline is actively training)
+    # --- Training Status Panel ---
     training_status = api_get("/pipeline/training-status")
-    if training_status and training_status.get('state') == 'running':
-        st.info(f"Training in progress: {training_status.get('stage', '...')}")
-        st.progress(training_status.get('progress', 0))
-        trainer = training_status.get('trainer', {})
-        if trainer.get('eta_seconds'):
-            st.caption(f"ETA: {trainer['eta_seconds']:.0f}s remaining")
+    ts_state = training_status.get('state', 'idle') if training_status else 'idle'
 
+    if ts_state == 'running':
+        st.markdown("---")
+        st.subheader("Training In Progress")
+
+        stage = training_status.get('stage', 'Starting...')
+        progress = training_status.get('progress', 0)
+        elapsed = training_status.get('elapsed_seconds')
+        eta = training_status.get('eta_seconds')
+
+        # Progress bar
+        st.progress(progress, text=stage)
+
+        # Metrics row: elapsed, ETA, progress %
+        c1, c2, c3 = st.columns(3)
+
+        if elapsed is not None:
+            mins, secs = divmod(int(elapsed), 60)
+            c1.metric("Elapsed", f"{mins}m {secs}s")
+        else:
+            c1.metric("Elapsed", "-")
+
+        if eta is not None and eta > 0:
+            eta_mins, eta_secs = divmod(int(eta), 60)
+            c2.metric("ETA", f"{eta_mins}m {eta_secs}s")
+        else:
+            c2.metric("ETA", "calculating...")
+
+        c3.metric("Progress", f"{progress:.0%}")
+
+        # Trainer details (simulation count if available)
+        trainer = training_status.get('trainer', {})
+        if trainer.get('current_simulation'):
+            st.caption(
+                f"Simulation {trainer['current_simulation']}/{trainer.get('total_simulations', '?')} "
+                f"| Stage: {trainer.get('state', '?')}"
+            )
+
+        st.markdown("---")
+
+    elif ts_state == 'complete':
+        completed = training_status.get('completed_at', '')
+        version = training_status.get('current_version', '?')
+        st.success(f"Last training completed: TrumpGPT v{version} at {completed[:16] if completed else '?'}")
+
+    elif ts_state == 'error':
+        st.error(f"Training failed: {training_status.get('error', 'Unknown error')}")
+
+    # --- Model Info ---
     if model_status.get('model_name'):
         col1, col2, col3, col4 = st.columns(4)
         vi = model_status.get('version_info', {})
         model_label = f"v{vi['version']}" if vi and vi.get('version') else model_status.get('base_model', '').split('/')[-1]
         col1.metric("Model", model_label)
         col2.metric("Terms Tracked", model_status.get('total_terms_tracked', 0))
-        col3.metric("Colab Predictions", model_status.get('colab_predictions_count', 0))
+        col3.metric("Predictions", model_status.get('colab_predictions_count', 0))
         col4.metric("Discovered Phrases", model_status.get('discovered_phrases_count', 0))
+
+        # Corpus info from version
+        if vi and vi.get('corpus_size'):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Corpus", f"{vi['corpus_size']} speeches")
+            if vi.get('training_duration'):
+                c2.metric("Training Time", f"{vi['training_duration']:.1f}s")
+            if vi.get('trained_at'):
+                c3.metric("Trained At", vi['trained_at'][:16])
 
         last_run = model_status.get('last_run', '')
         if last_run:
-            st.success(f"Last TrumpGPT run: {last_run}")
-        else:
-            st.warning("TrumpGPT has not run yet. Run the Colab notebooks.")
+            st.success(f"Last prediction run: {last_run}")
+        elif ts_state != 'complete':
+            st.warning("TrumpGPT has not run yet. Click 'Train Now' in the Model Versions tab.")
 
         new_info = model_status.get('new_iteration_info', {})
         if new_info:

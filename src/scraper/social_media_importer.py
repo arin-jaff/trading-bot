@@ -210,7 +210,15 @@ class SocialMediaImporter:
 
     @staticmethod
     def _clean_post_text(text: str) -> str:
-        """Clean social media post text for training."""
+        """Clean social media post text for training.
+
+        Strips HTML tags, URLs, @mentions, and normalizes whitespace.
+        """
+        # Strip HTML tags (Truth Social / Mastodon returns HTML)
+        text = re.sub(r'<[^>]+>', ' ', text)
+        # Decode common HTML entities
+        text = text.replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+        text = text.replace('&quot;', '"').replace('&#39;', "'")
         # Remove URLs
         text = re.sub(r'https?://\S+', '', text)
         # Remove @mentions
@@ -376,11 +384,11 @@ class SocialMediaImporter:
     # ── Live Scraping (periodic, for new posts) ──
 
     def scrape_latest_posts(self) -> int:
-        """Scrape recent Truth Social posts and build/update daily digests.
+        """Scrape recent Truth Social + Twitter/X posts and rebuild daily digests.
 
-        Called periodically by the scheduler. Fetches new posts, saves them
-        individually, then rebuilds today's daily digest so the Markov trainer
-        picks up fresh social media language.
+        Called periodically by the scheduler. Fetches new posts from both
+        platforms, saves them individually, then rebuilds recent daily digests
+        so the Markov trainer picks up fresh social media language.
 
         Returns count of new posts saved.
         """
@@ -395,7 +403,16 @@ class SocialMediaImporter:
         except Exception as e:
             logger.warning(f"Truth Social scrape failed: {e}")
 
-        # 2. Rebuild recent daily digests (last 7 days)
+        # 2. Scrape recent Twitter/X posts via public proxies
+        try:
+            new_twitter = self._scrape_twitter_recent()
+            total_new += new_twitter
+            if new_twitter:
+                logger.info(f"Scraped {new_twitter} new Twitter/X posts")
+        except Exception as e:
+            logger.warning(f"Twitter/X scrape failed: {e}")
+
+        # 3. Rebuild recent daily digests (last 7 days)
         if total_new > 0:
             try:
                 digests = self._rebuild_recent_digests(days=7)
@@ -551,6 +568,186 @@ class SocialMediaImporter:
                     count += 1
 
         return count
+
+    def _scrape_twitter_recent(self) -> int:
+        """Scrape recent Trump tweets/posts from X via public proxy services.
+
+        Tries multiple Nitter instances and RSS bridges to get recent tweets
+        without requiring Twitter API credentials.
+        """
+        import requests
+
+        count = 0
+        posts = []
+
+        # Nitter instances (public Twitter frontends that serve RSS)
+        nitter_instances = [
+            'https://nitter.privacydev.net',
+            'https://nitter.poast.org',
+            'https://nitter.net',
+            'https://nitter.cz',
+            'https://nitter.1d4.us',
+        ]
+
+        for instance in nitter_instances:
+            try:
+                rss_url = f'{instance}/realDonaldTrump/rss'
+                resp = requests.get(rss_url, timeout=15, headers={
+                    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0',
+                })
+                if resp.status_code != 200:
+                    continue
+
+                import feedparser
+                feed = feedparser.parse(resp.text)
+                if not feed.entries:
+                    continue
+
+                for entry in feed.entries:
+                    text = entry.get('title', entry.get('summary', ''))
+                    # Strip HTML (Nitter includes some)
+                    text = re.sub(r'<[^>]+>', ' ', text)
+                    text = self._clean_post_text(text)
+                    if not text or len(text) < 10:
+                        continue
+
+                    date = datetime.now()
+                    if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                        try:
+                            date = datetime(*entry.published_parsed[:6])
+                        except Exception:
+                            pass
+
+                    posts.append({
+                        'text': text,
+                        'date': date,
+                        'source_id': entry.get('id', entry.get('link', '')),
+                    })
+
+                logger.info(f"Twitter/X: got {len(posts)} posts from {instance}")
+                break  # Got data, stop trying other instances
+
+            except Exception as e:
+                logger.debug(f"Nitter instance {instance} failed: {e}")
+                continue
+
+        # Fallback: Try RSSBridge
+        if not posts:
+            rssbridge_urls = [
+                'https://rss-bridge.org/bridge01/?action=display&bridge=TwitterBridge&context=By+username&u=realDonaldTrump&norep=on&noretweet=on&format=Atom',
+            ]
+            for url in rssbridge_urls:
+                try:
+                    resp = requests.get(url, timeout=15)
+                    if resp.status_code != 200:
+                        continue
+                    import feedparser
+                    feed = feedparser.parse(resp.text)
+                    for entry in feed.entries:
+                        text = entry.get('summary', entry.get('title', ''))
+                        text = re.sub(r'<[^>]+>', ' ', text)
+                        text = self._clean_post_text(text)
+                        if not text or len(text) < 10:
+                            continue
+                        date = datetime.now()
+                        if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                            try:
+                                date = datetime(*entry.published_parsed[:6])
+                            except Exception:
+                                pass
+                        posts.append({
+                            'text': text,
+                            'date': date,
+                            'source_id': entry.get('id', entry.get('link', '')),
+                        })
+                    if posts:
+                        logger.info(f"Twitter/X: got {len(posts)} posts from RSS Bridge")
+                        break
+                except Exception as e:
+                    logger.debug(f"RSS Bridge failed: {e}")
+
+        # Save new posts
+        if posts:
+            with get_session() as session:
+                for post in posts:
+                    sid = post.get('source_id') or f'tweet_{hash(post["text"][:100]) % 10**8}'
+                    existing = session.query(Speech).filter_by(
+                        source='twitter', source_id=sid,
+                    ).first()
+                    if existing:
+                        continue
+
+                    speech = Speech(
+                        source='twitter',
+                        source_id=sid,
+                        title=post['text'][:200],
+                        speech_type='social_media',
+                        date=post['date'],
+                        transcript=post['text'],
+                        transcript_source='twitter_live',
+                        word_count=len(post['text'].split()),
+                        is_processed=False,
+                    )
+                    session.add(speech)
+                    count += 1
+
+        return count
+
+    def clean_existing_posts(self) -> int:
+        """Strip HTML from all existing social media posts in the DB.
+
+        One-time cleanup for posts that were imported before the HTML
+        stripping was added to _clean_post_text(). Safe to run multiple
+        times — already-clean posts won't be modified.
+        """
+        cleaned = 0
+        html_pattern = re.compile(r'<[^>]+>')
+
+        with get_session() as session:
+            dirty_posts = session.query(Speech).filter(
+                Speech.speech_type == 'social_media',
+                Speech.transcript.isnot(None),
+                Speech.transcript.contains('<'),  # quick filter
+            ).all()
+
+            for post in dirty_posts:
+                if not html_pattern.search(post.transcript):
+                    continue
+
+                original = post.transcript
+                cleaned_text = self._clean_post_text(original)
+
+                if cleaned_text != original and cleaned_text:
+                    post.transcript = cleaned_text
+                    post.title = cleaned_text[:200]
+                    post.word_count = len(cleaned_text.split())
+                    post.is_processed = False  # re-process for term analysis
+                    cleaned += 1
+
+            # Also clean daily digests
+            dirty_digests = session.query(Speech).filter(
+                Speech.speech_type == 'social_media_daily',
+                Speech.transcript.isnot(None),
+                Speech.transcript.contains('<'),
+            ).all()
+
+            for digest in dirty_digests:
+                if not html_pattern.search(digest.transcript):
+                    continue
+                # Clean each line separately (digests are newline-joined posts)
+                lines = digest.transcript.split('\n')
+                cleaned_lines = [self._clean_post_text(line) for line in lines]
+                cleaned_lines = [l for l in cleaned_lines if l]
+                new_text = '\n'.join(cleaned_lines)
+                if new_text != digest.transcript:
+                    digest.transcript = new_text
+                    digest.word_count = len(new_text.split())
+                    digest.is_processed = False
+                    cleaned += 1
+
+        if cleaned:
+            logger.info(f"Cleaned HTML from {cleaned} social media posts/digests")
+        return cleaned
 
     def _rebuild_recent_digests(self, days: int = 7) -> int:
         """Rebuild daily digests for the last N days from individual posts.

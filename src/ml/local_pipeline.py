@@ -581,7 +581,7 @@ class LocalPipeline:
                     f'{init_result.get("daily_digests_created", 0)} daily digests'
                 )
 
-            # Scrape latest Truth Social + rebuild recent digests
+            # Scrape latest Truth Social + Twitter/X + rebuild recent digests
             new_posts = importer.scrape_latest_posts()
             if new_posts:
                 self._log_event(f'Phase 0: Scraped {new_posts} new social media posts + rebuilt daily digests')

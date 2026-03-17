@@ -4,9 +4,9 @@
 
 A fully automated trading system that predicts which words/phrases Donald Trump will say in upcoming speeches, trades on those predictions via Kalshi prediction markets, and continuously improves its model by scraping new speech data.
 
-Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
+Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches + tweets + Truth Social → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
-Optionally fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the Pi 4 CPU for higher-quality text generation and prediction blending.
+Auto-fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the Pi 4 CPU when the corpus grows by 50+ documents — no manual intervention needed. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
 
 > See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
 
@@ -117,6 +117,7 @@ notebooks/
 
 scripts/
   backfill_settlements.py    # One-time: match settled markets to predictions, Platt calibration
+  clean_html_posts.py        # One-time: strip HTML from social media posts imported before cleaning was added
 
 data/
   exports/          # Exported training data (.jsonl, .json)
@@ -167,9 +168,11 @@ Defined in `src/scraper/speech_scraper.py`, method `scrape_all_sources()`:
 `src/scraper/social_media_importer.py` — `SocialMediaImporter` class:
 
 - **Twitter archive (bulk, one-time)**: Downloads ~56K Trump tweets, parses JSON/CSV, saves individual posts (`speech_type='social_media'`) and groups them by date into daily digests (`speech_type='social_media_daily'`) for Markov training (minimum 50 words per digest). Auto-runs on first pipeline execution if no tweets exist in the DB.
-- **Truth Social (live, periodic)**: Scrapes new posts every 2 hours via RSS/Mastodon-compatible API. New posts are saved individually, then recent daily digests (last 7 days) are rebuilt/updated so the Markov trainer picks up fresh language immediately.
-- **Daily digest grouping**: Solves the problem that individual posts (~30 words) are too short for the Markov trainer's `word_count >= 100` filter. A day with 10+ posts easily crosses 100 words. Digests are updated in-place when new posts arrive.
-- Triggered via API (`POST /api/social-media/import-twitter`) or CLI (`make import-twitter`) for manual bulk import
+- **Truth Social (live, every 2 hours)**: Scrapes new posts via Mastodon-compatible API (Truth Social is a Mastodon fork). New posts saved individually, daily digests rebuilt for last 7 days.
+- **Twitter/X (live, every 2 hours)**: Scrapes recent tweets via Nitter RSS proxies (5 instances) with RSS Bridge fallback. No Twitter API key needed. Fills the gap after the archive (which ends ~2024-11).
+- **HTML cleaning**: All posts are stripped of HTML tags, entities, URLs, and @mentions before saving. A one-time cleanup script (`scripts/clean_html_posts.py`) is provided for posts imported before cleaning was added.
+- **Daily digest grouping**: Individual posts (~30 words) are too short for the Markov trainer's `word_count >= 100` filter. Posts are grouped by date into daily digests. A day with 10+ posts easily crosses 100 words. Digests are updated in-place when new posts arrive.
+- Triggered via dashboard buttons (Import Twitter Archive / Scrape Truth Social) or CLI (`make import-twitter`)
 - Also runs automatically: pipeline Phase 0 handles initial import + live scraping before each training cycle
 
 ## ML Prediction Pipeline
@@ -195,7 +198,7 @@ Post-prediction processing:
 
 **Always runs (Phases 0-5, ~35 seconds):**
 
-0. **Phase 0:** Social media refresh — auto-imports Twitter archive on first run; scrapes latest Truth Social posts; rebuilds recent daily digests (non-fatal if sources are down)
+0. **Phase 0:** Social media refresh — auto-imports Twitter archive on first run (~56K tweets); scrapes latest Truth Social (Mastodon API) + Twitter/X (Nitter RSS); rebuilds recent daily digests (non-fatal if sources are down)
 1. Checks `should_retrain()` (≥5 new speeches since last training)
 2. **Phase 1:** Trains order-3 word-level Markov chain on all speech transcripts (~5 seconds)
 3. **Phase 2:** Loads tracked terms from DB

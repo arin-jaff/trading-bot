@@ -1,8 +1,8 @@
 # TrumpGPT Trading Bot
 
-Fully automated trading system that predicts which words/phrases Donald Trump will say in upcoming speeches, trades on those predictions via [Kalshi](https://kalshi.com) prediction markets, and continuously improves its model by scraping new speech data.
+Fully automated trading system that predicts which words/phrases Donald Trump will say in upcoming speeches, trades on those predictions via [Kalshi](https://kalshi.com) prediction markets, and continuously improves its model by scraping speeches, tweets, and Truth Social posts.
 
-Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away.
+Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away. Auto-imports ~56K tweets on first run, scrapes Truth Social + Twitter/X every 2 hours, and auto-fine-tunes Pythia-410M when the corpus grows.
 
 ## How It Works
 
@@ -36,7 +36,7 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 
 ### The Core Loop
 
-1. **Scrape** — 10 sources (White House, Rev.com, C-SPAN, YouTube, etc.) collect Trump speech transcripts. Truth Social posts scraped every 2 hours and grouped into daily digests. Twitter archive (~56K tweets) auto-imported on first run.
+1. **Scrape** — 10 speech sources (White House, Rev.com, C-SPAN, YouTube, etc.) + live Truth Social (Mastodon API) + live Twitter/X (Nitter RSS) every 2 hours. Twitter archive (~56K tweets) auto-imported on first run. All posts HTML-cleaned and grouped into daily digests.
 2. **Train** — An order-3 word-level Markov chain learns Trump's speech patterns from the corpus (~5 seconds)
 3. **Simulate** — 2,000 Monte Carlo simulated speeches across 5 scenario types (rally, press conference, chopper talk, interview, social media)
 4. **Predict** — Count term occurrences across simulations, blend with 5 other signals (historical frequency, temporal patterns, trends, event correlation, news relevance) into final probabilities
@@ -438,6 +438,9 @@ make import-twitter   # Download + import Trump Twitter archive (~56K tweets)
 make deploy-pi        # Run Pi setup script
 make export-colab     # Export training data for Colab
 make clean            # Delete DB + caches
+
+# One-time scripts
+python scripts/clean_html_posts.py   # Strip HTML from old social media posts
 ```
 
 ## Model Versioning

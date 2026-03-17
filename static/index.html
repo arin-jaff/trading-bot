@@ -84,17 +84,19 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       <h1>TrumpGPT Trading Bot</h1>
       <div class="sub" x-text="modelMethod+(modelVer?' | v'+modelVer:'')"></div>
       <p style="color:var(--dim);font-size:12px;line-height:1.6;margin-bottom:12px">
-        Autonomous prediction market bot. Scrapes Trump speeches, trains a Markov chain language model,
-        runs Monte Carlo simulations to predict which words he'll say, and trades on
+        Autonomous prediction market bot. Scrapes Trump speeches, tweets, and Truth Social posts,
+        trains a Markov chain + fine-tunes Pythia-410M with LoRA, runs Monte Carlo simulations
+        to predict which words he'll say, and trades on
         <a href="https://kalshi.com" target="_blank">Kalshi</a> when it finds an edge.
+        Fully automated — set it and forget it.
       </p>
       <div style="font-size:11px;color:var(--dim);line-height:1.8">
         <strong style="color:var(--text)">Navigate:</strong>
-        <strong style="color:var(--accent)">Pipeline</strong> to watch training live &bull;
+        <strong style="color:var(--accent)">Pipeline</strong> to watch training + fine-tuning live &bull;
         <strong style="color:var(--accent)">Markets</strong> for Kalshi data &bull;
         <strong style="color:var(--accent)">Predictions</strong> for model output &bull;
         <strong style="color:var(--accent)">Trading</strong> to configure the bot &bull;
-        <strong style="color:var(--accent)">System</strong> for Pi hardware
+        <strong style="color:var(--accent)">TrumpGPT</strong> to generate text with Markov or Pythia
       </div>
     </div>
     <pre class="ascii">                     ..... ..... ....
@@ -624,7 +626,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 <!-- ════════════════════════════════ TRUMPGPT ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='trumpgpt'}">
   <h1>TrumpGPT</h1>
-  <div class="sub">Prompt the Markov chain language model trained on Trump speeches</div>
+  <div class="sub">Prompt the Markov chain or fine-tuned Pythia-410M model trained on Trump speeches, tweets, and Truth Social posts</div>
 
   <div class="card" style="margin-bottom:14px">
     <div style="margin-bottom:10px">

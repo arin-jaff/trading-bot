@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from loguru import logger
 
@@ -979,3 +981,14 @@ def health_check():
         "live_monitoring": live_monitor.is_monitoring,
         "config": app_config.get_status(),
     }
+
+
+# --- Static frontend ---
+
+@app.get("/")
+def serve_dashboard():
+    """Serve the HTML dashboard at root."""
+    return FileResponse(os.path.join('static', 'index.html'))
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")

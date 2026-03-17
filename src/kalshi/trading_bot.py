@@ -29,7 +29,7 @@ class TradingBot:
         self.min_confidence = 0.3  # minimum prediction confidence
         self.use_kelly = True
         self.kelly_fraction = 0.5  # half-Kelly for safety
-        self.auto_trade = False  # manual approval by default
+        self.auto_trade = True  # auto-trade enabled (paper mode keeps it safe)
 
         # Drawdown protection
         self.max_drawdown_pct = 0.30  # halt if balance drops 30% from peak
@@ -39,6 +39,8 @@ class TradingBot:
     def get_config(self) -> dict:
         """Get current bot configuration."""
         return {
+            'paper_mode': self.paper_mode,
+            'auto_trade': self.auto_trade,
             'max_position_size': self.max_position_size,
             'max_daily_loss': self.max_daily_loss,
             'max_total_exposure': self.max_total_exposure,
@@ -46,7 +48,6 @@ class TradingBot:
             'min_confidence': self.min_confidence,
             'use_kelly': self.use_kelly,
             'kelly_fraction': self.kelly_fraction,
-            'auto_trade': self.auto_trade,
             'is_running': self.is_running,
         }
 

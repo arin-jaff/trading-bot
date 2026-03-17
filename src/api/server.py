@@ -311,6 +311,8 @@ class BotConfigUpdate(BaseModel):
     min_edge_threshold: Optional[float] = None
     min_confidence: Optional[float] = None
     auto_trade: Optional[bool] = None
+    paper_mode: Optional[bool] = None
+    kelly_fraction: Optional[float] = None
 
 
 @app.put("/api/trading/config")
@@ -479,6 +481,12 @@ def get_pipeline_status():
 def get_training_status():
     """Get real-time training progress for GUI polling."""
     return _pipeline.get_status()
+
+
+@app.get("/api/pipeline/log")
+def get_pipeline_log(limit: int = 50):
+    """Get recent pipeline log entries."""
+    return _pipeline.get_log(limit)
 
 
 @app.post("/api/pipeline/run")

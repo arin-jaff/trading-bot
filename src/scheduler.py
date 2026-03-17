@@ -210,8 +210,18 @@ def _check_trading(bot: TradingBot):
 
         suggestions = bot.generate_suggestions()
         if suggestions and bot.auto_trade:
+            from .alerts import alert_manager
             for s in suggestions[:3]:  # max 3 auto-trades per cycle
-                bot.execute_trade(s, require_confirmation=False)
+                result = bot.execute_trade(s, require_confirmation=False)
+                if result and result.get('status') in ('placed', 'paper_trade'):
+                    alert_manager.add_alert(
+                        'trade_signal',
+                        f"Trade: {result.get('side', '?').upper()} {result.get('ticker', '?')}",
+                        f"{result.get('side', '?').upper()} {result.get('quantity', 0)}x "
+                        f"{result.get('ticker', '?')} @ {result.get('price_cents', 0)}c",
+                        severity='warning',
+                        data=result,
+                    )
     except Exception as e:
         logger.error(f"Scheduled trading check failed: {e}")
 

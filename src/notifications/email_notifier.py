@@ -46,23 +46,56 @@ class EmailNotifier:
             return False
 
     def send_trade_alert(self, trade_details: dict) -> bool:
-        """Send immediate alert when a trade is executed."""
+        """Send immediate alert when a trade is executed or signal detected.
+
+        Handles two data shapes:
+        - Full trade execution: has ticker, side, quantity, price_cents, edge, status
+        - Trade signal/arbitrage: may only have ticker, side, edge, term, type, etc.
+        """
         side = trade_details.get('side', '?').upper()
-        ticker = trade_details.get('ticker', '?')
-        qty = trade_details.get('quantity', 0)
-        price = trade_details.get('price_cents', 0)
+        ticker = trade_details.get('ticker') or trade_details.get('market_ticker', '?')
+        qty = trade_details.get('quantity')
+        price = trade_details.get('price_cents')
         edge = trade_details.get('edge', 0)
-        status = trade_details.get('status', '?')
+        status = trade_details.get('status')
         paper = ' [PAPER]' if trade_details.get('paper_mode') else ''
 
-        subject = f"TrumpGPT{paper}: {side} {qty}x {ticker}"
+        # Detect if this is a signal-only alert (missing execution details)
+        is_signal = qty is None and price is None and status is None
+        alert_type = trade_details.get('type', 'Trade')
+        term = trade_details.get('term', '')
 
-        html = f"""
-        <div style="font-family: monospace; max-width: 500px;">
-            <h2 style="color: {'#2ecc71' if side == 'YES' else '#e74c3c'};">
-                Trade Executed{paper}
-            </h2>
-            <table style="border-collapse: collapse; width: 100%;">
+        if is_signal:
+            # Signal / arbitrage alert — show what we have
+            heading = f"Trade Signal: {term or alert_type}" if term else f"Signal: {alert_type}"
+            subject = f"TrumpGPT Signal: {side} {ticker}"
+
+            rows = f"""
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Market</td>
+                    <td style="padding: 4px 8px;">{ticker}</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Side</td>
+                    <td style="padding: 4px 8px;">{side}</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Edge</td>
+                    <td style="padding: 4px 8px;">{edge:+.1%}</td></tr>"""
+            if term:
+                rows += f"""
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Term</td>
+                    <td style="padding: 4px 8px;">{term}</td></tr>"""
+            # Include any extra context (e.g. arbitrage profit, action)
+            for key in ('action', 'guaranteed_profit', 'reasoning'):
+                val = trade_details.get(key)
+                if val is not None:
+                    label = key.replace('_', ' ').title()
+                    display = f"${val:.4f}" if key == 'guaranteed_profit' else val
+                    rows += f"""
+                <tr><td style="padding: 4px 8px; font-weight: bold;">{label}</td>
+                    <td style="padding: 4px 8px;">{display}</td></tr>"""
+        else:
+            # Full trade execution alert
+            heading = f"Trade Executed{paper}"
+            subject = f"TrumpGPT{paper}: {side} {qty or 0}x {ticker}"
+
+            rows = f"""
                 <tr><td style="padding: 4px 8px; font-weight: bold;">Market</td>
                     <td style="padding: 4px 8px;">{ticker}</td></tr>
                 <tr><td style="padding: 4px 8px; font-weight: bold;">Side</td>
@@ -74,7 +107,15 @@ class EmailNotifier:
                 <tr><td style="padding: 4px 8px; font-weight: bold;">Edge</td>
                     <td style="padding: 4px 8px;">{edge:+.1%}</td></tr>
                 <tr><td style="padding: 4px 8px; font-weight: bold;">Status</td>
-                    <td style="padding: 4px 8px;">{status}</td></tr>
+                    <td style="padding: 4px 8px;">{status}</td></tr>"""
+
+        html = f"""
+        <div style="font-family: monospace; max-width: 500px;">
+            <h2 style="color: {'#2ecc71' if side == 'YES' else '#e74c3c'};">
+                {heading}
+            </h2>
+            <table style="border-collapse: collapse; width: 100%;">
+                {rows}
             </table>
             <p style="color: #888; font-size: 12px;">
                 {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}

@@ -469,7 +469,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   <div class="card" style="margin-bottom:14px">
     <div style="margin-bottom:10px">
       <label style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Prompt</label>
-      <textarea x-model="gptPrompt" placeholder="Start typing... e.g. 'We are going to build' or 'China has been'" style="width:100%;min-height:60px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px;resize:vertical;margin-top:4px"></textarea>
+      <textarea x-model="gptPrompt" :placeholder="gptQaMode?'Ask a question... e.g. \'What do you think about China?\' or \'Tell us about the wall\'':'Start typing... e.g. \'We are going to build\' or \'China has been\''" style="width:100%;min-height:60px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px;resize:vertical;margin-top:4px"></textarea>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
@@ -485,6 +485,17 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       <div>
         <label style="font-size:10px;color:var(--dim)">Words</label><br>
         <input type="number" x-model.number="gptWordCount" min="50" max="5000" step="50" style="width:80px">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--dim)">Temperature <span x-text="gptTemperature.toFixed(1)" style="color:var(--accent)"></span></label><br>
+        <input type="range" x-model.number="gptTemperature" min="0.3" max="2.0" step="0.1" style="width:120px;vertical-align:middle">
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--dim)">Mode</label><br>
+        <label style="cursor:pointer;font-size:12px;user-select:none">
+          <input type="checkbox" x-model="gptQaMode" style="vertical-align:middle">
+          <span x-text="gptQaMode?'Q&A':'Continue'" :style="gptQaMode?'color:var(--accent)':''"></span>
+        </label>
       </div>
       <div style="margin-top:14px">
         <button class="btn primary" @click="generateTrumpGPT()" :disabled="gptLoading">
@@ -533,7 +544,7 @@ function app(){return{
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
-  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally',
+  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -607,7 +618,7 @@ function app(){return{
   async generateTrumpGPT(){
     this.gptLoading=true;this.gptOutput='';
     try{
-      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario})});
+      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario,temperature:this.gptTemperature,qa_mode:this.gptQaMode})});
       const d=await r.json();
       this.gptOutput=d.text||d.detail||'No output';
     }catch(e){this.gptOutput='Error: '+e.message}

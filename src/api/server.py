@@ -986,6 +986,8 @@ class PromptRequest(BaseModel):
     prompt: str
     word_count: int = 500
     scenario: Optional[str] = None
+    temperature: float = 1.0
+    qa_mode: bool = False
 
 
 @app.post("/api/trumpgpt/generate")
@@ -994,12 +996,16 @@ def generate_trumpgpt(req: PromptRequest):
     from ..ml.markov_trainer import MarkovChainTrainer
     trainer = MarkovChainTrainer(order=app_config.markov_order)
 
+    # Clamp temperature to safe range
+    temp = max(0.3, min(2.0, req.temperature))
+
     if req.prompt.strip():
-        text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count)
+        text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
     else:
         text = trainer.generate_speech(
             scenario_type=req.scenario or 'rally',
             word_count=req.word_count,
+            temperature=temp,
         )
 
     if not text:

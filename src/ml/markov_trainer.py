@@ -5,6 +5,7 @@ chain that trains in seconds and generates simulated Trump speeches for
 term-frequency estimation.
 """
 
+import math
 import os
 import re
 import json
@@ -37,6 +38,30 @@ DEFAULT_SCENARIO_WEIGHTS = {
     'social_media': 0.10,
 }
 
+# Proper nouns to capitalize in post-processing
+_PROPER_NOUNS = {
+    'trump', 'donald', 'america', 'american', 'americans', 'usa',
+    'china', 'chinese', 'russia', 'russian', 'ukraine', 'ukrainian',
+    'biden', 'obama', 'kamala', 'harris', 'pelosi', 'schumer',
+    'desantis', 'vivek', 'nikki', 'haley', 'pence', 'ivanka',
+    'jared', 'kushner', 'melania', 'barron', 'eric', 'jr',
+    'mexico', 'mexican', 'canada', 'canadian', 'iran', 'iranian',
+    'north', 'korea', 'korean', 'japan', 'japanese', 'nato', 'eu',
+    'congress', 'senate', 'republican', 'republicans', 'democrat',
+    'democrats', 'gop', 'maga', 'florida', 'texas', 'california',
+    'new', 'york', 'washington', 'jerusalem', 'israel', 'israeli',
+    'taliban', 'isis', 'al', 'qaeda', 'afghanistan', 'iraq',
+    'fbi', 'cia', 'doj', 'cnn', 'fox', 'msnbc', 'abc', 'nbc', 'cbs',
+    'covid', 'wuhan', 'pfizer', 'moderna',
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december',
+    'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+    'god', 'bible', 'christmas', 'easter',
+}
+
+# Current pickle format version
+_FORMAT_VERSION = 2
+
 
 class MarkovChainTrainer:
     """Trains a word-level Markov chain on Trump speeches and runs Monte Carlo."""
@@ -44,6 +69,8 @@ class MarkovChainTrainer:
     def __init__(self, order: int = 3):
         self.order = order
         self.chain = None  # dict[tuple[str,...], Counter[str]]
+        self.topic_vocab = {}  # dict[str, set[str]] — scenario → distinctive words
+        self._word_to_states = {}  # dict[str, list[tuple]] — inverted index
         self.models_dir = os.path.join('data', 'models')
         self.predictions_dir = os.path.join('data', 'predictions')
         os.makedirs(self.models_dir, exist_ok=True)
@@ -87,17 +114,26 @@ class MarkovChainTrainer:
 
                 corpus_size = len(speeches)
                 transcripts = [s.transcript for s in speeches]
+                speech_types = [s.speech_type for s in speeches]
                 corpus_word_count = sum(s.word_count or 0 for s in speeches)
 
             logger.info(f"Training Markov chain (order={self.order}) on {corpus_size} speeches")
             self._status.update(stage='Tokenizing corpus', progress=0.2)
 
-            # Build chain
+            # Build chain + per-type word frequencies for topic vocab
             chain = defaultdict(Counter)
+            type_word_counts = defaultdict(Counter)  # speech_type → word → count
+            corpus_word_freq = Counter()
+
             for i, transcript in enumerate(transcripts):
                 words = self._tokenize(transcript)
                 if len(words) < self.order + 1:
                     continue
+
+                speech_type = speech_types[i] or 'unknown'
+                word_only = [w for w in words if w not in '.!?,']
+                type_word_counts[speech_type].update(word_only)
+                corpus_word_freq.update(word_only)
 
                 for j in range(len(words) - self.order):
                     key = tuple(words[j:j + self.order])
@@ -108,12 +144,23 @@ class MarkovChainTrainer:
                     self._status['progress'] = 0.2 + 0.5 * (i / len(transcripts))
 
             self.chain = dict(chain)
+
+            # B: Build topic_vocab — words disproportionately common in each type
+            self._status.update(stage='Building topic vocab', progress=0.72)
+            self.topic_vocab = self._build_topic_vocab(
+                type_word_counts, corpus_word_freq
+            )
+
+            # C: Build inverted index for fast bridge-state lookups
+            self._status.update(stage='Building word index', progress=0.76)
+            self._word_to_states = self._build_word_index(self.chain)
+
             self._status.update(stage='Saving model', progress=0.8)
 
             # Determine version
             version_str = self._next_version()
 
-            # Save model artifact
+            # Save model artifact (format v2)
             artifact_path = os.path.join(self.models_dir, f'markov_v{version_str}.pkl')
             with open(artifact_path, 'wb') as f:
                 pickle.dump({
@@ -121,6 +168,9 @@ class MarkovChainTrainer:
                     'order': self.order,
                     'version': version_str,
                     'trained_at': datetime.utcnow().isoformat(),
+                    'format_version': _FORMAT_VERSION,
+                    'topic_vocab': {k: list(v) for k, v in self.topic_vocab.items()},
+                    'word_to_states': self._word_to_states,
                 }, f)
 
             training_duration = time.time() - start_time
@@ -146,7 +196,8 @@ class MarkovChainTrainer:
             self._status.update(stage='Training complete', progress=1.0)
             logger.info(
                 f"Markov chain v{version_str} trained in {training_duration:.1f}s "
-                f"({corpus_size} speeches, {len(self.chain)} states)"
+                f"({corpus_size} speeches, {len(self.chain)} states, "
+                f"topic vocabs: {{{', '.join(f'{k}: {len(v)}' for k, v in self.topic_vocab.items())}}})"
             )
 
             return {
@@ -163,14 +214,24 @@ class MarkovChainTrainer:
             return None
 
     def generate_speech(self, scenario_type: str = 'rally',
-                        word_count: Optional[int] = None) -> str:
-        """Generate a simulated Trump speech using the Markov chain."""
+                        word_count: Optional[int] = None,
+                        temperature: float = 1.0,
+                        topic_bias: float = 1.5) -> str:
+        """Generate a simulated Trump speech using the Markov chain.
+
+        Args:
+            scenario_type: Type of speech scenario for length and topic bias.
+            word_count: Override target word count.
+            temperature: Sampling temperature (0.3-2.0). 1.0 = default behavior.
+            topic_bias: Multiplier for topic-relevant words (1.0 = no bias).
+        """
         if not self.chain:
             self._load_latest_model()
         if not self.chain:
             return ""
 
         target_words = word_count or SCENARIO_WORD_COUNTS.get(scenario_type, 3000)
+        topic_words = self.topic_vocab.get(scenario_type, set())
 
         # Pick a random starting state
         keys = list(self.chain.keys())
@@ -183,13 +244,48 @@ class MarkovChainTrainer:
         for _ in range(target_words - self.order):
             key = tuple(words[-self.order:])
             if key not in self.chain:
-                # Dead end — restart from random state
-                current = random.choice(keys)
-                words.extend(list(current))
+                bridge = self._find_bridge_state(words)
+                words.extend(list(bridge))
+                continue
+
+            next_word = self._sample_next_word(
+                self.chain[key], temperature, topic_words, topic_bias
+            )
+            words.append(next_word)
+
+        return self._post_process(' '.join(words))
+
+    def _generate_raw(self, scenario_type: str = 'rally',
+                      word_count: Optional[int] = None) -> str:
+        """Generate raw text for Monte Carlo — no post-processing, temp=1.0, no topic bias.
+
+        This preserves identical behavior to the original generate_speech() for
+        prediction accuracy. Punctuation tokens are included but don't affect
+        \\b word-boundary regex matching used by run_monte_carlo().
+        """
+        if not self.chain:
+            self._load_latest_model()
+        if not self.chain:
+            return ""
+
+        target_words = word_count or SCENARIO_WORD_COUNTS.get(scenario_type, 3000)
+
+        keys = list(self.chain.keys())
+        if not keys:
+            return ""
+
+        current = random.choice(keys)
+        words = list(current)
+
+        for _ in range(target_words - self.order):
+            key = tuple(words[-self.order:])
+            if key not in self.chain:
+                bridge = self._find_bridge_state(words)
+                words.extend(list(bridge))
                 continue
 
             next_words = self.chain[key]
-            # Weighted random selection
+            # Original weighted random selection (temp=1.0, no bias)
             total = sum(next_words.values())
             r = random.randint(1, total)
             cumulative = 0
@@ -202,11 +298,16 @@ class MarkovChainTrainer:
         return ' '.join(words)
 
     def generate_from_prompt(self, prompt: str,
-                            word_count: int = 500) -> str:
+                            word_count: int = 500,
+                            temperature: float = 1.0,
+                            qa_mode: bool = False) -> str:
         """Generate text seeded from a user prompt.
 
         Tokenizes the prompt, finds the best matching chain state to continue
         from, then generates forward using the Markov chain.
+
+        If qa_mode=True, strips question words and starts generation from
+        topic keywords rather than echoing the question.
         """
         if not self.chain:
             self._load_latest_model()
@@ -218,53 +319,27 @@ class MarkovChainTrainer:
         if not keys:
             return ""
 
-        # Try to find a chain state that matches the end of the prompt
-        start_key = None
-        if len(prompt_words) >= self.order:
-            candidate = tuple(prompt_words[-self.order:])
-            if candidate in self.chain:
-                start_key = candidate
-
-        # Fallback: find any state containing the last prompt word
-        if not start_key and prompt_words:
-            last_word = prompt_words[-1]
-            matching = [k for k in keys if last_word in k]
-            if matching:
-                start_key = random.choice(matching)
-
-        # Final fallback: random start
-        if not start_key:
-            start_key = random.choice(keys)
-
-        words = list(prompt_words) if prompt_words else list(start_key)
+        if qa_mode and prompt_words:
+            # Q&A mode: extract topic keywords, skip question scaffolding
+            topic_keywords = self._extract_topic_keywords(prompt_words)
+            start_key = self._find_topic_start(topic_keywords, keys)
+            words = list(start_key)
+        else:
+            # Normal continuation mode
+            start_key = self._find_prompt_start(prompt_words, keys)
+            words = list(prompt_words) if prompt_words else list(start_key)
 
         for _ in range(word_count):
             key = tuple(words[-self.order:])
             if key not in self.chain:
-                # Dead end — try to find a state with any recent word
-                found = False
-                for w in reversed(words[-10:]):
-                    matching = [k for k in keys if w in k]
-                    if matching:
-                        bridge = random.choice(matching)
-                        words.extend(list(bridge))
-                        found = True
-                        break
-                if not found:
-                    words.extend(list(random.choice(keys)))
+                bridge = self._find_bridge_state(words)
+                words.extend(list(bridge))
                 continue
 
-            next_words = self.chain[key]
-            total = sum(next_words.values())
-            r = random.randint(1, total)
-            cumulative = 0
-            for word, count in next_words.items():
-                cumulative += count
-                if r <= cumulative:
-                    words.append(word)
-                    break
+            next_word = self._sample_next_word(self.chain[key], temperature)
+            words.append(next_word)
 
-        return ' '.join(words)
+        return self._post_process(' '.join(words))
 
     def run_monte_carlo(self, terms: list[str],
                         num_simulations: int = 2000,
@@ -272,6 +347,7 @@ class MarkovChainTrainer:
         """Run Monte Carlo simulation and compute term probabilities.
 
         Returns predictions dict in same format as Colab's predictions_latest.json.
+        Uses _generate_raw() to preserve prediction behavior (no post-processing).
         """
         if not self.chain:
             self._load_latest_model()
@@ -313,7 +389,7 @@ class MarkovChainTrainer:
             word_count = SCENARIO_WORD_COUNTS.get(scenario, 3000)
 
             for i in range(n_sims):
-                speech = self.generate_speech(scenario, word_count)
+                speech = self._generate_raw(scenario, word_count)
                 total_words_generated += len(speech.split())
 
                 # Count term occurrences
@@ -393,16 +469,239 @@ class MarkovChainTrainer:
 
         return path
 
+    # ── A: Punctuation-aware tokenization ──
+
     def _tokenize(self, text: str) -> list[str]:
-        """Tokenize transcript into lowercase words."""
+        """Tokenize transcript into lowercase words + punctuation tokens."""
         # Remove bracketed stage directions [applause], (laughter), etc.
         text = re.sub(r'\[.*?\]', '', text)
         text = re.sub(r'\(.*?\)', '', text)
         # Remove speaker labels like "TRUMP:" or "REPORTER:"
         text = re.sub(r'^[A-Z][A-Z\s]+:', '', text, flags=re.MULTILINE)
-        # Split on whitespace, keep only alphabetic + common punctuation
-        words = re.findall(r"[a-z]+(?:'[a-z]+)?", text.lower())
-        return words
+        # Split into words + punctuation tokens (.!?,)
+        words = re.findall(r"[a-z]+(?:'[a-z]+)?|[.!?,]", text.lower())
+        # Collapse consecutive punctuation (e.g. "..." → ".", "!!" → "!")
+        result = []
+        for w in words:
+            if w in '.!?,' and result and result[-1] in '.!?,':
+                continue  # skip duplicate punctuation
+            result.append(w)
+        return result
+
+    # ── B: Topic vocab builder ──
+
+    @staticmethod
+    def _build_topic_vocab(type_word_counts: dict[str, Counter],
+                           corpus_word_freq: Counter,
+                           min_occurrences: int = 5,
+                           min_ratio: float = 2.0) -> dict[str, set[str]]:
+        """Build per-scenario topic vocabularies.
+
+        A word is "distinctive" for a scenario if it appears at least
+        min_occurrences times in that type AND its frequency ratio vs the
+        corpus average is > min_ratio.
+        """
+        total_corpus = sum(corpus_word_freq.values()) or 1
+        topic_vocab = {}
+
+        for speech_type, wc in type_word_counts.items():
+            type_total = sum(wc.values()) or 1
+            distinctive = set()
+            for word, count in wc.items():
+                if count < min_occurrences:
+                    continue
+                type_freq = count / type_total
+                corpus_freq = corpus_word_freq[word] / total_corpus
+                if corpus_freq > 0 and type_freq / corpus_freq > min_ratio:
+                    distinctive.add(word)
+            topic_vocab[speech_type] = distinctive
+
+        return topic_vocab
+
+    # ── C: Inverted index + bridge-state lookup ──
+
+    @staticmethod
+    def _build_word_index(chain: dict) -> dict[str, list[tuple]]:
+        """Build inverted index: word → list of chain states containing it."""
+        index = defaultdict(list)
+        for state in chain:
+            for word in set(state):  # deduplicate within state
+                if word not in '.!?,':
+                    index[word].append(state)
+        return dict(index)
+
+    def _find_bridge_state(self, words: list[str]) -> tuple:
+        """Find a contextually relevant bridge state when hitting a dead end.
+
+        Tries recent words against the inverted index for O(1) lookup,
+        falls back to random state.
+        """
+        # Look at the last few content words (skip punctuation)
+        recent = [w for w in words[-10:] if w not in '.!?,']
+        for w in reversed(recent):
+            states = self._word_to_states.get(w)
+            if states:
+                return random.choice(states)
+
+        # No inverted index or no match — random fallback
+        keys = list(self.chain.keys())
+        return random.choice(keys) if keys else ()
+
+    # ── Q&A helpers ──
+
+    # Words that form question scaffolding, not topic content
+    _QUESTION_WORDS = frozenset({
+        'what', 'how', 'why', 'when', 'where', 'who', 'which', 'whom',
+        'do', 'does', 'did', 'is', 'are', 'was', 'were', 'will', 'would',
+        'can', 'could', 'should', 'shall', 'may', 'might', 'has', 'have',
+        'had', 'the', 'a', 'an', 'about', 'your', 'you', 'think', 'tell',
+        'us', 'me', 'of', 'on', 'in', 'to', 'for', 'with', 'opinion',
+    })
+
+    def _extract_topic_keywords(self, prompt_words: list[str]) -> list[str]:
+        """Extract topic keywords from a question, filtering out question scaffolding."""
+        keywords = [w for w in prompt_words
+                    if w not in self._QUESTION_WORDS and w not in '.!?,']
+        # If everything got filtered, fall back to all content words
+        if not keywords:
+            keywords = [w for w in prompt_words if w not in '.!?,']
+        return keywords
+
+    def _find_topic_start(self, topic_keywords: list[str], keys: list[tuple]) -> tuple:
+        """Find the best chain state matching topic keywords."""
+        # Try each keyword against the inverted index, prefer later (more specific) keywords
+        for word in reversed(topic_keywords):
+            states = self._word_to_states.get(word)
+            if states:
+                # Prefer states that contain multiple topic keywords
+                scored = []
+                for state in states:
+                    overlap = sum(1 for kw in topic_keywords if kw in state)
+                    scored.append((overlap, state))
+                scored.sort(key=lambda x: x[0], reverse=True)
+                # Pick randomly among top-scoring states
+                top_score = scored[0][0]
+                top_states = [s for score, s in scored if score == top_score]
+                return random.choice(top_states)
+        return random.choice(keys)
+
+    def _find_prompt_start(self, prompt_words: list[str], keys: list[tuple]) -> tuple:
+        """Find the best chain state to continue from a prompt."""
+        if len(prompt_words) >= self.order:
+            candidate = tuple(prompt_words[-self.order:])
+            if candidate in self.chain:
+                return candidate
+
+        if prompt_words:
+            last_word = prompt_words[-1]
+            states = self._word_to_states.get(last_word)
+            if states:
+                return random.choice(states)
+            matching = [k for k in keys if last_word in k]
+            if matching:
+                return random.choice(matching)
+
+        return random.choice(keys)
+
+    # ── D: Temperature-controlled sampling ──
+
+    @staticmethod
+    def _sample_next_word(next_words: Counter, temperature: float = 1.0,
+                          topic_words: set = None,
+                          topic_bias: float = 1.0) -> str:
+        """Sample next word with temperature and optional topic bias.
+
+        Args:
+            next_words: Counter of {word: count} from chain.
+            temperature: 1.0 = default, <1.0 = sharper/more coherent, >1.0 = flatter/creative.
+            topic_words: Set of words distinctive to the current scenario.
+            topic_bias: Multiplier applied to counts for topic-relevant words.
+        """
+        # Fast path: temp=1.0 and no topic bias — original integer arithmetic
+        if temperature == 1.0 and (not topic_words or topic_bias == 1.0):
+            total = sum(next_words.values())
+            r = random.randint(1, total)
+            cumulative = 0
+            for word, count in next_words.items():
+                cumulative += count
+                if r <= cumulative:
+                    return word
+            return next(iter(next_words))  # shouldn't reach here
+
+        # Apply topic bias and temperature
+        adjusted = {}
+        for word, count in next_words.items():
+            weight = float(count)
+            if topic_words and topic_bias != 1.0 and word in topic_words:
+                weight *= topic_bias
+            if temperature != 1.0:
+                weight = weight ** (1.0 / temperature)
+            adjusted[word] = weight
+
+        total = sum(adjusted.values())
+        if total <= 0:
+            return random.choice(list(next_words.keys()))
+
+        r = random.random() * total
+        cumulative = 0.0
+        for word, weight in adjusted.items():
+            cumulative += weight
+            if r <= cumulative:
+                return word
+        return next(iter(adjusted))  # rounding guard
+
+    # ── E: Post-processing (capitalization + punctuation cleanup) ──
+
+    @staticmethod
+    def _post_process(text: str) -> str:
+        """Clean up generated text for user-facing display.
+
+        - Remove spaces before punctuation
+        - Capitalize after sentence-enders and at start
+        - Capitalize "i" → "I"
+        - Capitalize known proper nouns
+        """
+        # Remove space before punctuation tokens
+        text = re.sub(r'\s+([.!?,])', r'\1', text)
+        # Ensure space after punctuation if followed by a letter
+        text = re.sub(r'([.!?,])([a-zA-Z])', r'\1 \2', text)
+
+        # Split into sentences and capitalize
+        result = []
+        capitalize_next = True
+        for token in re.split(r'(\s+)', text):
+            if not token.strip():
+                result.append(token)
+                continue
+            if capitalize_next and token[0].isalpha():
+                token = token[0].upper() + token[1:]
+                capitalize_next = False
+            if token[-1] in '.!?':
+                capitalize_next = True
+            result.append(token)
+
+        text = ''.join(result)
+
+        # Capitalize "i" as standalone word
+        text = re.sub(r"\bi\b", "I", text)
+        # Capitalize "i'" contractions (i'm, i've, i'll, i'd)
+        text = re.sub(r"\bi'", "I'", text)
+
+        # Capitalize proper nouns
+        for noun in _PROPER_NOUNS:
+            text = re.sub(
+                r'\b' + re.escape(noun) + r'\b',
+                lambda m: m.group().capitalize(),
+                text,
+                flags=re.IGNORECASE,
+            )
+
+        # Fix double-capitalized all-caps abbreviations that got lowered then capitalized
+        for abbr in ('FBI', 'CIA', 'DOJ', 'CNN', 'MSNBC', 'ABC', 'NBC', 'CBS',
+                      'USA', 'GOP', 'MAGA', 'NATO', 'EU', 'ISIS', 'COVID'):
+            text = re.sub(r'\b' + abbr.capitalize() + r'\b', abbr, text)
+
+        return text
 
     def _next_version(self) -> str:
         """Get next version string by incrementing patch number."""
@@ -429,10 +728,7 @@ class MarkovChainTrainer:
             ).order_by(ModelVersion.created_at.desc()).first()
 
             if latest and latest.artifact_path and os.path.exists(latest.artifact_path):
-                with open(latest.artifact_path, 'rb') as f:
-                    data = pickle.load(f)
-                self.chain = data['chain']
-                self.order = data['order']
+                self._load_pickle(latest.artifact_path)
                 logger.info(f"Loaded Markov chain v{latest.version}")
                 return
 
@@ -440,10 +736,24 @@ class MarkovChainTrainer:
         import glob
         files = sorted(glob.glob(os.path.join(self.models_dir, 'markov_v*.pkl')), reverse=True)
         if files:
-            with open(files[0], 'rb') as f:
-                data = pickle.load(f)
-            self.chain = data['chain']
-            self.order = data['order']
+            self._load_pickle(files[0])
             logger.info(f"Loaded Markov chain from {files[0]}")
         else:
             logger.warning("No trained Markov model found — need to train first")
+
+    def _load_pickle(self, path: str):
+        """Load a pickle file, handling both v1 and v2 formats."""
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+        self.chain = data['chain']
+        self.order = data['order']
+
+        # v2 fields — gracefully degrade for old pickles
+        fmt = data.get('format_version', 1)
+        if fmt >= 2:
+            raw_vocab = data.get('topic_vocab', {})
+            self.topic_vocab = {k: set(v) for k, v in raw_vocab.items()}
+            self._word_to_states = data.get('word_to_states', {})
+        else:
+            self.topic_vocab = {}
+            self._word_to_states = {}

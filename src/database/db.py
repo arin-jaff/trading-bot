@@ -2,16 +2,20 @@
 
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
 from .models import Base
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/trading_bot.db')
 
+# SQLite doesn't benefit from connection pooling — NullPool avoids
+# QueuePool exhaustion when many scheduler jobs overlap.
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    connect_args={'timeout': 30},  # wait up to 30s for SQLite lock
+    connect_args={'timeout': 30, 'check_same_thread': False},
+    poolclass=NullPool,
 )
 SessionLocal = sessionmaker(bind=engine)
 

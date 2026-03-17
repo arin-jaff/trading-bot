@@ -14,8 +14,8 @@ Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/home/pi/trading-bot/.env
 
 # Resource limits for Pi 4
-MemoryMax=1G
-CPUQuota=80%
+MemoryMax=2G
+CPUQuota=90%
 
 # Logging
 StandardOutput=journal

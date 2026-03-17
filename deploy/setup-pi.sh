@@ -15,7 +15,7 @@ echo "=========================================="
 echo "[1/7] Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq python3-pip python3-venv python3-dev \
-    libffi-dev libssl-dev libatlas-base-dev git curl
+    libffi-dev libssl-dev libopenblas-dev git curl
 
 # --- Python virtual environment ---
 echo "[2/7] Creating Python virtual environment..."

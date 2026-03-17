@@ -1,4 +1,4 @@
-.PHONY: install install-pi api gui all clean init export-colab deploy-pi
+.PHONY: install install-pi install-finetune api gui all clean init export-colab deploy-pi import-twitter
 
 install:
 	pip install -r requirements.txt
@@ -27,6 +27,12 @@ export-colab:
 
 deploy-pi:
 	bash deploy/setup-pi.sh
+
+install-finetune:
+	pip install torch transformers peft datasets accelerate
+
+import-twitter:
+	python -c "from src.scraper.social_media_importer import SocialMediaImporter; i=SocialMediaImporter(); print(i.import_twitter_archive())"
 
 clean:
 	rm -rf data/trading_bot.db

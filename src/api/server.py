@@ -980,6 +980,111 @@ def get_model_versions():
         ]
 
 
+# --- Social Media Import endpoints ---
+
+_social_importer = None
+
+
+def _get_social_importer():
+    global _social_importer
+    if _social_importer is None:
+        from ..scraper.social_media_importer import SocialMediaImporter
+        _social_importer = SocialMediaImporter()
+    return _social_importer
+
+
+@app.post("/api/social-media/import-twitter")
+def import_twitter(background_tasks: BackgroundTasks):
+    """Download and import Trump Twitter archive."""
+    importer = _get_social_importer()
+    background_tasks.add_task(_run_twitter_import, importer)
+    return {"status": "Twitter import started"}
+
+
+def _run_twitter_import(importer):
+    try:
+        importer.import_twitter_archive()
+    except Exception as e:
+        logger.error(f"Twitter import failed: {e}")
+
+
+class TruthImportRequest(BaseModel):
+    file_path: str
+
+
+@app.post("/api/social-media/import-truth")
+def import_truth_social(req: TruthImportRequest, background_tasks: BackgroundTasks):
+    """Import Truth Social posts from a JSON dump."""
+    importer = _get_social_importer()
+    background_tasks.add_task(_run_truth_import, importer, req.file_path)
+    return {"status": "Truth Social import started"}
+
+
+def _run_truth_import(importer, file_path: str):
+    try:
+        importer.import_truth_social(file_path)
+    except Exception as e:
+        logger.error(f"Truth Social import failed: {e}")
+
+
+@app.get("/api/social-media/import-status")
+def get_import_status():
+    """Get social media import progress."""
+    importer = _get_social_importer()
+    return importer.get_status()
+
+
+@app.get("/api/social-media/stats")
+def get_social_media_stats():
+    """Get social media corpus statistics."""
+    importer = _get_social_importer()
+    return importer.get_stats()
+
+
+# --- Fine-Tune endpoints ---
+
+@app.post("/api/fine-tune/start")
+def start_fine_tune(background_tasks: BackgroundTasks):
+    """Start GPT-2 fine-tuning in background."""
+    if not app_config.fine_tune_enabled:
+        return {"status": "disabled", "message": "Set FINE_TUNE_ENABLED=true to enable"}
+    if hasattr(_pipeline, 'run_fine_tune_only'):
+        result = _pipeline.run_fine_tune_only()
+        return result
+    return {"status": "error", "message": "Pipeline does not support fine-tuning"}
+
+
+@app.post("/api/fine-tune/stop")
+def stop_fine_tune():
+    """Gracefully stop fine-tuning (saves checkpoint)."""
+    if hasattr(_pipeline, 'fine_tuner') and _pipeline.fine_tuner:
+        _pipeline.fine_tuner.stop_training()
+        return {"status": "stop requested"}
+    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
+    if ft:
+        ft.stop_training()
+        return {"status": "stop requested"}
+    return {"status": "no active fine-tuning"}
+
+
+@app.get("/api/fine-tune/status")
+def get_fine_tune_status():
+    """Get fine-tuning progress."""
+    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
+    if ft:
+        return ft.get_status()
+    return {"state": "unavailable", "error": "Fine-tuner not available"}
+
+
+@app.get("/api/fine-tune/loss-history")
+def get_fine_tune_loss_history():
+    """Get loss curve data for charting."""
+    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
+    if ft:
+        return ft.get_loss_history()
+    return []
+
+
 # --- TrumpGPT prompt endpoint ---
 
 class PromptRequest(BaseModel):
@@ -988,25 +1093,32 @@ class PromptRequest(BaseModel):
     scenario: Optional[str] = None
     temperature: float = 1.0
     qa_mode: bool = False
+    model: str = 'markov'  # 'markov' or 'gpt2'
 
 
 @app.post("/api/trumpgpt/generate")
 def generate_trumpgpt(req: PromptRequest):
     """Generate text from TrumpGPT given a prompt or scenario."""
-    from ..ml.markov_trainer import MarkovChainTrainer
-    trainer = MarkovChainTrainer(order=app_config.markov_order)
-
     # Clamp temperature to safe range
     temp = max(0.3, min(2.0, req.temperature))
 
-    if req.prompt.strip():
-        text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
+    if req.model == 'gpt2':
+        # Use fine-tuned GPT-2
+        ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
+        if not ft or not ft.has_trained_model():
+            raise HTTPException(status_code=400, detail="No fine-tuned GPT-2 model available. Train one first.")
+        if req.prompt.strip():
+            text = ft.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
+        else:
+            text = ft.generate_speech(scenario_type=req.scenario or 'rally', word_count=req.word_count, temperature=temp)
     else:
-        text = trainer.generate_speech(
-            scenario_type=req.scenario or 'rally',
-            word_count=req.word_count,
-            temperature=temp,
-        )
+        # Use Markov chain (default)
+        from ..ml.markov_trainer import MarkovChainTrainer
+        trainer = MarkovChainTrainer(order=app_config.markov_order)
+        if req.prompt.strip():
+            text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
+        else:
+            text = trainer.generate_speech(scenario_type=req.scenario or 'rally', word_count=req.word_count, temperature=temp)
 
     if not text:
         raise HTTPException(status_code=500, detail="No trained model found. Run the pipeline first.")
@@ -1016,6 +1128,7 @@ def generate_trumpgpt(req: PromptRequest):
         'word_count': len(text.split()),
         'prompt': req.prompt,
         'scenario': req.scenario,
+        'model': req.model,
     }
 
 

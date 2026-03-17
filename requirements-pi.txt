@@ -51,3 +51,10 @@ aiohttp>=3.9.0
 
 # Crypto (for Kalshi RSA auth)
 cryptography>=41.0.0
+
+# Fine-tuning (uncomment if FINE_TUNE_ENABLED=true)
+# torch>=2.1.0
+# transformers>=4.35.0
+# peft>=0.7.0
+# datasets>=2.14.0
+# accelerate>=0.24.0

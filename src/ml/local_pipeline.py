@@ -27,6 +27,7 @@ class LocalPipeline:
     def __init__(self):
         self.trainer = MarkovChainTrainer(order=config.markov_order)
         self.colab_predictor = ColabPredictor()
+        self.fine_tuner = None  # lazy-loaded
         self._lock = threading.Lock()
         self._log = []  # list of {timestamp, message} dicts
         self._max_log = 200
@@ -40,6 +41,17 @@ class LocalPipeline:
             'current_version': self._get_current_version(),
             'error': None,
         }
+
+    def _get_fine_tuner(self):
+        """Lazy-load GPT2FineTuner only when needed."""
+        if self.fine_tuner is None:
+            try:
+                from .fine_tuner import GPT2FineTuner
+                self.fine_tuner = GPT2FineTuner()
+            except ImportError:
+                logger.debug("Fine-tuner dependencies not installed")
+                return None
+        return self.fine_tuner
 
     def get_status(self) -> dict:
         """Get pipeline status including trainer progress."""
@@ -81,6 +93,13 @@ class LocalPipeline:
                 status['eta_seconds'] = None
         else:
             status['eta_seconds'] = None
+
+        # Include fine-tune status when available
+        ft = self._get_fine_tuner()
+        if ft:
+            ft_status = ft.get_status()
+            if ft_status['state'] != 'idle':
+                status['fine_tune_status'] = ft_status
 
         return status
 
@@ -207,7 +226,7 @@ class LocalPipeline:
                 ).count()
             self._status['last_training_speech_count'] = current_count
 
-            # Update status
+            # Update status — Markov pipeline complete
             version = train_result['version']
             self._status.update(
                 state='complete',
@@ -229,6 +248,18 @@ class LocalPipeline:
                 'predictions': pred_count,
                 'training_seconds': train_result['training_seconds'],
             }
+
+            # Phase 6-8: GPT-2 fine-tuning (non-blocking — runs in background)
+            if config.fine_tune_enabled:
+                self._log_event('Phase 6: Starting GPT-2 fine-tuning in background...')
+                import threading
+                ft_thread = threading.Thread(
+                    target=self._run_fine_tune_phases,
+                    args=(term_list,),
+                    daemon=True,
+                )
+                ft_thread.start()
+
             logger.info(f"Local pipeline complete: {result}")
             return result
 
@@ -323,6 +354,93 @@ class LocalPipeline:
             logger.debug(f"Could not get event scenario weights: {e}")
 
         return None
+
+    def _run_fine_tune_phases(self, term_list: list[str]):
+        """Phase 6-8: GPT-2 fine-tuning + Monte Carlo (runs in background thread)."""
+        ft = self._get_fine_tuner()
+        if not ft:
+            self._log_event('Phase 6: Skipped — fine-tuner dependencies not installed')
+            return
+
+        try:
+            # Phase 6: Fine-tune GPT-2
+            self._log_event('Phase 6: Fine-tuning GPT-2 with LoRA (this will take hours)...')
+            ft_result = ft.train()
+            if not ft_result or ft_result.get('status') == 'error':
+                self._log_event(f'Phase 6: Fine-tuning failed: {ft_result}')
+                return
+            self._log_event(f'Phase 6: Fine-tuning complete — {ft_result.get("total_steps", 0)} steps, loss={ft_result.get("final_loss", "?")}')
+
+            # Phase 7: GPT-2 Monte Carlo
+            if term_list:
+                self._log_event(f'Phase 7: Running GPT-2 Monte Carlo ({config.fine_tune_mc_sims} sims)...')
+                gpt2_predictions = ft.run_monte_carlo(term_list)
+                if gpt2_predictions and gpt2_predictions.get('term_predictions'):
+                    self._log_event(f'Phase 7: GPT-2 Monte Carlo complete — {len(gpt2_predictions["term_predictions"])} predictions')
+
+                    # Phase 8: Blend with Markov predictions
+                    self._blend_predictions(gpt2_predictions)
+                    self._log_event('Phase 8: Blended GPT-2 + Markov predictions')
+                else:
+                    self._log_event('Phase 7: GPT-2 Monte Carlo produced no predictions')
+
+        except Exception as e:
+            self._log_event(f'Fine-tune pipeline error: {e}')
+            logger.error(f"Fine-tune phases failed: {e}")
+
+    def _blend_predictions(self, gpt2_predictions: dict):
+        """Blend GPT-2 Monte Carlo predictions with existing Markov predictions.
+
+        Saves a blended predictions file with weighted average (60% Markov, 40% GPT-2).
+        """
+        import json
+
+        pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
+        if not os.path.exists(pred_path):
+            return
+
+        with open(pred_path) as f:
+            markov_data = json.load(f)
+
+        markov_preds = {p['term']: p for p in markov_data.get('term_predictions', [])}
+        gpt2_preds = {p['term']: p for p in gpt2_predictions.get('term_predictions', [])}
+
+        blended = []
+        for term, mp in markov_preds.items():
+            gp = gpt2_preds.get(term)
+            if gp:
+                # Weighted blend: 60% Markov (more sims, proven), 40% GPT-2
+                blended_prob = 0.6 * mp['probability'] + 0.4 * gp['probability']
+                entry = mp.copy()
+                entry['probability'] = round(blended_prob, 4)
+                entry['model_name'] = 'blended_markov_gpt2'
+                entry['markov_probability'] = mp['probability']
+                entry['gpt2_probability'] = gp['probability']
+            else:
+                entry = mp.copy()
+            blended.append(entry)
+
+        markov_data['term_predictions'] = blended
+        markov_data['blended'] = True
+        markov_data['blend_weights'] = {'markov': 0.6, 'gpt2': 0.4}
+
+        with open(pred_path, 'w') as f:
+            json.dump(markov_data, f, indent=2)
+
+        # Re-import to DB
+        self.colab_predictor.save_to_database()
+
+    def run_fine_tune_only(self):
+        """Manually trigger fine-tuning without running the Markov pipeline."""
+        ft = self._get_fine_tuner()
+        if not ft:
+            return {'status': 'error', 'error': 'Fine-tuner dependencies not installed'}
+
+        self._log_event('Manual fine-tune triggered (skipping Markov phases)')
+        import threading
+        thread = threading.Thread(target=ft.train, daemon=True)
+        thread.start()
+        return {'status': 'started'}
 
     def _notify_failure(self, error: str):
         """Send email notification on pipeline failure."""

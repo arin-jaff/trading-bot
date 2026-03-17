@@ -144,6 +144,15 @@ def create_scheduler() -> BackgroundScheduler:
         name='Manage open positions (profit-take/stop-loss)',
     )
 
+    # Optional: weekly GPT-2 fine-tuning (Sunday midnight)
+    if config.fine_tune_enabled:
+        scheduler.add_job(
+            _run_fine_tune, CronTrigger(day_of_week='sun', hour=0),
+            id='fine_tune', replace_existing=True,
+            name='Weekly GPT-2 fine-tuning',
+        )
+        logger.info("Fine-tuning enabled: weekly Sunday midnight")
+
     return scheduler
 
 
@@ -315,3 +324,16 @@ def _manage_positions(bot: TradingBot):
                 )
     except Exception as e:
         logger.error(f"Position management failed: {e}")
+
+
+def _run_fine_tune():
+    """Weekly job: fine-tune GPT-2 on expanded corpus."""
+    try:
+        from .ml.fine_tuner import GPT2FineTuner
+        fine_tuner = GPT2FineTuner()
+        result = fine_tuner.train()
+        logger.info(f"Weekly fine-tune result: {result}")
+    except ImportError:
+        logger.debug("Fine-tune dependencies not installed, skipping")
+    except Exception as e:
+        logger.error(f"Weekly fine-tune failed: {e}")

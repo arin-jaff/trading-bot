@@ -243,6 +243,74 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </table>
   </div>
 
+  <!-- SOCIAL MEDIA CORPUS -->
+  <h2>Social Media Corpus</h2>
+  <div class="card" style="margin-bottom:14px">
+    <div class="grid g4" style="margin-bottom:12px">
+      <div class="card" style="text-align:center"><div class="label">Tweets</div><div class="val" style="font-size:18px" x-text="socialStats?.tweets||0"></div></div>
+      <div class="card" style="text-align:center"><div class="label">Truth Social</div><div class="val" style="font-size:18px" x-text="socialStats?.truth_social||0"></div></div>
+      <div class="card" style="text-align:center"><div class="label">Daily Digests</div><div class="val" style="font-size:18px" x-text="socialStats?.daily_digests||0"></div></div>
+      <div class="card" style="text-align:center"><div class="label">Digest Words</div><div class="val" style="font-size:18px" x-text="(socialStats?.total_digest_words||0).toLocaleString()"></div></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" @click="importTwitter()" :disabled="importStatus?.state==='importing'||importStatus?.state==='downloading'">
+        <template x-if="importStatus?.state==='importing'||importStatus?.state==='downloading'"><span class="spinner" style="vertical-align:middle;margin-right:4px"></span></template>
+        Import Twitter Archive
+      </button>
+      <span style="font-size:11px;color:var(--dim)">Downloads ~56K tweets and groups into daily digests</span>
+    </div>
+    <template x-if="importStatus && (importStatus.state==='importing'||importStatus.state==='downloading')">
+      <div style="margin-top:10px">
+        <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+(importStatus.progress*100)+'%;background:var(--accent)'"></div></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px" x-text="importStatus.state==='downloading'?'Downloading archive...':'Importing: '+importStatus.imported+' posts, '+importStatus.daily_digests_created+' digests ('+importStatus.skipped_dupes+' dupes skipped)'"></div>
+      </div>
+    </template>
+    <template x-if="importStatus?.state==='complete'">
+      <div class="alert success" style="margin-top:8px">
+        Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
+      </div>
+    </template>
+  </div>
+
+  <!-- FINE-TUNE GPT-2 -->
+  <h2>Fine-Tune GPT-2</h2>
+  <div class="card" style="margin-bottom:14px">
+    <template x-if="!fineTuneStatus || fineTuneStatus.state==='idle'">
+      <div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn primary" @click="apiPost('/fine-tune/start')">Start Fine-Tuning</button>
+          <span style="font-size:11px;color:var(--dim)">Runs at lowest CPU priority — dashboard stays responsive</span>
+        </div>
+      </div>
+    </template>
+    <template x-if="fineTuneStatus && fineTuneStatus.state==='training'">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div><span style="font-size:16px">&#9881;</span> <strong style="color:var(--accent)">FINE-TUNING GPT-2</strong></div>
+          <button class="btn" @click="apiPost('/fine-tune/stop')" style="border-color:var(--red);color:var(--red)">Stop</button>
+        </div>
+        <div class="pbar" style="height:10px;margin:10px 0"><div class="fill" :style="'width:'+(fineTuneStatus.progress*100)+'%;background:var(--blue)'"></div></div>
+        <div class="grid g4">
+          <div class="card" style="text-align:center"><div class="label">Epoch</div><div class="val" style="font-size:16px" x-text="(fineTuneStatus.current_epoch||0)+'/'+(fineTuneStatus.total_epochs||3)"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Loss</div><div class="val" style="font-size:16px;color:var(--blue)" x-text="fineTuneStatus.loss||'-'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Tok/s</div><div class="val" style="font-size:16px" x-text="fineTuneStatus.tokens_per_second||'-'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:16px" x-text="fineTuneStatus.eta_seconds?fmtSec(fineTuneStatus.eta_seconds):'-'"></div></div>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-top:6px;text-align:center" x-text="'Step '+fineTuneStatus.current_step+'/'+fineTuneStatus.total_steps+(fineTuneStatus.memory_mb?' | RAM: '+fineTuneStatus.memory_mb+'MB':'')"></div>
+        <canvas id="lossChart" style="max-height:150px;margin-top:12px"></canvas>
+      </div>
+    </template>
+    <template x-if="fineTuneStatus?.state==='complete'">
+      <div class="alert success">Fine-tuning complete! <span x-text="fineTuneStatus.stage"></span></div>
+    </template>
+    <template x-if="fineTuneStatus?.state==='stopped'">
+      <div class="alert warning">Fine-tuning stopped. Checkpoint saved — can resume later.</div>
+    </template>
+    <template x-if="fineTuneStatus?.state==='error'">
+      <div class="alert error">Fine-tuning error: <span x-text="fineTuneStatus.error"></span></div>
+    </template>
+  </div>
+
   <!-- LOG -->
   <h2>Pipeline Log</h2>
   <div class="card" style="max-height:300px;overflow-y:auto">
@@ -473,6 +541,13 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
+        <label style="font-size:10px;color:var(--dim)">Model</label><br>
+        <select x-model="gptModel" style="width:160px">
+          <option value="markov">Markov Chain (fast)</option>
+          <option value="gpt2">Fine-Tuned GPT-2</option>
+        </select>
+      </div>
+      <div>
         <label style="font-size:10px;color:var(--dim)">Scenario</label><br>
         <select x-model="gptScenario" style="width:160px">
           <option value="rally">Rally (5000w)</option>
@@ -544,7 +619,8 @@ function app(){return{
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
-  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
+  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true, gptModel:'markov',
+  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null,
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -596,9 +672,28 @@ function app(){return{
   },
 
   async loadPipeline(){
-    const[tr,log]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50')]);
+    const[tr,log,ft,imp,ss]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/fine-tune/status'),this.api('/social-media/import-status'),this.api('/social-media/stats')]);
     this.training=tr;
     this.pipelineLog=Array.isArray(log)?log:[];
+    this.fineTuneStatus=ft;
+    this.importStatus=imp;
+    this.socialStats=ss;
+    if(ft&&ft.state==='training'){this.loadLossChart()}
+  },
+
+  async loadLossChart(){
+    const data=await this.api('/fine-tune/loss-history');
+    if(!data||!data.length)return;
+    this.lossHistory=data;
+    const c=document.getElementById('lossChart');if(!c)return;
+    const labels=data.map(d=>d.step);const vals=data.map(d=>d.loss);
+    if(this.lossChart)this.lossChart.destroy();
+    this.lossChart=new Chart(c,{type:'line',data:{labels,datasets:[{data:vals,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},
+      options:{responsive:true,plugins:{legend:{display:false},title:{display:true,text:'Training Loss',color:'#888',font:{size:11}}},scales:{x:{title:{display:true,text:'Step',color:'#555'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}},y:{title:{display:true,text:'Loss',color:'#555'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}}}}});
+  },
+
+  async importTwitter(){
+    await this.apiPost('/social-media/import-twitter');
   },
 
   async loadMarkets(){const d=await this.api('/markets');this.markets=Array.isArray(d)?d:[]},
@@ -618,7 +713,7 @@ function app(){return{
   async generateTrumpGPT(){
     this.gptLoading=true;this.gptOutput='';
     try{
-      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario,temperature:this.gptTemperature,qa_mode:this.gptQaMode})});
+      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario,temperature:this.gptTemperature,qa_mode:this.gptQaMode,model:this.gptModel})});
       const d=await r.json();
       this.gptOutput=d.text||d.detail||'No output';
     }catch(e){this.gptOutput='Error: '+e.message}

@@ -1,11 +1,15 @@
 """Local training pipeline for Raspberry Pi.
 
-Replaces ColabPipeline with a fully local flow:
-scrape -> train Markov chain -> Monte Carlo simulate -> predict -> save to DB.
+Unified 8-phase pipeline that runs automatically:
+  Phases 1-5: Markov chain + Monte Carlo (~35s, every 6 hours)
+  Phases 6-8: Pythia fine-tune + GPT-2 MC + blend (hours, auto-triggered when corpus grows)
 
-No Google Drive, no Colab, no GPU required.
+Set-and-forget: the pipeline self-regulates when to fine-tune based on
+corpus growth since the last fine-tune run. No manual intervention needed.
 """
 
+import json
+import os
 import threading
 import time
 from datetime import datetime
@@ -20,15 +24,28 @@ from ..config import config
 
 MIN_NEW_SPEECHES_FOR_RETRAIN = 5
 
+# How many new speeches (since last fine-tune) before we retrigger fine-tuning.
+# This is higher than the Markov threshold because fine-tuning takes hours.
+MIN_NEW_SPEECHES_FOR_FINE_TUNE = 50
+
 
 class LocalPipeline:
-    """Orchestrates local training and prediction pipeline."""
+    """Orchestrates the full local training pipeline.
+
+    Automated lifecycle:
+    1. Every 6h: scrape → Markov train → Monte Carlo → save predictions (35s)
+    2. When corpus grows by 50+ speeches since last fine-tune AND no fine-tune
+       is running: auto-launch Pythia fine-tune → GPT-2 MC → blend (hours)
+    3. Fine-tuning runs in a background thread at lowest CPU priority.
+       The bot continues trading on Markov predictions while it runs.
+    """
 
     def __init__(self):
         self.trainer = MarkovChainTrainer(order=config.markov_order)
         self.colab_predictor = ColabPredictor()
         self.fine_tuner = None  # lazy-loaded
         self._lock = threading.Lock()
+        self._ft_lock = threading.Lock()  # separate lock for fine-tuning
         self._log = []  # list of {timestamp, message} dicts
         self._max_log = 200
         self._status = {
@@ -41,6 +58,8 @@ class LocalPipeline:
             'current_version': self._get_current_version(),
             'error': None,
         }
+        # Track corpus size at time of last fine-tune
+        self._last_fine_tune_corpus_size = self._get_last_fine_tune_corpus_size()
 
     def _get_fine_tuner(self):
         """Lazy-load GPT2FineTuner only when needed."""
@@ -117,7 +136,7 @@ class LocalPipeline:
         return list(reversed(self._log[-limit:]))
 
     def should_retrain(self) -> bool:
-        """Check if enough new data has accumulated to justify retraining."""
+        """Check if enough new data has accumulated to justify Markov retraining."""
         with get_session() as session:
             current_count = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
@@ -139,8 +158,59 @@ class LocalPipeline:
 
         return False
 
+    def should_fine_tune(self) -> bool:
+        """Check if fine-tuning should auto-trigger.
+
+        Returns True when ALL of:
+        1. FINE_TUNE_ENABLED=true
+        2. Fine-tuner dependencies are installed
+        3. Not already running a fine-tune
+        4. Corpus has grown by 50+ speeches since last fine-tune
+           (or no fine-tuned model exists yet)
+        """
+        if not config.fine_tune_enabled:
+            return False
+
+        ft = self._get_fine_tuner()
+        if not ft:
+            return False
+
+        # Don't start if already running
+        if not self._ft_lock.acquire(blocking=False):
+            return False
+        self._ft_lock.release()
+
+        ft_status = ft.get_status()
+        if ft_status['state'] in ('training',):
+            return False
+
+        # Check corpus growth
+        with get_session() as session:
+            current_corpus = session.query(Speech).filter(
+                Speech.transcript.isnot(None),
+                Speech.is_processed == True,
+                Speech.word_count >= 50,  # lower bar for fine-tuning (includes digests)
+            ).count()
+
+        new_since_ft = current_corpus - self._last_fine_tune_corpus_size
+
+        if self._last_fine_tune_corpus_size == 0 and current_corpus > 0:
+            # Never fine-tuned but have data — go
+            logger.info(f"No previous fine-tune — triggering on {current_corpus} speeches")
+            return True
+
+        if new_since_ft >= MIN_NEW_SPEECHES_FOR_FINE_TUNE:
+            logger.info(f"{new_since_ft} new speeches since last fine-tune — triggering")
+            return True
+
+        return False
+
     def run_full_pipeline(self) -> dict:
-        """Run the complete local pipeline: train -> simulate -> predict -> save."""
+        """Run the complete local pipeline: Markov (always) + fine-tune (auto).
+
+        Phases 1-5 run synchronously (~35s).
+        Phases 6-8 launch in a background thread if should_fine_tune() is True.
+        """
         if not self._lock.acquire(blocking=False):
             return {'status': 'already_running'}
 
@@ -154,10 +224,18 @@ class LocalPipeline:
             )
             self._log_event('Pipeline started')
 
+            # Phase 0: Social media corpus — initial import + digest refresh
+            self._refresh_social_media()
+
             # Check if retraining is needed
             if not self.should_retrain():
                 self._status.update(state='idle', stage='No retraining needed')
                 self._log_event('Skipped — not enough new data')
+
+                # Even if Markov doesn't retrain, check if fine-tuning should start
+                if self.should_fine_tune():
+                    self._launch_fine_tune_background()
+
                 return {'status': 'skipped', 'reason': 'not enough new data'}
 
             # Phase 1: Train Markov chain
@@ -249,16 +327,9 @@ class LocalPipeline:
                 'training_seconds': train_result['training_seconds'],
             }
 
-            # Phase 6-8: GPT-2 fine-tuning (non-blocking — runs in background)
-            if config.fine_tune_enabled:
-                self._log_event('Phase 6: Starting GPT-2 fine-tuning in background...')
-                import threading
-                ft_thread = threading.Thread(
-                    target=self._run_fine_tune_phases,
-                    args=(term_list,),
-                    daemon=True,
-                )
-                ft_thread.start()
+            # Phase 6-8: Auto-trigger fine-tuning if corpus has grown enough
+            if self.should_fine_tune():
+                self._launch_fine_tune_background(term_list)
 
             logger.info(f"Local pipeline complete: {result}")
             return result
@@ -279,8 +350,209 @@ class LocalPipeline:
         thread.start()
         return {'status': 'started'}
 
+    # ── Fine-tune lifecycle ──
+
+    def _launch_fine_tune_background(self, term_list: list[str] = None):
+        """Launch the full fine-tune → MC → blend chain in a background thread.
+
+        Acquires _ft_lock to prevent double-starts. The lock is held for the
+        entire duration of fine-tuning (hours).
+        """
+        if not self._ft_lock.acquire(blocking=False):
+            self._log_event('Fine-tune: skipped — already running')
+            return
+
+        # If no term_list provided, load from DB
+        if not term_list:
+            with get_session() as session:
+                terms = session.query(Term).all()
+                term_list = [t.normalized_term for t in terms]
+
+        self._log_event('Phase 6-8: Auto-triggering fine-tune pipeline in background...')
+        thread = threading.Thread(
+            target=self._run_fine_tune_phases,
+            args=(term_list,),
+            daemon=True,
+        )
+        thread.start()
+
+    def _run_fine_tune_phases(self, term_list: list[str]):
+        """Phase 6-8: Fine-tune → Monte Carlo → Blend (runs in background thread).
+
+        Holds _ft_lock for the entire duration. On completion, updates
+        _last_fine_tune_corpus_size so the next trigger check works correctly.
+        """
+        ft = self._get_fine_tuner()
+        if not ft:
+            self._log_event('Phase 6: Skipped — fine-tuner dependencies not installed')
+            self._ft_lock.release()
+            return
+
+        try:
+            # Phase 6: Fine-tune
+            self._log_event('Phase 6: Fine-tuning Pythia with LoRA (this will take hours)...')
+            ft_result = ft.train()
+
+            if not ft_result:
+                self._log_event('Phase 6: Fine-tuning returned None — check logs')
+                return
+            if ft_result.get('status') in ('error', 'already_running'):
+                self._log_event(f'Phase 6: Fine-tuning skipped — {ft_result.get("status")}')
+                return
+            if ft_result.get('status') == 'stopped':
+                self._log_event('Phase 6: Fine-tuning stopped by user — checkpoint saved')
+                return
+
+            self._log_event(
+                f'Phase 6: Fine-tuning complete — '
+                f'{ft_result.get("total_steps", 0)} steps, '
+                f'loss={ft_result.get("final_loss", "?")}, '
+                f'{ft_result.get("training_seconds", 0):.0f}s'
+            )
+
+            # Phase 7: GPT-2 Monte Carlo
+            if term_list:
+                mc_sims = config.fine_tune_mc_sims
+                self._log_event(f'Phase 7: Running Pythia Monte Carlo ({mc_sims} sims)...')
+                gpt2_predictions = ft.run_monte_carlo(term_list, num_simulations=mc_sims)
+
+                if gpt2_predictions and gpt2_predictions.get('term_predictions'):
+                    n_preds = len(gpt2_predictions['term_predictions'])
+                    self._log_event(f'Phase 7: Pythia Monte Carlo complete — {n_preds} predictions')
+
+                    # Phase 8: Blend with Markov predictions
+                    self._blend_predictions(gpt2_predictions)
+                    self._log_event('Phase 8: Blended Pythia + Markov predictions (60/40) and re-imported to DB')
+                else:
+                    self._log_event('Phase 7: Pythia Monte Carlo produced no predictions')
+
+            # Update corpus tracking so we don't retrigger immediately
+            with get_session() as session:
+                self._last_fine_tune_corpus_size = session.query(Speech).filter(
+                    Speech.transcript.isnot(None),
+                    Speech.is_processed == True,
+                    Speech.word_count >= 50,
+                ).count()
+
+            self._log_event(f'Fine-tune pipeline complete. Next trigger after {MIN_NEW_SPEECHES_FOR_FINE_TUNE}+ new speeches.')
+
+            # Email notification
+            try:
+                from ..notifications.email_notifier import email_notifier
+                if email_notifier.enabled:
+                    email_notifier.send_critical_alert(
+                        'Pythia Fine-Tune Complete',
+                        f'Fine-tuned on {ft_result.get("corpus_size", "?")} speeches. '
+                        f'Loss: {ft_result.get("final_loss", "?")}. '
+                        f'Predictions blended and imported.',
+                    )
+            except Exception:
+                pass
+
+        except Exception as e:
+            self._log_event(f'Fine-tune pipeline error: {e}')
+            logger.error(f"Fine-tune phases failed: {e}")
+        finally:
+            self._ft_lock.release()
+
+    def run_fine_tune_only(self):
+        """Manually trigger the full fine-tune → MC → blend chain."""
+        ft = self._get_fine_tuner()
+        if not ft:
+            return {'status': 'error', 'error': 'Fine-tuner dependencies not installed'}
+
+        if not self._ft_lock.acquire(blocking=False):
+            return {'status': 'already_running'}
+
+        # Load terms
+        with get_session() as session:
+            terms = session.query(Term).all()
+            term_list = [t.normalized_term for t in terms]
+
+        self._log_event('Manual fine-tune triggered — running full Phase 6-8 chain')
+
+        # Release the lock — _launch will re-acquire it
+        self._ft_lock.release()
+
+        self._launch_fine_tune_background(term_list)
+        return {'status': 'started'}
+
+    def _blend_predictions(self, gpt2_predictions: dict):
+        """Blend Pythia Monte Carlo predictions with existing Markov predictions.
+
+        Saves a blended predictions file with weighted average (60% Markov, 40% Pythia).
+        Re-imports to DB so the ensemble predictor picks them up.
+        """
+        pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
+        if not os.path.exists(pred_path):
+            return
+
+        with open(pred_path) as f:
+            markov_data = json.load(f)
+
+        markov_preds = {p['term']: p for p in markov_data.get('term_predictions', [])}
+        gpt2_preds = {p['term']: p for p in gpt2_predictions.get('term_predictions', [])}
+
+        blended = []
+        for term, mp in markov_preds.items():
+            gp = gpt2_preds.get(term)
+            if gp:
+                # Weighted blend: 60% Markov (more sims, proven), 40% Pythia
+                blended_prob = 0.6 * mp['probability'] + 0.4 * gp['probability']
+                entry = mp.copy()
+                entry['probability'] = round(blended_prob, 4)
+                entry['model_name'] = 'blended_markov_pythia'
+                entry['markov_probability'] = mp['probability']
+                entry['pythia_probability'] = gp['probability']
+            else:
+                entry = mp.copy()
+            blended.append(entry)
+
+        markov_data['term_predictions'] = blended
+        markov_data['blended'] = True
+        markov_data['blend_weights'] = {'markov': 0.6, 'pythia': 0.4}
+
+        with open(pred_path, 'w') as f:
+            json.dump(markov_data, f, indent=2)
+
+        # Re-import to DB
+        self.colab_predictor.save_to_database()
+
+    # ── Social media ──
+
+    def _refresh_social_media(self):
+        """Phase 0: Ensure social media corpus is up to date.
+
+        On first run: auto-imports the full Twitter archive (~56K tweets).
+        Every run: scrapes latest Truth Social posts + rebuilds daily digests.
+        """
+        try:
+            from ..scraper.social_media_importer import SocialMediaImporter
+            importer = SocialMediaImporter()
+
+            # Initial Twitter bulk import (one-time, if no tweets in DB)
+            init_result = importer.ensure_initial_import()
+            if init_result.get('status') == 'imported':
+                self._log_event(
+                    f'Phase 0: Initial Twitter import — '
+                    f'{init_result.get("imported", 0)} tweets, '
+                    f'{init_result.get("daily_digests_created", 0)} daily digests'
+                )
+
+            # Scrape latest Truth Social + rebuild recent digests
+            new_posts = importer.scrape_latest_posts()
+            if new_posts:
+                self._log_event(f'Phase 0: Scraped {new_posts} new social media posts + rebuilt daily digests')
+
+        except Exception as e:
+            # Non-fatal — pipeline continues even if social media fails
+            logger.warning(f"Social media refresh failed: {e}")
+            self._log_event(f'Phase 0: Social media refresh failed (non-fatal): {e}')
+
+    # ── Helpers ──
+
     def _get_last_training_count(self) -> int:
-        """Get speech count from the last training run."""
+        """Get speech count from the last Markov training run."""
         try:
             with get_session() as session:
                 latest = session.query(ModelVersion).filter_by(
@@ -301,9 +573,20 @@ class LocalPipeline:
         except Exception:
             return None
 
+    def _get_last_fine_tune_corpus_size(self) -> int:
+        """Get corpus size from the last fine-tune run."""
+        try:
+            with get_session() as session:
+                latest = session.query(ModelVersion).filter_by(
+                    model_type='gpt2_lora'
+                ).order_by(ModelVersion.created_at.desc()).first()
+                return latest.corpus_size if latest else 0
+        except Exception:
+            return 0
+
     def _notify_completion(self, version: str, train_result: dict,
                            pred_count: int):
-        """Send email notification on successful training."""
+        """Send email notification on successful Markov training."""
         try:
             from ..notifications.email_notifier import email_notifier
             if email_notifier.enabled:
@@ -323,11 +606,7 @@ class LocalPipeline:
             logger.debug(f"Training notification email failed: {e}")
 
     def _get_event_scenario_weights(self) -> Optional[dict]:
-        """2C: Compute scenario weights based on the next known Trump event.
-
-        If the next event is a rally, heavily weight rally simulations.
-        Falls back to None (use default weights) if no upcoming event.
-        """
+        """2C: Compute scenario weights based on the next known Trump event."""
         EVENT_TYPE_MAP = {
             'rally': {'rally': 0.85, 'press_conference': 0.05, 'chopper_talk': 0.03, 'fox_interview': 0.05, 'social_media': 0.02},
             'press_conference': {'rally': 0.05, 'press_conference': 0.80, 'chopper_talk': 0.05, 'fox_interview': 0.05, 'social_media': 0.05},
@@ -354,93 +633,6 @@ class LocalPipeline:
             logger.debug(f"Could not get event scenario weights: {e}")
 
         return None
-
-    def _run_fine_tune_phases(self, term_list: list[str]):
-        """Phase 6-8: GPT-2 fine-tuning + Monte Carlo (runs in background thread)."""
-        ft = self._get_fine_tuner()
-        if not ft:
-            self._log_event('Phase 6: Skipped — fine-tuner dependencies not installed')
-            return
-
-        try:
-            # Phase 6: Fine-tune GPT-2
-            self._log_event('Phase 6: Fine-tuning GPT-2 with LoRA (this will take hours)...')
-            ft_result = ft.train()
-            if not ft_result or ft_result.get('status') == 'error':
-                self._log_event(f'Phase 6: Fine-tuning failed: {ft_result}')
-                return
-            self._log_event(f'Phase 6: Fine-tuning complete — {ft_result.get("total_steps", 0)} steps, loss={ft_result.get("final_loss", "?")}')
-
-            # Phase 7: GPT-2 Monte Carlo
-            if term_list:
-                self._log_event(f'Phase 7: Running GPT-2 Monte Carlo ({config.fine_tune_mc_sims} sims)...')
-                gpt2_predictions = ft.run_monte_carlo(term_list)
-                if gpt2_predictions and gpt2_predictions.get('term_predictions'):
-                    self._log_event(f'Phase 7: GPT-2 Monte Carlo complete — {len(gpt2_predictions["term_predictions"])} predictions')
-
-                    # Phase 8: Blend with Markov predictions
-                    self._blend_predictions(gpt2_predictions)
-                    self._log_event('Phase 8: Blended GPT-2 + Markov predictions')
-                else:
-                    self._log_event('Phase 7: GPT-2 Monte Carlo produced no predictions')
-
-        except Exception as e:
-            self._log_event(f'Fine-tune pipeline error: {e}')
-            logger.error(f"Fine-tune phases failed: {e}")
-
-    def _blend_predictions(self, gpt2_predictions: dict):
-        """Blend GPT-2 Monte Carlo predictions with existing Markov predictions.
-
-        Saves a blended predictions file with weighted average (60% Markov, 40% GPT-2).
-        """
-        import json
-
-        pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
-        if not os.path.exists(pred_path):
-            return
-
-        with open(pred_path) as f:
-            markov_data = json.load(f)
-
-        markov_preds = {p['term']: p for p in markov_data.get('term_predictions', [])}
-        gpt2_preds = {p['term']: p for p in gpt2_predictions.get('term_predictions', [])}
-
-        blended = []
-        for term, mp in markov_preds.items():
-            gp = gpt2_preds.get(term)
-            if gp:
-                # Weighted blend: 60% Markov (more sims, proven), 40% GPT-2
-                blended_prob = 0.6 * mp['probability'] + 0.4 * gp['probability']
-                entry = mp.copy()
-                entry['probability'] = round(blended_prob, 4)
-                entry['model_name'] = 'blended_markov_gpt2'
-                entry['markov_probability'] = mp['probability']
-                entry['gpt2_probability'] = gp['probability']
-            else:
-                entry = mp.copy()
-            blended.append(entry)
-
-        markov_data['term_predictions'] = blended
-        markov_data['blended'] = True
-        markov_data['blend_weights'] = {'markov': 0.6, 'gpt2': 0.4}
-
-        with open(pred_path, 'w') as f:
-            json.dump(markov_data, f, indent=2)
-
-        # Re-import to DB
-        self.colab_predictor.save_to_database()
-
-    def run_fine_tune_only(self):
-        """Manually trigger fine-tuning without running the Markov pipeline."""
-        ft = self._get_fine_tuner()
-        if not ft:
-            return {'status': 'error', 'error': 'Fine-tuner dependencies not installed'}
-
-        self._log_event('Manual fine-tune triggered (skipping Markov phases)')
-        import threading
-        thread = threading.Thread(target=ft.train, daemon=True)
-        thread.start()
-        return {'status': 'started'}
 
     def _notify_failure(self, error: str):
         """Send email notification on pipeline failure."""

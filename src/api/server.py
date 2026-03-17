@@ -1116,6 +1116,45 @@ def get_fine_tune_status():
     return {"state": "unavailable", "error": "Fine-tuner not available"}
 
 
+@app.get("/api/fine-tune/trigger-progress")
+def get_fine_tune_trigger_progress():
+    """Get how close we are to auto-triggering the next fine-tune cycle.
+
+    Returns new docs since last fine-tune, the threshold, and a 0-1 progress.
+    """
+    from ..database.models import Speech
+
+    if not hasattr(_pipeline, '_last_fine_tune_corpus_size'):
+        return {"new_since_last": 0, "threshold": 50, "progress": 0.0, "enabled": False}
+
+    threshold = 50
+    try:
+        from ..ml.local_pipeline import MIN_NEW_SPEECHES_FOR_FINE_TUNE
+        threshold = MIN_NEW_SPEECHES_FOR_FINE_TUNE
+    except ImportError:
+        pass
+
+    with get_session() as session:
+        current_corpus = session.query(Speech).filter(
+            Speech.transcript.isnot(None),
+            Speech.is_processed == True,
+            Speech.word_count >= 50,
+        ).count()
+
+    last_ft_size = _pipeline._last_fine_tune_corpus_size
+    new_since = max(0, current_corpus - last_ft_size)
+    progress = min(1.0, new_since / threshold) if threshold > 0 else 0.0
+
+    return {
+        "new_since_last": new_since,
+        "threshold": threshold,
+        "progress": round(progress, 3),
+        "current_corpus": current_corpus,
+        "last_fine_tune_corpus": last_ft_size,
+        "enabled": app_config.fine_tune_enabled,
+    }
+
+
 @app.get("/api/fine-tune/loss-history")
 def get_fine_tune_loss_history():
     """Get loss curve data for charting."""

@@ -36,7 +36,7 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 
 ### The Core Loop
 
-1. **Scrape** — 10 sources (White House, Rev.com, C-SPAN, YouTube, etc.) collect Trump speech transcripts + bulk import of ~56K tweets and Truth Social posts
+1. **Scrape** — 10 sources (White House, Rev.com, C-SPAN, YouTube, etc.) collect Trump speech transcripts. Truth Social posts scraped every 2 hours and grouped into daily digests. Twitter archive (~56K tweets) auto-imported on first run.
 2. **Train** — An order-3 word-level Markov chain learns Trump's speech patterns from the corpus (~5 seconds)
 3. **Simulate** — 2,000 Monte Carlo simulated speeches across 5 scenario types (rally, press conference, chopper talk, interview, social media)
 4. **Predict** — Count term occurrences across simulations, blend with 5 other signals (historical frequency, temporal patterns, trends, event correlation, news relevance) into final probabilities
@@ -175,7 +175,7 @@ echo "FINE_TUNE_ENABLED=true" >> .env
 make api
 ```
 
-Fine-tuning runs as Phase 6-8 of the pipeline (background thread, lowest CPU priority). Or trigger it manually from the dashboard: **Pipeline** tab → **Start Fine-Tuning**.
+Fine-tuning auto-triggers when the corpus grows by 50+ speeches since the last run. It runs as Phase 6-8 in a background thread at lowest CPU priority. You can also trigger it manually from the dashboard: **Pipeline** tab → **Start Fine-Tuning**.
 
 ## Raspberry Pi Deployment
 
@@ -317,16 +317,17 @@ Every 6 hours (or when 5+ new speeches are scraped):
 
 | Phase | What | Time |
 |-------|------|------|
+| 0 | Social media refresh (auto-import Twitter + scrape Truth Social + rebuild digests) | ~10s |
 | 1 | Train Markov chain (order-3 on all transcripts) | ~5s |
 | 2 | Load tracked terms from DB | <1s |
 | 3 | Monte Carlo simulation (2,000 speeches x 5 scenarios) | ~30s |
 | 4 | Save predictions JSON | <1s |
 | 5 | Import to database + create ModelVersion | <1s |
-| 6 | Fine-tune Pythia-410M with LoRA (if enabled) | ~9h (background) |
+| 6 | Fine-tune Pythia-410M with LoRA | ~9h (background) |
 | 7 | Pythia Monte Carlo (200 sims) | ~hours (background) |
 | 8 | Blend Markov + Pythia predictions (60/40) | <1s |
 
-Phases 1-5 complete in ~35 seconds. Phases 6-8 run in a background thread if `FINE_TUNE_ENABLED=true`.
+Phases 1-5 complete in ~35 seconds. Phases 6-8 auto-trigger in a background thread when `FINE_TUNE_ENABLED=true` AND the corpus has grown by 50+ speeches since the last fine-tune. No manual scheduling needed.
 
 ## Trading Bot
 
@@ -412,6 +413,7 @@ curl -X PUT http://<pi-ip>:8000/api/trading/config \
 |-----|----------|-------------|
 | Market sync | 5 min | Syncs Kalshi market data, alerts on new markets |
 | Speech scrape | 2 hours | Scrapes all 10 sources, analyzes terms |
+| Social media | 2 hours | Scrapes Truth Social + rebuilds daily digests |
 | Event tracking | 30 min | Discovers upcoming Trump events |
 | Live check | 1 min | Checks if any events are currently live |
 | Predictions | 15 min | Generates ensemble predictions |
@@ -420,7 +422,7 @@ curl -X PUT http://<pi-ip>:8000/api/trading/config \
 | Position mgmt | 5 min | Profit-taking and stop-loss checks |
 | Local pipeline | 6 hours | Train Markov chain + Monte Carlo + import |
 | Daily digest | 8 AM UTC | Sends email summary |
-| Fine-tune | Weekly (Sun) | Pythia-410M LoRA training (if enabled) |
+| Fine-tune | Auto | Pythia-410M LoRA training — auto-triggers when corpus grows 50+ speeches |
 
 ## Make Targets
 

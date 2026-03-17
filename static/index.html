@@ -229,11 +229,12 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     <table>
       <thead><tr><th>Job</th><th>Interval</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--accent)">Local Pipeline</td><td>Every 6h</td><td>Train Markov chain + Monte Carlo simulation</td></tr>
+        <tr><td style="color:var(--accent)">Local Pipeline</td><td>Every 6h</td><td>Markov + MC (35s) + auto fine-tune when corpus grows 50+ speeches</td></tr>
         <tr><td style="color:var(--accent)">Market Sync</td><td>Every 1m</td><td>Sync Kalshi market prices</td></tr>
         <tr><td style="color:var(--accent)">Predictions</td><td>Every 15m</td><td>Generate ensemble predictions</td></tr>
         <tr><td style="color:var(--accent)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
         <tr><td style="color:var(--accent)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for new transcripts</td></tr>
+        <tr><td style="color:var(--accent)">Social Media</td><td>Every 2h</td><td>Scrape Truth Social + rebuild daily digests</td></tr>
         <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
         <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
         <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
@@ -271,8 +272,30 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </template>
   </div>
 
+  <!-- FINE-TUNE TRIGGER PROGRESS -->
+  <h2>Next Fine-Tune Cycle</h2>
+  <div class="card" style="margin-bottom:14px">
+    <template x-if="ftTrigger">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--text)">
+            <strong x-text="ftTrigger.new_since_last"></strong><span style="color:var(--dim)"> / <span x-text="ftTrigger.threshold"></span> new docs since last fine-tune</span>
+          </span>
+          <span style="font-size:11px" :style="'color:'+(ftTrigger.progress>=1?'var(--green)':'var(--dim)')" x-text="ftTrigger.progress>=1?'Ready to fine-tune!':Math.round(ftTrigger.progress*100)+'%'"></span>
+        </div>
+        <div class="pbar" style="height:12px;border-radius:6px">
+          <div class="fill" :style="'width:'+Math.min(100,ftTrigger.progress*100)+'%;background:'+(ftTrigger.progress>=1?'var(--green)':'var(--purple)')+';border-radius:6px;transition:width 1s'"></div>
+        </div>
+        <div style="font-size:10px;color:var(--dim);margin-top:6px" x-text="ftTrigger.enabled?'Auto-triggers when bar fills up. Corpus: '+ftTrigger.current_corpus+' total docs.':'Fine-tuning disabled. Set FINE_TUNE_ENABLED=true to enable auto-triggering.'"></div>
+      </div>
+    </template>
+    <template x-if="!ftTrigger">
+      <div style="color:var(--dim);font-size:12px;padding:8px">Loading fine-tune progress...</div>
+    </template>
+  </div>
+
   <!-- FINE-TUNE GPT-2 -->
-  <h2>Fine-Tune GPT-2</h2>
+  <h2>Fine-Tune Status</h2>
   <div class="card" style="margin-bottom:14px">
     <template x-if="!fineTuneStatus || fineTuneStatus.state==='idle'">
       <div>
@@ -619,7 +642,7 @@ function app(){return{
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true, gptModel:'markov',
-  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null,
+  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null, ftTrigger:null,
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -671,12 +694,13 @@ function app(){return{
   },
 
   async loadPipeline(){
-    const[tr,log,ft,imp,ss]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/fine-tune/status'),this.api('/social-media/import-status'),this.api('/social-media/stats')]);
+    const[tr,log,ft,imp,ss,ftp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/fine-tune/status'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/trigger-progress')]);
     this.training=tr;
     this.pipelineLog=Array.isArray(log)?log:[];
     this.fineTuneStatus=ft;
     this.importStatus=imp;
     this.socialStats=ss;
+    this.ftTrigger=ftp;
     if(ft&&ft.state==='training'){this.loadLossChart()}
   },
 

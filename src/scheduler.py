@@ -121,6 +121,13 @@ def create_scheduler() -> BackgroundScheduler:
         name='Send daily email digest',
     )
 
+    # Social media scraping — every 2 hours (Truth Social + daily digests)
+    scheduler.add_job(
+        _scrape_social_media, IntervalTrigger(hours=2),
+        id='social_media_scrape', replace_existing=True,
+        name='Scrape Truth Social + rebuild daily digests',
+    )
+
     # 2A: News enrichment via Gemini — every hour
     scheduler.add_job(
         _refresh_news_enrichment, IntervalTrigger(hours=1),
@@ -136,14 +143,8 @@ def create_scheduler() -> BackgroundScheduler:
         name='Manage open positions (profit-take/stop-loss)',
     )
 
-    # Optional: weekly GPT-2 fine-tuning (Sunday midnight)
     if config.fine_tune_enabled:
-        scheduler.add_job(
-            _run_fine_tune, CronTrigger(day_of_week='sun', hour=0),
-            id='fine_tune', replace_existing=True,
-            name='Weekly GPT-2 fine-tuning',
-        )
-        logger.info("Fine-tuning enabled: weekly Sunday midnight")
+        logger.info("Fine-tuning enabled: auto-triggers when corpus grows by 50+ speeches")
 
     return scheduler
 
@@ -271,6 +272,18 @@ def _send_daily_digest():
         logger.error(f"Daily digest email failed: {e}")
 
 
+def _scrape_social_media():
+    """Periodic job: scrape latest Truth Social posts + rebuild daily digests."""
+    try:
+        from .scraper.social_media_importer import SocialMediaImporter
+        importer = SocialMediaImporter()
+        new_posts = importer.scrape_latest_posts()
+        if new_posts:
+            logger.info(f"Social media scrape: {new_posts} new posts")
+    except Exception as e:
+        logger.error(f"Social media scrape failed: {e}")
+
+
 def _refresh_news_enrichment():
     """2A: Refresh current events enrichment from Gemini."""
     try:
@@ -300,14 +313,3 @@ def _manage_positions(bot: TradingBot):
         logger.error(f"Position management failed: {e}")
 
 
-def _run_fine_tune():
-    """Weekly job: fine-tune GPT-2 on expanded corpus."""
-    try:
-        from .ml.fine_tuner import GPT2FineTuner
-        fine_tuner = GPT2FineTuner()
-        result = fine_tuner.train()
-        logger.info(f"Weekly fine-tune result: {result}")
-    except ImportError:
-        logger.debug("Fine-tune dependencies not installed, skipping")
-    except Exception as e:
-        logger.error(f"Weekly fine-tune failed: {e}")

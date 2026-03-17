@@ -373,6 +373,251 @@ class SocialMediaImporter:
             'total_posts': len(posts),
         }
 
+    # ── Live Scraping (periodic, for new posts) ──
+
+    def scrape_latest_posts(self) -> int:
+        """Scrape recent Truth Social posts and build/update daily digests.
+
+        Called periodically by the scheduler. Fetches new posts, saves them
+        individually, then rebuilds today's daily digest so the Markov trainer
+        picks up fresh social media language.
+
+        Returns count of new posts saved.
+        """
+        total_new = 0
+
+        # 1. Scrape Truth Social RSS/API
+        try:
+            new_truth = self._scrape_truth_social_feed()
+            total_new += new_truth
+            if new_truth:
+                logger.info(f"Scraped {new_truth} new Truth Social posts")
+        except Exception as e:
+            logger.warning(f"Truth Social scrape failed: {e}")
+
+        # 2. Rebuild recent daily digests (last 7 days)
+        if total_new > 0:
+            try:
+                digests = self._rebuild_recent_digests(days=7)
+                logger.info(f"Rebuilt {digests} daily digests from recent posts")
+            except Exception as e:
+                logger.warning(f"Daily digest rebuild failed: {e}")
+
+        return total_new
+
+    def ensure_initial_import(self) -> dict:
+        """Auto-run the Twitter bulk import if no tweets exist in the DB.
+
+        Called once at pipeline startup. If the DB already has tweets,
+        this is a no-op. Returns import result or skip status.
+        """
+        with get_session() as session:
+            existing = session.query(Speech).filter_by(
+                source='twitter', speech_type='social_media',
+            ).count()
+
+        if existing > 0:
+            return {'status': 'skipped', 'existing_tweets': existing}
+
+        logger.info("No tweets in DB — running initial Twitter archive import...")
+        try:
+            result = self.import_twitter_archive()
+            return {'status': 'imported', **result}
+        except Exception as e:
+            logger.error(f"Initial Twitter import failed: {e}")
+            return {'status': 'error', 'error': str(e)}
+
+    def _scrape_truth_social_feed(self) -> int:
+        """Fetch recent Truth Social posts via public feeds/APIs.
+
+        Tries multiple sources for Truth Social content:
+        1. RSS proxy feeds (third-party aggregators)
+        2. Direct Truth Social public API (if available)
+        3. Web scraping of public profile page
+        """
+        import requests
+
+        count = 0
+        posts = []
+
+        # Source 1: Try common RSS proxy/aggregator feeds for Truth Social
+        rss_urls = [
+            'https://truthsocial.com/users/realDonaldTrump/feed',
+            'https://truthsocial.com/@realDonaldTrump.rss',
+        ]
+
+        for url in rss_urls:
+            try:
+                resp = requests.get(url, timeout=15, headers={
+                    'User-Agent': 'Mozilla/5.0 (compatible; TrumpGPT/1.0)',
+                    'Accept': 'application/rss+xml, application/atom+xml, application/json, text/html',
+                })
+                if resp.status_code != 200:
+                    continue
+
+                # Try parsing as RSS/Atom
+                import feedparser
+                feed = feedparser.parse(resp.text)
+                if feed.entries:
+                    for entry in feed.entries:
+                        text = entry.get('summary', entry.get('title', ''))
+                        # Strip HTML tags
+                        text = re.sub(r'<[^>]+>', '', text).strip()
+                        if not text or len(text) < 10:
+                            continue
+                        date = datetime.now()
+                        if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                            try:
+                                date = datetime(*entry.published_parsed[:6])
+                            except Exception:
+                                pass
+                        posts.append({
+                            'text': self._clean_post_text(text),
+                            'date': date,
+                            'source_id': entry.get('id', entry.get('link', '')),
+                        })
+                    break
+
+                # Try parsing as JSON
+                try:
+                    data = resp.json()
+                    items = data if isinstance(data, list) else data.get('statuses', data.get('data', []))
+                    for item in items:
+                        text = item.get('content', item.get('text', ''))
+                        text = re.sub(r'<[^>]+>', '', text).strip()
+                        if not text or len(text) < 10:
+                            continue
+                        date_str = item.get('created_at', '')
+                        date = self._parse_date(date_str) if date_str else datetime.now()
+                        posts.append({
+                            'text': self._clean_post_text(text),
+                            'date': date,
+                            'source_id': str(item.get('id', '')),
+                        })
+                    if posts:
+                        break
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+            except Exception as e:
+                logger.debug(f"Truth Social feed {url} failed: {e}")
+                continue
+
+        # Source 2: Try Mastodon-compatible API (Truth Social is a Mastodon fork)
+        if not posts:
+            try:
+                api_url = 'https://truthsocial.com/api/v1/accounts/107780257626128497/statuses'
+                resp = requests.get(api_url, timeout=15, params={'limit': 40}, headers={
+                    'User-Agent': 'Mozilla/5.0 (compatible; TrumpGPT/1.0)',
+                })
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        text = item.get('content', '')
+                        text = re.sub(r'<[^>]+>', '', text).strip()
+                        if not text or len(text) < 10:
+                            continue
+                        date = self._parse_date(item.get('created_at', ''))
+                        posts.append({
+                            'text': self._clean_post_text(text),
+                            'date': date,
+                            'source_id': str(item.get('id', '')),
+                        })
+            except Exception as e:
+                logger.debug(f"Truth Social Mastodon API failed: {e}")
+
+        # Save new posts
+        if posts:
+            with get_session() as session:
+                for post in posts:
+                    sid = post.get('source_id') or str(hash(post['text'][:100]))
+                    existing = session.query(Speech).filter_by(
+                        source='truth_social', source_id=sid,
+                    ).first()
+                    if existing:
+                        continue
+
+                    speech = Speech(
+                        source='truth_social',
+                        source_id=sid,
+                        title=post['text'][:200],
+                        speech_type='social_media',
+                        date=post['date'],
+                        transcript=post['text'],
+                        transcript_source='truth_social_feed',
+                        word_count=len(post['text'].split()),
+                        is_processed=False,
+                    )
+                    session.add(speech)
+                    count += 1
+
+        return count
+
+    def _rebuild_recent_digests(self, days: int = 7) -> int:
+        """Rebuild daily digests for the last N days from individual posts.
+
+        This handles the case where new posts have been scraped since the
+        last digest was created. Existing digests are updated in-place
+        (transcript replaced with full day's content).
+        """
+        from datetime import timedelta
+
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        digest_count = 0
+
+        with get_session() as session:
+            # Get all recent individual social media posts
+            recent_posts = session.query(Speech).filter(
+                Speech.speech_type == 'social_media',
+                Speech.date >= cutoff,
+                Speech.transcript.isnot(None),
+            ).order_by(Speech.date).all()
+
+            if not recent_posts:
+                return 0
+
+            # Group by source + date
+            by_key = defaultdict(list)
+            for post in recent_posts:
+                source = post.source
+                day_key = post.date.strftime('%Y-%m-%d')
+                by_key[(source, day_key)].append(post.transcript)
+
+            # Create or update daily digests
+            for (source, day_key), texts in by_key.items():
+                combined = '\n'.join(texts)
+                word_count = len(combined.split())
+                if word_count < MIN_DIGEST_WORDS:
+                    continue
+
+                digest_sid = f'daily_{source}_{day_key}'
+                existing = session.query(Speech).filter_by(
+                    source=source, source_id=digest_sid,
+                ).first()
+
+                if existing:
+                    # Update existing digest if content has grown
+                    if word_count > (existing.word_count or 0):
+                        existing.transcript = combined
+                        existing.word_count = word_count
+                        existing.title = f'Trump {source.replace("_", " ").title()} — {day_key} ({len(texts)} posts)'
+                        existing.is_processed = False  # re-process for term analysis
+                else:
+                    speech = Speech(
+                        source=source,
+                        source_id=digest_sid,
+                        title=f'Trump {source.replace("_", " ").title()} — {day_key} ({len(texts)} posts)',
+                        speech_type='social_media_daily',
+                        date=datetime.strptime(day_key, '%Y-%m-%d'),
+                        transcript=combined,
+                        transcript_source=source,
+                        word_count=word_count,
+                        is_processed=False,
+                    )
+                    session.add(speech)
+                    digest_count += 1
+
+        return digest_count
+
     def get_stats(self) -> dict:
         """Get social media corpus stats from the database."""
         with get_session() as session:

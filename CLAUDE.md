@@ -28,7 +28,7 @@ Optionally fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the
 │    • Local pipeline ──────── every 6 hours (train + simulate)    │
 │    • Daily email digest ──── 8 AM UTC                            │
 │    • Live speech monitor ─── every 1 min                         │
-│    • Fine-tune (optional) ── weekly Sunday midnight              │
+│    • Fine-tune (auto) ────── when corpus grows 50+ speeches      │
 │                                                                   │
 │  API: FastAPI on :8000 ──── Dashboard: static HTML on :8000      │
 │  Database: SQLite (SQLAlchemy ORM)                               │
@@ -166,12 +166,11 @@ Defined in `src/scraper/speech_scraper.py`, method `scrape_all_sources()`:
 
 `src/scraper/social_media_importer.py` — `SocialMediaImporter` class:
 
-- **Twitter archive**: Downloads ~56K Trump tweets, parses JSON/CSV, saves individual posts (`speech_type='social_media'`) and groups them by date into daily digests (`speech_type='social_media_daily'`) for Markov training (minimum 50 words per digest)
-- **Truth Social**: Imports from a local JSON dump file, same individual + daily digest pattern
-- Triggered via API (`POST /api/social-media/import-twitter`) or CLI (`make import-twitter`)
-- Progress tracking via `GET /api/social-media/import-status`
-
-The daily digest grouping solves the problem that individual tweets (~30 words) are too short for the Markov trainer's `word_count >= 100` filter. A day with 10+ tweets easily crosses 100 words.
+- **Twitter archive (bulk, one-time)**: Downloads ~56K Trump tweets, parses JSON/CSV, saves individual posts (`speech_type='social_media'`) and groups them by date into daily digests (`speech_type='social_media_daily'`) for Markov training (minimum 50 words per digest). Auto-runs on first pipeline execution if no tweets exist in the DB.
+- **Truth Social (live, periodic)**: Scrapes new posts every 2 hours via RSS/Mastodon-compatible API. New posts are saved individually, then recent daily digests (last 7 days) are rebuilt/updated so the Markov trainer picks up fresh language immediately.
+- **Daily digest grouping**: Solves the problem that individual posts (~30 words) are too short for the Markov trainer's `word_count >= 100` filter. A day with 10+ posts easily crosses 100 words. Digests are updated in-place when new posts arrive.
+- Triggered via API (`POST /api/social-media/import-twitter`) or CLI (`make import-twitter`) for manual bulk import
+- Also runs automatically: pipeline Phase 0 handles initial import + live scraping before each training cycle
 
 ## ML Prediction Pipeline
 
@@ -194,21 +193,24 @@ Post-prediction processing:
 
 `src/ml/local_pipeline.py` — 8-phase pipeline:
 
-**Always runs (Phases 1-5, ~35 seconds):**
+**Always runs (Phases 0-5, ~35 seconds):**
 
+0. **Phase 0:** Social media refresh — auto-imports Twitter archive on first run; scrapes latest Truth Social posts; rebuilds recent daily digests (non-fatal if sources are down)
 1. Checks `should_retrain()` (≥5 new speeches since last training)
 2. **Phase 1:** Trains order-3 word-level Markov chain on all speech transcripts (~5 seconds)
 3. **Phase 2:** Loads tracked terms from DB
 4. **Phase 3:** Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w). Adjusts scenario weights based on next confirmed TrumpEvent.
 5. **Phase 4-5:** Saves `predictions_latest.json`, imports to DB, creates `ModelVersion` record (TrumpGPT v1.0.X)
 
-**Optional fine-tuning (Phases 6-8, runs in background when `FINE_TUNE_ENABLED=true`):**
+**Auto-triggered fine-tuning (Phases 6-8, background thread when `FINE_TUNE_ENABLED=true`):**
 
 6. **Phase 6:** Fine-tunes Pythia-410M with LoRA (~8-9 hours on Pi 4 CPU). Runs at `os.nice(19)` (lowest CPU priority) so the bot continues trading.
-7. **Phase 7:** Runs GPT-2/Pythia Monte Carlo simulations (200 sims default, shorter texts + Poisson correction)
+7. **Phase 7:** Runs Pythia Monte Carlo simulations (200 sims default, shorter texts + Poisson correction)
 8. **Phase 8:** Blends Markov + Pythia predictions (60/40 weighted average), re-imports to DB
 
-Phases 6-8 are **non-blocking** — Markov predictions from Phase 5 are available immediately while fine-tuning runs in the background for hours.
+**Self-regulating trigger:** Phases 6-8 auto-launch when the corpus has grown by 50+ speeches since the last fine-tune AND no fine-tune is currently running. This is checked every pipeline cycle (6 hours). No manual intervention or weekly cron needed — the pipeline decides when fine-tuning is worthwhile.
+
+Phases 6-8 are **non-blocking** — Markov predictions from Phase 5 are available immediately while fine-tuning runs in the background for hours. A separate `_ft_lock` prevents double-starts.
 
 Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
 

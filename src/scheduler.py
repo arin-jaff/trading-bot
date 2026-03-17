@@ -121,14 +121,6 @@ def create_scheduler() -> BackgroundScheduler:
         name='Send daily email digest',
     )
 
-    # Arbitrage scan every 10 minutes
-    scheduler.add_job(
-        _scan_arbitrage, IntervalTrigger(minutes=10),
-        args=[trading_bot],
-        id='arbitrage_scan', replace_existing=True,
-        name='Scan for arbitrage opportunities',
-    )
-
     # 2A: News enrichment via Gemini — every hour
     scheduler.add_job(
         _refresh_news_enrichment, IntervalTrigger(hours=1),
@@ -277,24 +269,6 @@ def _send_daily_digest():
             email_notifier.send_daily_digest()
     except Exception as e:
         logger.error(f"Daily digest email failed: {e}")
-
-
-def _scan_arbitrage(bot: TradingBot):
-    """Scan for arbitrage opportunities and auto-execute if enabled."""
-    try:
-        opportunities = bot.find_arbitrage()
-        if opportunities:
-            from .alerts import alert_manager
-            for opp in opportunities:
-                alert_manager.add_alert(
-                    'trade_signal',
-                    f"Arbitrage: {opp['market_ticker']}",
-                    f"{opp['type']}: {opp['action']} (profit: ${opp['guaranteed_profit']:.4f})",
-                    severity='warning',
-                    data=opp,
-                )
-    except Exception as e:
-        logger.error(f"Arbitrage scan failed: {e}")
 
 
 def _refresh_news_enrichment():

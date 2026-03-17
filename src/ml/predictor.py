@@ -486,12 +486,17 @@ Respond in JSON format:
             ).all()
 
             for market in markets:
+                market_yes_price = market.yes_price or 0.5
+
+                # Skip markets at 1c/99c — already decided, untradeable
+                if market_yes_price >= 0.99 or market_yes_price <= 0.01:
+                    continue
+
                 for term in market.terms:
                     pred = latest_preds.get(term.id)
                     if not pred:
                         continue
 
-                    market_yes_price = market.yes_price or 0.5
                     our_probability = pred.probability
 
                     edge = our_probability - market_yes_price

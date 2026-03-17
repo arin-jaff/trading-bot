@@ -234,7 +234,6 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <tr><td style="color:var(--accent)">Predictions</td><td>Every 15m</td><td>Generate ensemble predictions</td></tr>
         <tr><td style="color:var(--accent)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
         <tr><td style="color:var(--accent)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for new transcripts</td></tr>
-        <tr><td style="color:var(--accent)">Arbitrage Scan</td><td>Every 10m</td><td>Scan for mispriced YES/NO spreads</td></tr>
         <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
         <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
         <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
@@ -329,17 +328,17 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 <!-- ════════════════════════════════ MARKETS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='markets'}">
   <h1>Markets</h1>
-  <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
+  <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets (active first, resolved last)'"></div>
   <table>
     <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Status</th><th>Closes</th></tr></thead>
     <tbody>
       <template x-for="m in markets" :key="m.ticker">
-        <tr>
+        <tr :style="m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:0.5':''">
           <td style="color:var(--accent);font-size:11px" x-text="m.ticker"></td>
           <td x-text="(m.terms||[]).join(', ')"></td>
-          <td :style="'color:'+(m.yes_price>0.5?'var(--green)':'var(--text)')" x-text="m.yes_price!=null?(m.yes_price*100).toFixed(0)+'c':'-'"></td>
+          <td :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--text)')" x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></td>
           <td x-text="m.volume||0"></td>
-          <td><span class="badge" :class="m.status==='active'||m.status==='open'?'active':'closed'" x-text="m.status"></span></td>
+          <td><span class="badge" :class="m.display_status==='Yes'?'yes':m.display_status==='No'?'no':m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':(m.status==='active'||m.status==='open')?'active':'closed'" x-text="m.display_status||m.status"></span></td>
           <td style="font-size:10px" x-text="m.close_time?m.close_time.substring(5,16):'-'"></td>
         </tr>
       </template>

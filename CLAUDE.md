@@ -6,6 +6,8 @@ A fully automated trading system that predicts which words/phrases Donald Trump 
 
 Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
+Optionally fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the Pi 4 CPU for higher-quality text generation and prediction blending.
+
 > See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
 
 ## Architecture Overview
@@ -24,11 +26,11 @@ Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches → trai
 │    • Position management ─── every 5 min (profit-take/stop-loss) │
 │    • News enrichment ─────── every 1 hour (Gemini Flash Lite)    │
 │    • Local pipeline ──────── every 6 hours (train + simulate)    │
-│    • Arbitrage scan ──────── every 10 min (fee-aware bounds)     │
 │    • Daily email digest ──── 8 AM UTC                            │
 │    • Live speech monitor ─── every 1 min                         │
+│    • Fine-tune (optional) ── weekly Sunday midnight              │
 │                                                                   │
-│  API: FastAPI on :8000 ──── GUI: Streamlit on :8501              │
+│  API: FastAPI on :8000 ──── Dashboard: static HTML on :8000      │
 │  Database: SQLite (SQLAlchemy ORM)                               │
 │  Email: SMTP notifications                                       │
 └──────────────────────────────────────────────────────┬───────────┘
@@ -58,14 +60,14 @@ Pi ──► Google Drive ──► Colab (A100 GPU) ──► Drive ──► P
 ```
 src/
   config.py              # Central config from env vars (singleton)
-  scheduler.py           # APScheduler job definitions (10+ jobs)
+  scheduler.py           # APScheduler job definitions (11+ jobs)
   alerts.py              # AlertManager — desktop + email notifications
 
   api/
-    server.py            # FastAPI backend — 40+ endpoints
+    server.py            # FastAPI backend — 50+ endpoints
 
   gui/
-    dashboard.py         # Streamlit dashboard — 11 tabs
+    dashboard.py         # Streamlit dashboard — 11 tabs (legacy, optional)
 
   database/
     db.py                # SQLAlchemy engine, get_session() context manager
@@ -74,17 +76,19 @@ src/
   kalshi/
     client.py            # KalshiClient — RSA auth, rate limiting, REST API
     market_sync.py       # MarketSync — syncs markets, extracts terms from titles
-    trading_bot.py       # TradingBot — Kelly criterion, risk limits, arbitrage
+    trading_bot.py       # TradingBot — Kelly criterion, risk limits, position management
 
   scraper/
     speech_scraper.py    # SpeechScraper — 10 sources (see below)
+    social_media_importer.py  # SocialMediaImporter — bulk Twitter/Truth Social import
     term_analyzer.py     # TermAnalyzer — extracts term occurrences from transcripts
     event_tracker.py     # EventTracker — discovers upcoming Trump events
     live_monitor.py      # LiveSpeechMonitor — real-time term detection (YT/CSPAN/WH)
 
   ml/
     markov_trainer.py       # MarkovChainTrainer — local Markov chain + Monte Carlo
-    local_pipeline.py       # LocalPipeline — train → simulate → predict (Pi mode)
+    fine_tuner.py           # GPT2FineTuner — Pi-native Pythia-410M LoRA fine-tuning
+    local_pipeline.py       # LocalPipeline — 8-phase pipeline (Markov + optional fine-tune)
     predictor.py            # TermPredictor — weighted ensemble (6 signals)
     news_enrichment.py      # NewsEnricher — Gemini 2.0 Flash Lite current events
     colab_integration.py    # ColabPredictor — loads predictions + Poisson correction
@@ -116,7 +120,8 @@ scripts/
 
 data/
   exports/          # Exported training data (.jsonl, .json)
-  models/           # Markov chain pickle files (markov_v1.0.0.pkl, etc.)
+  imports/          # Downloaded social media archives (tweets, Truth Social)
+  models/           # Markov chain pickle files + GPT-2/Pythia LoRA adapters
   predictions/      # predictions_latest.json + timestamped copies
 
 tests/
@@ -134,11 +139,13 @@ tests/
 - **TermPrediction** — ML prediction: probability, confidence, model_name, features_used
 - **PriceSnapshot** — historical market prices
 - **Trade** — executed trades: side, quantity, price, pnl, strategy
-- **ModelVersion** — model iteration: version string, corpus size, training duration, metrics, is_active
+- **ModelVersion** — model iteration: version string, corpus size, training duration, metrics, is_active (model_type: `markov_chain` or `gpt2_lora`)
 - **BotConfig** — persistent key/value config store
 - **market_terms** — many-to-many Market↔Term association
 
-## Speech Scraper Sources (10 total)
+## Speech Sources
+
+### Scraper Sources (10 total)
 
 Defined in `src/scraper/speech_scraper.py`, method `scrape_all_sources()`:
 
@@ -155,6 +162,17 @@ Defined in `src/scraper/speech_scraper.py`, method `scrape_all_sources()`:
 | 9 | `presidency_project` | `scrape_presidency_project` | UCSB American Presidency Project (person2=200301, `.field-docs-content`) |
 | 10 | `twitter_archive` | `scrape_trump_twitter_archive` | thetrumparchive.com historical tweets (JSON/embedded data) |
 
+### Social Media Bulk Import
+
+`src/scraper/social_media_importer.py` — `SocialMediaImporter` class:
+
+- **Twitter archive**: Downloads ~56K Trump tweets, parses JSON/CSV, saves individual posts (`speech_type='social_media'`) and groups them by date into daily digests (`speech_type='social_media_daily'`) for Markov training (minimum 50 words per digest)
+- **Truth Social**: Imports from a local JSON dump file, same individual + daily digest pattern
+- Triggered via API (`POST /api/social-media/import-twitter`) or CLI (`make import-twitter`)
+- Progress tracking via `GET /api/social-media/import-status`
+
+The daily digest grouping solves the problem that individual tweets (~30 words) are too short for the Markov trainer's `word_count >= 100` filter. A day with 10+ tweets easily crosses 100 words.
+
 ## ML Prediction Pipeline
 
 ### Ensemble Predictor (TermPredictor)
@@ -165,7 +183,7 @@ Weighted ensemble of 6 signals in `src/ml/predictor.py`:
 - `trend` (0.15) — recent usage velocity and acceleration
 - `event_correlation` (0.10) — how event type correlates with term usage
 - `monte_carlo` (0.40) — Markov chain or Colab LLM Monte Carlo predictions ← **dominant signal**
-- `news_relevance` (0.10) — Gemini 2.0 Flash Lite current events talking points ← **new**
+- `news_relevance` (0.10) — Gemini 2.0 Flash Lite current events talking points
 
 Post-prediction processing:
 - **Correlation boost (2D):** terms co-occurring with high-confidence predictions (Jaccard > 0.3) get a proportional probability boost
@@ -174,17 +192,51 @@ Post-prediction processing:
 
 ### Local Training Pipeline (default — PIPELINE_MODE=local)
 
-`src/ml/local_pipeline.py` + `src/ml/markov_trainer.py`:
+`src/ml/local_pipeline.py` — 8-phase pipeline:
+
+**Always runs (Phases 1-5, ~35 seconds):**
 
 1. Checks `should_retrain()` (≥5 new speeches since last training)
-2. Trains order-3 word-level Markov chain on all speech transcripts (~5 seconds)
-3. Queries next confirmed `TrumpEvent` and adjusts scenario weights (e.g., rally → 85% rally sims)
-4. Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w)
-5. Counts term occurrences, applies Poisson length correction
-6. Saves `predictions_latest.json` and imports to DB
-7. Creates `ModelVersion` record (TrumpGPT v1.0.X)
+2. **Phase 1:** Trains order-3 word-level Markov chain on all speech transcripts (~5 seconds)
+3. **Phase 2:** Loads tracked terms from DB
+4. **Phase 3:** Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w). Adjusts scenario weights based on next confirmed TrumpEvent.
+5. **Phase 4-5:** Saves `predictions_latest.json`, imports to DB, creates `ModelVersion` record (TrumpGPT v1.0.X)
+
+**Optional fine-tuning (Phases 6-8, runs in background when `FINE_TUNE_ENABLED=true`):**
+
+6. **Phase 6:** Fine-tunes Pythia-410M with LoRA (~8-9 hours on Pi 4 CPU). Runs at `os.nice(19)` (lowest CPU priority) so the bot continues trading.
+7. **Phase 7:** Runs GPT-2/Pythia Monte Carlo simulations (200 sims default, shorter texts + Poisson correction)
+8. **Phase 8:** Blends Markov + Pythia predictions (60/40 weighted average), re-imports to DB
+
+Phases 6-8 are **non-blocking** — Markov predictions from Phase 5 are available immediately while fine-tuning runs in the background for hours.
 
 Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
+
+### Pi-Native Fine-Tuning
+
+`src/ml/fine_tuner.py` — `GPT2FineTuner` class:
+
+**Model: Pythia-410M (EleutherAI)**
+- 410M parameters, trained on The Pile (825GB) — includes political speeches, news, Reddit commentary
+- LoRA adapter: rank 16, ~2-3MB trainable params, targeting `query_key_value` (auto-detected)
+- Peak training RAM: ~3.0GB (with batch_size=1, grad_accum=8, fp32)
+- Training speed: ~9-11 tok/s on ARM Cortex-A72
+- Architecture auto-detection via `_detect_lora_targets()` — supports GPT-2, Pythia/GPT-NeoX, Llama, OPT, etc.
+
+**Features:**
+- `os.nice(19)` for lowest CPU priority — dashboard stays responsive during training
+- Checkpointing every 500 steps (~2MB LoRA adapter saved)
+- Graceful stop via `stop_training()` — saves checkpoint, can resume later
+- Loss history tracking for real-time UI chart
+- Memory monitoring via psutil
+- `generate_speech()` / `generate_from_prompt()` / `run_monte_carlo()` matching the MarkovChainTrainer API
+- Configurable model via `FINE_TUNE_MODEL` env var (default: `EleutherAI/pythia-410m`)
+
+**Why Pythia-410M over GPT-2 Small:**
+- The Pile pretraining includes far more political/rhetorical text than GPT-2's WebText
+- 410M params with LoRA fits in ~3GB peak RAM (3GB headroom on 8GB Pi)
+- Significantly better long-form coherence than GPT-2 Small (124M)
+- ~9 hours training for 3 epochs — runs overnight without disrupting trading
 
 ### Colab Training Pipeline (optional — PIPELINE_MODE=colab)
 
@@ -198,11 +250,13 @@ Drive/Colab code is kept dormant in local mode — switch by setting `PIPELINE_M
 ### Model Versioning
 
 Each training run creates a `ModelVersion` record with:
-- Version string (auto-increment patch: 1.0.0, 1.0.1, ...)
+- Version string: Markov versions are `1.0.X` (auto-increment patch), Pythia versions are `2.0.X`
+- Model type: `markov_chain` or `gpt2_lora`
 - Corpus size (speeches + word count)
 - Training duration
 - Simulation count and prediction count
-- Artifact path (pickle file)
+- Artifact path (pickle file for Markov, LoRA adapter directory for Pythia)
+- Metrics (for Pythia: final_loss, best_loss, total_steps, trainable_params, lora_rank)
 
 View all versions via `GET /api/model/versions` or the **Model Versions** dashboard tab.
 
@@ -216,9 +270,9 @@ View all versions via `GET /api/model/versions` or the **Model Versions** dashbo
 - **Drawdown protection**: halts trading if balance drops 30% from peak
 - Edge threshold: only trades when `|edge| - 0.04 > 0` (net of fees)
 - **Liquidity filter**: skips markets with volume < 50; caps position to 10% of market volume
-- **Time-to-close decay**: reduces position size for markets closing <2h (0.7×) or >5d (0.5×)
+- **Time-to-close decay**: reduces position size for markets closing <2h (0.7x) or >5d (0.5x)
 - **Position management**: profit-taking (sell 50% when gain >8c) and stop-loss (sell all when down >15c)
-- **Arbitrage scanner**: fee-aware bounds (spread < $0.92 or > $1.08, accounting for 2% per side × 2 legs)
+- **1c/99c filter**: markets at 1c or 99c are skipped — these are "virtually certain/dead" (already said or won't be said) and untradeable
 - **New market front-running**: alerts + email when new markets detected during sync
 - `auto_trade` flag for fully automated execution
 - `paper_mode` flag for simulated trading (default: on)
@@ -253,6 +307,17 @@ MARKOV_ORDER=3
 MONTE_CARLO_SIMULATIONS=2000
 RETRAIN_INTERVAL_HOURS=6
 
+# Fine-tuning (optional — Pi-native Pythia-410M with LoRA)
+FINE_TUNE_ENABLED=false                # Set to 'true' to enable
+FINE_TUNE_MODEL=EleutherAI/pythia-410m # HuggingFace model ID (also supports gpt2, gpt2-medium, etc.)
+FINE_TUNE_LORA_RANK=16                 # LoRA rank (higher = more params, more RAM)
+FINE_TUNE_EPOCHS=3                     # Training epochs (~9 hours for 3 on Pi 4)
+FINE_TUNE_MAX_LENGTH=512               # Token sequence length
+FINE_TUNE_BATCH_SIZE=1                 # Must be 1 on Pi 4
+FINE_TUNE_GRAD_ACCUM=8                 # Effective batch size = batch_size * grad_accum
+FINE_TUNE_LR=5e-4                      # Learning rate
+FINE_TUNE_MC_SIMS=200                  # Monte Carlo sims for Pythia (fewer than Markov — slower per sim)
+
 # Google Drive (only needed if PIPELINE_MODE=colab)
 GOOGLE_DRIVE_FOLDER_ID=
 GOOGLE_SERVICE_ACCOUNT_KEY_PATH=secrets/<your-key>.json
@@ -269,22 +334,124 @@ GUI_PORT=8501
 
 ## Running the Project
 
+### Quick Start (any machine)
+
 ```bash
-make install      # pip install -r requirements.txt + spacy model
-make install-pi   # Lightweight Pi dependencies (no torch/transformers)
-make init         # Initialize database
-make api          # Start FastAPI API server on :8000
-make gui          # Start Streamlit dashboard on :8501
-make all          # Start both API + GUI
-make deploy-pi    # Run Raspberry Pi setup script
-make export-colab # Export training data for Colab
-make clean        # Delete DB + __pycache__
+# 1. Install dependencies
+make install          # Full deps (includes spacy model)
+# OR
+make install-pi       # Lightweight Pi deps (no torch/transformers)
+
+# 2. Initialize database
+make init
+
+# 3. Start the API server (includes scheduler + dashboard)
+make api
+# → API at http://localhost:8000
+# → Dashboard at http://localhost:8000 (static HTML, served by FastAPI)
+
+# 4. (Optional) Start Streamlit dashboard
+make gui
+# → Streamlit at http://localhost:8501
 ```
 
-Entry points:
+### With Fine-Tuning
+
+```bash
+# 1. Install fine-tuning dependencies (torch, transformers, peft)
+make install-finetune
+
+# 2. Enable fine-tuning in .env
+echo "FINE_TUNE_ENABLED=true" >> .env
+
+# 3. (Optional) Import Twitter corpus first for more training data
+make import-twitter   # Downloads ~56K tweets, creates daily digests
+
+# 4. Start the API (fine-tuning runs as Phase 6-8 of the pipeline)
+make api
+
+# 5. Or trigger fine-tuning manually from the dashboard:
+#    Pipeline tab → "Start Fine-Tuning" button
+#    Or via API: curl -X POST http://localhost:8000/api/fine-tune/start
+```
+
+### Raspberry Pi Deployment
+
+```bash
+# On the Pi:
+git clone <repo-url>
+cd trading-bot
+
+# Copy .env and secrets from your development machine
+# scp .env pi@<pi-ip>:/home/pi/trading-bot/.env
+# scp -r secrets/ pi@<pi-ip>:/home/pi/trading-bot/secrets/
+
+# Run setup script (installs deps, creates systemd services)
+make deploy-pi
+
+# Start services
+sudo systemctl start trumpbot-api
+sudo systemctl start trumpbot-gui   # optional — saves RAM if skipped
+
+# Verify
+curl http://localhost:8000/api/system/health
+
+# Access dashboard from your laptop
+# http://<pi-ip>:8000
+```
+
+### Make Targets
+
+```bash
+make install          # pip install -r requirements.txt + spacy model
+make install-pi       # Lightweight Pi dependencies (no torch/transformers)
+make install-finetune # pip install torch transformers peft datasets accelerate
+make init             # Initialize database
+make api              # Start FastAPI API server on :8000
+make gui              # Start Streamlit dashboard on :8501
+make all              # Start both API + GUI
+make import-twitter   # Download + import Trump Twitter archive
+make deploy-pi        # Run Raspberry Pi setup script
+make export-colab     # Export training data for Colab
+make clean            # Delete DB + __pycache__
+```
+
+### Entry Points
+
 - `run_api.py` — initializes DB, starts scheduler, runs FastAPI on 0.0.0.0:8000
 - `run_gui.py` — launches Streamlit on :8501 (connects to FastAPI backend)
 - `export_for_colab.py` — one-shot export of training data to `data/exports/`
+
+## Dashboard (static HTML)
+
+The primary dashboard is a single-page app at `static/index.html`, served by FastAPI at the root URL (`http://localhost:8000`). Built with Alpine.js + Chart.js, no build step required.
+
+### Tabs
+
+| Tab | What It Shows |
+|-----|---------------|
+| **Home** | Model version, trade suggestions, cumulative P&L chart |
+| **Pipeline** | Training progress (Markov + fine-tune), social media corpus stats + import, fine-tune loss chart, scheduled jobs, pipeline log |
+| **Markets** | All Kalshi markets — active first, resolved last. Active at 1c/99c show as "Virtually Certain"/"Virtually Dead"; resolved show "Yes"/"No" |
+| **Predictions** | Final blended predictions vs market prices, edge, component scores |
+| **Trading** | Bot config (paper/live, auto-trade, Kelly fraction), portfolio, trade history |
+| **System** | CPU/RAM/disk gauges, temperature, uptime, model version history, prediction accuracy |
+| **TrumpGPT** | Interactive text generation — model selector (Markov Chain / Fine-Tuned Pythia), scenario, temperature, Q&A mode |
+
+### Pipeline Tab Features
+
+- **Pipeline Status**: Run/idle/error state, progress bar with elapsed/ETA, Monte Carlo simulation counter
+- **Social Media Corpus**: Stats cards (tweets, Truth Social posts, daily digests, total words), Import Twitter Archive button with progress bar
+- **Fine-Tune GPT-2/Pythia**: Epoch/loss/tokens-per-sec/ETA/RAM status cards, progress bar, live loss chart (Chart.js, polled every 15s), Start/Stop buttons
+- **Scheduled Jobs**: Table of all 12 scheduler jobs with intervals
+- **Pipeline Log**: Timestamped event log (max 200 entries)
+
+### TrumpGPT Tab Features
+
+- **Model selector**: Choose between Markov Chain (fast, ~instant) and Fine-Tuned Pythia (better quality, slower on CPU)
+- **Scenario types**: Rally, Press Conference, Chopper Talk, Fox Interview, Social Media
+- **Controls**: Word count, temperature (0.3-2.0), Q&A mode toggle
+- **Output**: Generated text with word count
 
 ## API Endpoints (FastAPI)
 
@@ -301,7 +468,10 @@ All endpoints prefixed with `/api/`:
 **ML:** `POST /ml/train`, `GET /ml/info`, `GET /ml/predictions`
 **Model:** `GET /model/status`, `GET /model/versions`, `GET /model/accuracy`
 **Colab:** `GET /colab/predictions`, `POST /colab/import`, `POST /colab/save-to-db`, `GET /colab/discovered-phrases`
-**Pipeline:** `GET /pipeline/status`, `GET /pipeline/training-status`, `POST /pipeline/run`, `POST /pipeline/export-upload`, `POST /pipeline/trigger-training`, `POST /pipeline/poll`
+**Pipeline:** `GET /pipeline/status`, `GET /pipeline/training-status`, `GET /pipeline/log`, `POST /pipeline/run`, `POST /pipeline/export-upload`, `POST /pipeline/trigger-training`, `POST /pipeline/poll`
+**Social Media:** `POST /social-media/import-twitter`, `POST /social-media/import-truth`, `GET /social-media/import-status`, `GET /social-media/stats`
+**Fine-Tune:** `POST /fine-tune/start`, `POST /fine-tune/stop`, `GET /fine-tune/status`, `GET /fine-tune/loss-history`
+**TrumpGPT:** `POST /trumpgpt/generate` (accepts `model: 'markov' | 'gpt2'`)
 **Drive:** `GET /drive/status`, `POST /drive/upload`, `POST /drive/download-predictions` (disabled in local mode)
 **Live Monitor:** `POST /live/start`, `POST /live/stop`, `GET /live/status`
 **System:** `POST /system/full-refresh`, `GET /system/health`, `GET /system/hardware`
@@ -311,10 +481,11 @@ All endpoints prefixed with `/api/`:
 ## Key Dependencies
 
 - **Web framework:** FastAPI + uvicorn
-- **GUI:** Streamlit + Plotly
+- **GUI:** Streamlit + Plotly (optional, legacy), Alpine.js + Chart.js (primary dashboard)
 - **Database:** SQLAlchemy (SQLite)
 - **Scraping:** BeautifulSoup4, requests, feedparser, trafilatura, yt-dlp, youtube-transcript-api, Playwright/Selenium
 - **ML (local):** scikit-learn (GBM, RF, LogReg), pandas, numpy
+- **ML (fine-tuning, optional):** torch, transformers, peft (LoRA), datasets, accelerate
 - **ML (Colab):** Unsloth, TRL, transformers, bitsandbytes, PEFT
 - **NLP:** spaCy, NLTK
 - **Gemini:** google-generativeai (for news enrichment)
@@ -325,23 +496,32 @@ All endpoints prefixed with `/api/`:
 ## Data Flow Summary
 
 ```
-[10 scraper sources] → Speech table → TermAnalyzer → TermOccurrence table
-                                                           ↓
-                                              DataExporter → .jsonl files
-                                                           ↓
-                                              DriveSync → Google Drive
-                                                           ↓
-                                              Colab (LoRA fine-tune + Monte Carlo)
-                                                           ↓
-                                              predictions_latest.json → Drive
-                                                           ↓
-                                              ColabPipeline → TermPrediction table
-                                                           ↓
-                                              TermPredictor (weighted ensemble)
-                                                           ↓
-                                              TradingBot (Kelly criterion)
-                                                           ↓
-                                              Kalshi API → Trade table
+[10 scraper sources + social media import]
+                    ↓
+              Speech table
+                    ↓
+        TermAnalyzer → TermOccurrence table
+                    ↓
+    ┌───────────────┼───────────────────┐
+    ↓               ↓                   ↓
+Markov Chain    Pythia-410M LoRA    DataExporter
+(Phase 1-5)     (Phase 6-8)         (Colab mode)
+    ↓               ↓                   ↓
+Monte Carlo    Monte Carlo         Google Drive → Colab
+(2000 sims)    (200 sims)              ↓
+    ↓               ↓           predictions_latest.json
+    └───────┬───────┘                   ↓
+      Blend (60/40)            ColabPipeline import
+            ↓
+  predictions_latest.json
+            ↓
+  TermPrediction table
+            ↓
+  TermPredictor (weighted ensemble)
+            ↓
+  TradingBot (Kelly criterion)
+            ↓
+  Kalshi API → Trade table
 ```
 
 ## Known Data Quality Issues
@@ -360,6 +540,8 @@ All endpoints prefixed with `/api/`:
 - Tests use `unittest` — run with `python -m pytest tests/`
 - Async background tasks in the API use FastAPI's `BackgroundTasks`
 - Scheduler jobs are synchronous functions called by APScheduler's BackgroundScheduler
+- Fine-tuning dependencies (torch, transformers, peft) are lazy-imported — the module can be imported on systems without these packages
+- LoRA target modules are auto-detected from the model architecture — changing `FINE_TUNE_MODEL` to any HuggingFace causal LM works without code changes
 
 ## Probability Compression Fix (RESOLVED)
 
@@ -373,7 +555,9 @@ When using Colab's LLM Monte Carlo, simulations generated ~430-word snippets but
 
 2. **Fix G: Per-scenario length normalization** — The local Markov chain generates scenario-appropriate lengths (rally=5000w, press_conference=2000w, etc.), so probabilities are naturally correct for each scenario type.
 
-3. **Dynamic snippet detection** — `_apply_poisson_correction` reads `simulation_params.avg_words_per_speech` from the predictions JSON. If simulations are already near rally length (≥80%), Poisson correction is skipped.
+3. **Dynamic snippet detection** — `_apply_poisson_correction` reads `simulation_params.avg_words_per_speech` from the predictions JSON. If simulations are already near rally length (>=80%), Poisson correction is skipped.
+
+4. **Pythia Monte Carlo** — The Pythia fine-tuner generates shorter sims (500 words) for speed and relies on the existing Poisson correction infrastructure. These are blended 40% with the Markov predictions (which use full-length sims and don't need correction).
 
 ### Remaining Potential Improvements
 

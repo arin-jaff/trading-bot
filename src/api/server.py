@@ -89,20 +89,60 @@ async def startup():
 
 @app.get("/api/markets")
 def get_markets(status: Optional[str] = None):
-    """Get all tracked markets."""
+    """Get all tracked markets.
+
+    Returns markets sorted: active/open first (by close_time asc),
+    then resolved/closed (by close_time desc — most recent first).
+
+    Adds display_status field:
+    - Active markets at 1c/99c: 'Virtually Certain' / 'Virtually Dead'
+    - Resolved markets: 'Yes' / 'No' based on result
+    - Otherwise: the raw status
+    """
     with get_session() as session:
         query = session.query(Market)
         if status:
             query = query.filter(Market.status == status)
-        markets = query.order_by(Market.close_time).all()
-        return [
-            {
+        all_markets = query.all()
+
+        # Split into active and resolved, sort separately
+        active = []
+        resolved = []
+        for m in all_markets:
+            if m.status in ('active', 'open'):
+                active.append(m)
+            else:
+                resolved.append(m)
+
+        active.sort(key=lambda m: m.close_time or datetime.max)
+        resolved.sort(key=lambda m: m.close_time or datetime.min, reverse=True)
+
+        def _market_dict(m):
+            yes_price = m.yes_price
+            is_active = m.status in ('active', 'open')
+            is_resolved = m.result in ('yes', 'no')
+
+            # Determine display status
+            if is_resolved:
+                display_status = 'Yes' if m.result == 'yes' else 'No'
+            elif is_active and yes_price is not None:
+                if yes_price >= 0.99:
+                    display_status = 'Virtually Certain'
+                elif yes_price <= 0.01:
+                    display_status = 'Virtually Dead'
+                else:
+                    display_status = m.status
+            else:
+                display_status = m.status
+
+            return {
                 'id': m.id,
                 'ticker': m.kalshi_ticker,
                 'title': m.title,
                 'subtitle': m.subtitle,
                 'status': m.status,
-                'yes_price': m.yes_price,
+                'display_status': display_status,
+                'yes_price': yes_price,
                 'no_price': m.no_price,
                 'volume': m.volume,
                 'close_time': m.close_time.isoformat() if m.close_time else None,
@@ -110,8 +150,8 @@ def get_markets(status: Optional[str] = None):
                 'result': m.result,
                 'terms': [t.term for t in m.terms],
             }
-            for m in markets
-        ]
+
+        return [_market_dict(m) for m in active + resolved]
 
 
 @app.get("/api/markets/weekly-payouts")

@@ -5,13 +5,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/trading-bot
-ExecStart=/home/pi/trading-bot/venv/bin/python run_api.py
+User=arin
+WorkingDirectory=/home/arin/trading-bot
+ExecStart=/home/arin/trading-bot/venv/bin/python run_api.py
 Restart=always
 RestartSec=30
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/home/pi/trading-bot/.env
+EnvironmentFile=/home/arin/trading-bot/.env
 
 # Resource limits for Pi 4
 MemoryMax=2G

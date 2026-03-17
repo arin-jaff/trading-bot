@@ -1,10 +1,10 @@
 #!/bin/bash
 # Watchdog script: checks if the API is healthy, restarts if not.
-# Add to crontab: */5 * * * * /home/pi/trading-bot/deploy/watchdog.sh
+# Add to crontab: */5 * * * * /home/arin/trading-bot/deploy/watchdog.sh
 
 HEALTH_URL="http://localhost:8000/api/system/health"
 SERVICE="trumpbot-api"
-LOG="/home/pi/trading-bot/logs/watchdog.log"
+LOG="/home/arin/trading-bot/logs/watchdog.log"
 
 mkdir -p "$(dirname "$LOG")"
 

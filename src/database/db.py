@@ -8,7 +8,11 @@ from .models import Base
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/trading_bot.db')
 
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args={'timeout': 30},  # wait up to 30s for SQLite lock
+)
 SessionLocal = sessionmaker(bind=engine)
 
 

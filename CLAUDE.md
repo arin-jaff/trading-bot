@@ -6,6 +6,8 @@ A fully automated trading system that predicts which words/phrases Donald Trump 
 
 Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
+> See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
+
 ## Architecture Overview
 
 ### Local Mode (default — Raspberry Pi)
@@ -14,13 +16,15 @@ Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches → trai
 ┌─────────────────── RASPBERRY PI 4 ──────────────────────────────┐
 │                                                                   │
 │  Scheduler (APScheduler)                                         │
-│    • Market sync ────────── every 5 min (Kalshi API)             │
-│    • Speech scraping ─────── every 2 hours (10 sources)          │
+│    • Market sync ────────── every 5 min (Kalshi API + new mkt)   │
+│    • Speech scraping ─────── every 2 hours (10 sources + dedup)  │
 │    • Event tracking ──────── every 30 min                        │
-│    • Predictions ─────────── every 15 min                        │
-│    • Trading checks ──────── every 5 min                         │
+│    • Predictions ─────────── every 15 min (6-signal ensemble)    │
+│    • Trading checks ──────── every 5 min (fee-aware Kelly)       │
+│    • Position management ─── every 5 min (profit-take/stop-loss) │
+│    • News enrichment ─────── every 1 hour (Gemini Flash Lite)    │
 │    • Local pipeline ──────── every 6 hours (train + simulate)    │
-│    • Arbitrage scan ──────── every 10 min                        │
+│    • Arbitrage scan ──────── every 10 min (fee-aware bounds)     │
 │    • Daily email digest ──── 8 AM UTC                            │
 │    • Live speech monitor ─── every 1 min                         │
 │                                                                   │
@@ -81,7 +85,8 @@ src/
   ml/
     markov_trainer.py       # MarkovChainTrainer — local Markov chain + Monte Carlo
     local_pipeline.py       # LocalPipeline — train → simulate → predict (Pi mode)
-    predictor.py            # TermPredictor — weighted ensemble (5 signals)
+    predictor.py            # TermPredictor — weighted ensemble (6 signals)
+    news_enrichment.py      # NewsEnricher — Gemini 2.0 Flash Lite current events
     colab_integration.py    # ColabPredictor — loads predictions + Poisson correction
     feature_engineering.py  # FeatureEngineer — builds per-term feature DataFrames
     model_trainer.py        # ModelTrainer — GBM, RF, LogReg with calibration
@@ -105,6 +110,9 @@ secrets/                           # git-ignored — all private keys & credenti
 notebooks/
   01_finetune_trump_llm.ipynb    # LoRA fine-tuning (Colab mode only)
   02_monte_carlo_predictor.ipynb # Monte Carlo simulation (Colab mode only)
+
+scripts/
+  backfill_settlements.py    # One-time: match settled markets to predictions, Platt calibration
 
 data/
   exports/          # Exported training data (.jsonl, .json)
@@ -151,12 +159,18 @@ Defined in `src/scraper/speech_scraper.py`, method `scrape_all_sources()`:
 
 ### Ensemble Predictor (TermPredictor)
 
-Weighted ensemble of 5 signals in `src/ml/predictor.py`:
+Weighted ensemble of 6 signals in `src/ml/predictor.py`:
 - `frequency` (0.20) — recency-weighted historical speech frequency (60-day half-life)
-- `temporal` (0.10) — day-of-week and seasonal patterns
+- `temporal` (0.05) — day-of-week and seasonal patterns; **gated out** when >30% of speech dates are poisoned (returns `None`, weight redistributed)
 - `trend` (0.15) — recent usage velocity and acceleration
-- `event_correlation` (0.15) — how event type correlates with term usage
+- `event_correlation` (0.10) — how event type correlates with term usage
 - `monte_carlo` (0.40) — Markov chain or Colab LLM Monte Carlo predictions ← **dominant signal**
+- `news_relevance` (0.10) — Gemini 2.0 Flash Lite current events talking points ← **new**
+
+Post-prediction processing:
+- **Correlation boost (2D):** terms co-occurring with high-confidence predictions (Jaccard > 0.3) get a proportional probability boost
+- **Fee-aware Kelly:** `_kelly_criterion()` subtracts 4% round-trip Kalshi fee from edge before computing bet size
+- **Confidence scaling:** Kelly fraction multiplied by prediction confidence (0-1)
 
 ### Local Training Pipeline (default — PIPELINE_MODE=local)
 
@@ -164,10 +178,11 @@ Weighted ensemble of 5 signals in `src/ml/predictor.py`:
 
 1. Checks `should_retrain()` (≥5 new speeches since last training)
 2. Trains order-3 word-level Markov chain on all speech transcripts (~5 seconds)
-3. Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w)
-4. Counts term occurrences, applies Poisson length correction
-5. Saves `predictions_latest.json` and imports to DB
-6. Creates `ModelVersion` record (TrumpGPT v1.0.X)
+3. Queries next confirmed `TrumpEvent` and adjusts scenario weights (e.g., rally → 85% rally sims)
+4. Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w)
+5. Counts term occurrences, applies Poisson length correction
+6. Saves `predictions_latest.json` and imports to DB
+7. Creates `ModelVersion` record (TrumpGPT v1.0.X)
 
 Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
 
@@ -194,12 +209,17 @@ View all versions via `GET /api/model/versions` or the **Model Versions** dashbo
 ## Trading Bot
 
 `src/kalshi/trading_bot.py` — `TradingBot` class:
-- **Kelly criterion** position sizing (half-Kelly for safety, capped at 25% of bankroll)
-- Risk limits: `max_position_size` (100), `max_daily_loss` ($50), `max_total_exposure` ($500)
+- **Fee-aware Kelly criterion** position sizing (half-Kelly, capped at 25%; subtracts 4% round-trip fee from edge)
+- **Confidence scaling**: Kelly multiplied by prediction confidence (0-1)
+- Risk limits: `max_position_size` (100), `max_daily_loss` ($50), `max_total_exposure` ($500), `min_volume` (50)
 - **Cooldown**: 2-hour trading pause at 50% of daily loss limit
 - **Drawdown protection**: halts trading if balance drops 30% from peak
-- Edge threshold: only trades when predicted probability differs 5%+ from market price
-- **Arbitrage scanner**: detects YES+NO mispricing (spread < $0.98 or > $1.02)
+- Edge threshold: only trades when `|edge| - 0.04 > 0` (net of fees)
+- **Liquidity filter**: skips markets with volume < 50; caps position to 10% of market volume
+- **Time-to-close decay**: reduces position size for markets closing <2h (0.7×) or >5d (0.5×)
+- **Position management**: profit-taking (sell 50% when gain >8c) and stop-loss (sell all when down >15c)
+- **Arbitrage scanner**: fee-aware bounds (spread < $0.92 or > $1.08, accounting for 2% per side × 2 legs)
+- **New market front-running**: alerts + email when new markets detected during sync
 - `auto_trade` flag for fully automated execution
 - `paper_mode` flag for simulated trading (default: on)
 - Authentication: RSA key-pair signing (KALSHI_API_KEY + KALSHI_PRIVATE_KEY_PATH)
@@ -239,7 +259,7 @@ GOOGLE_SERVICE_ACCOUNT_KEY_PATH=secrets/<your-key>.json
 
 # Optional
 YOUTUBE_API_KEY=               # For YouTube Data API scraper
-GEMINI_API_KEY=                # For current events enrichment
+GEMINI_API_KEY=                # For Gemini 2.0 Flash Lite news enrichment (~$0.0024/day)
 DATABASE_URL=sqlite:///data/trading_bot.db
 LOG_LEVEL=INFO
 REFRESH_INTERVAL_SECONDS=60
@@ -279,7 +299,7 @@ All endpoints prefixed with `/api/`:
 **Trades:** `GET /trades/history` (paginated, with P&L summary)
 **Kalshi Auth:** `POST /kalshi/login`
 **ML:** `POST /ml/train`, `GET /ml/info`, `GET /ml/predictions`
-**Model:** `GET /model/status`, `GET /model/versions`
+**Model:** `GET /model/status`, `GET /model/versions`, `GET /model/accuracy`
 **Colab:** `GET /colab/predictions`, `POST /colab/import`, `POST /colab/save-to-db`, `GET /colab/discovered-phrases`
 **Pipeline:** `GET /pipeline/status`, `GET /pipeline/training-status`, `POST /pipeline/run`, `POST /pipeline/export-upload`, `POST /pipeline/trigger-training`, `POST /pipeline/poll`
 **Drive:** `GET /drive/status`, `POST /drive/upload`, `POST /drive/download-predictions` (disabled in local mode)
@@ -297,6 +317,7 @@ All endpoints prefixed with `/api/`:
 - **ML (local):** scikit-learn (GBM, RF, LogReg), pandas, numpy
 - **ML (Colab):** Unsloth, TRL, transformers, bitsandbytes, PEFT
 - **NLP:** spaCy, NLTK
+- **Gemini:** google-generativeai (for news enrichment)
 - **Google Drive:** google-api-python-client, google-auth
 - **Scheduling:** APScheduler
 - **Kalshi:** requests + RSA signing (cryptography)
@@ -333,7 +354,7 @@ All endpoints prefixed with `/api/`:
 ## Conventions
 
 - All database access goes through `get_session()` context manager from `src/database/db.py`
-- Scrapers return `int` (count of new speeches saved) and use `_save_speech()` for dedup
+- Scrapers return `int` (count of new speeches saved) and use `_save_speech()` for dedup (includes cross-source duplicate transcript detection)
 - Config is a singleton at `src/config.py` — access via `from .config import config`
 - Logging uses `loguru` (`from loguru import logger`) everywhere
 - Tests use `unittest` — run with `python -m pytest tests/`
@@ -356,6 +377,6 @@ When using Colab's LLM Monte Carlo, simulations generated ~430-word snippets but
 
 ### Remaining Potential Improvements
 
-- **Fix C**: Gate temporal/trend on data sufficiency (<20 occurrences → redistribute weight)
-- **Fix D**: Platt scaling calibration using settled market outcomes
+- ~~**Fix C**: Gate temporal/trend on data sufficiency~~ → **DONE** (1B: temporal gated when dates poisoned; 1D: confidence threshold lowered)
+- ~~**Fix D**: Platt scaling calibration using settled market outcomes~~ → **DONE** (4B: `scripts/backfill_settlements.py` with optional Platt scaling)
 - **Fix F**: Market price as Bayesian prior instead of arithmetic averaging

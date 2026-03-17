@@ -263,13 +263,49 @@ class TermPredictor:
         return min(1.0, (dow_score + month_score) / 2)
 
     def _trend_score(self, term: Term) -> float:
-        """Score based on recent trend direction."""
+        """Score based on recent trend direction and weekly acceleration.
+
+        Combines two signals:
+        - Base trend: 30-day vs prior-30-day ratio (stored in term.trend_score)
+        - Weekly acceleration: compares this week's mentions to the 4-week average
+        """
+        import math
         trend = term.trend_score or 0.0
 
-        # Map trend to [0, 1]: positive trend -> higher score
-        # Sigmoid-like mapping
-        import math
-        return 1 / (1 + math.exp(-trend))
+        # Base: sigmoid mapping of 30-day trend
+        base_score = 1 / (1 + math.exp(-trend))
+
+        # Weekly acceleration: if we have occurrence data, check week-over-week
+        try:
+            with get_session() as session:
+                now = datetime.utcnow()
+                # This week (last 7 days)
+                this_week = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                    TermOccurrence.term_id == term.id,
+                    Speech.date >= now - timedelta(days=7),
+                ).scalar() or 0
+
+                # Past 4 weeks average (days 7-35)
+                past_4w = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                    TermOccurrence.term_id == term.id,
+                    Speech.date >= now - timedelta(days=35),
+                    Speech.date < now - timedelta(days=7),
+                ).scalar() or 0
+
+                weekly_avg = past_4w / 4.0 if past_4w > 0 else 0
+
+                if weekly_avg > 0:
+                    # Acceleration: how much above/below the weekly average
+                    accel = (this_week - weekly_avg) / weekly_avg
+                    accel_score = 1 / (1 + math.exp(-accel * 2))  # steeper sigmoid
+                else:
+                    accel_score = 0.6 if this_week > 0 else 0.4
+
+                # Blend: 60% base trend, 40% weekly acceleration
+                return base_score * 0.6 + accel_score * 0.4
+
+        except Exception:
+            return base_score
 
     def _event_correlation_score(self, session, term: Term,
                                   event: Optional[dict] = None) -> float:

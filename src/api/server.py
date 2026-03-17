@@ -980,6 +980,39 @@ def get_model_versions():
         ]
 
 
+# --- TrumpGPT prompt endpoint ---
+
+class PromptRequest(BaseModel):
+    prompt: str
+    word_count: int = 500
+    scenario: Optional[str] = None
+
+
+@app.post("/api/trumpgpt/generate")
+def generate_trumpgpt(req: PromptRequest):
+    """Generate text from TrumpGPT given a prompt or scenario."""
+    from ..ml.markov_trainer import MarkovChainTrainer
+    trainer = MarkovChainTrainer(order=app_config.markov_order)
+
+    if req.prompt.strip():
+        text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count)
+    else:
+        text = trainer.generate_speech(
+            scenario_type=req.scenario or 'rally',
+            word_count=req.word_count,
+        )
+
+    if not text:
+        raise HTTPException(status_code=500, detail="No trained model found. Run the pipeline first.")
+
+    return {
+        'text': text,
+        'word_count': len(text.split()),
+        'prompt': req.prompt,
+        'scenario': req.scenario,
+    }
+
+
 # --- Model accuracy endpoint (1C) ---
 
 @app.get("/api/model/accuracy")

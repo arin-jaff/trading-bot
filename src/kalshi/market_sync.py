@@ -100,6 +100,38 @@ class MarketSync:
 
         return terms
 
+    @staticmethod
+    def _parse_dollar_field(data: dict, *field_names: str) -> float | None:
+        """Parse a Kalshi v2 dollar-string field (e.g., '0.9900') to float.
+
+        Tries each field name in order, returns the first valid value.
+        """
+        for name in field_names:
+            val = data.get(name)
+            if val is not None:
+                try:
+                    f = float(val)
+                    if f > 0:
+                        return f
+                except (ValueError, TypeError):
+                    continue
+        return None
+
+    @staticmethod
+    def _parse_fp_field(data: dict, *field_names: str) -> int:
+        """Parse a Kalshi v2 fixed-point field (e.g., '37061.00') to int.
+
+        Tries each field name in order, returns the first valid value.
+        """
+        for name in field_names:
+            val = data.get(name)
+            if val is not None:
+                try:
+                    return int(float(val))
+                except (ValueError, TypeError):
+                    continue
+        return 0
+
     def _build_term_dict(self, raw_term: str) -> dict:
         """Build a term dictionary from a raw string."""
         normalized = raw_term.lower().strip()
@@ -148,13 +180,35 @@ class MarketSync:
                 market.subtitle = market_data.get('subtitle', '')
                 market.market_type = 'trump_mentions'
                 market.status = market_data.get('status', '')
-                # Prices: API returns cents (0-100), store as dollars (0-1.0)
-                yes_bid = market_data.get('yes_bid') or market_data.get('last_price') or 0
-                no_bid = market_data.get('no_bid') or 0
-                market.yes_price = yes_bid / 100.0 if yes_bid else None
-                market.no_price = no_bid / 100.0 if no_bid else None
-                market.volume = market_data.get('volume', 0)
-                market.open_interest = market_data.get('open_interest', 0)
+
+                # Prices: v2 API uses dollar-string fields (*_dollars)
+                # Fallback chain: yes_bid_dollars -> last_price_dollars -> legacy yes_bid (cents)
+                yes_price = self._parse_dollar_field(
+                    market_data, 'yes_bid_dollars', 'last_price_dollars'
+                )
+                no_price = self._parse_dollar_field(
+                    market_data, 'no_bid_dollars'
+                )
+                # Legacy fallback: old API returned cents (0-100)
+                if yes_price is None:
+                    legacy = market_data.get('yes_bid') or market_data.get('last_price')
+                    if legacy:
+                        yes_price = legacy / 100.0
+                if no_price is None:
+                    legacy = market_data.get('no_bid')
+                    if legacy:
+                        no_price = legacy / 100.0
+
+                market.yes_price = yes_price
+                market.no_price = no_price
+
+                # Volume: v2 uses volume_fp (fixed-point string), fallback to volume
+                market.volume = self._parse_fp_field(
+                    market_data, 'volume_fp', 'volume'
+                )
+                market.open_interest = self._parse_fp_field(
+                    market_data, 'open_interest_fp', 'open_interest'
+                )
 
                 if market_data.get('close_time'):
                     try:

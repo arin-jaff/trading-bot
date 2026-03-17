@@ -201,6 +201,71 @@ class MarkovChainTrainer:
 
         return ' '.join(words)
 
+    def generate_from_prompt(self, prompt: str,
+                            word_count: int = 500) -> str:
+        """Generate text seeded from a user prompt.
+
+        Tokenizes the prompt, finds the best matching chain state to continue
+        from, then generates forward using the Markov chain.
+        """
+        if not self.chain:
+            self._load_latest_model()
+        if not self.chain:
+            return ""
+
+        prompt_words = self._tokenize(prompt)
+        keys = list(self.chain.keys())
+        if not keys:
+            return ""
+
+        # Try to find a chain state that matches the end of the prompt
+        start_key = None
+        if len(prompt_words) >= self.order:
+            candidate = tuple(prompt_words[-self.order:])
+            if candidate in self.chain:
+                start_key = candidate
+
+        # Fallback: find any state containing the last prompt word
+        if not start_key and prompt_words:
+            last_word = prompt_words[-1]
+            matching = [k for k in keys if last_word in k]
+            if matching:
+                start_key = random.choice(matching)
+
+        # Final fallback: random start
+        if not start_key:
+            start_key = random.choice(keys)
+
+        words = list(prompt_words) if prompt_words else list(start_key)
+
+        for _ in range(word_count):
+            key = tuple(words[-self.order:])
+            if key not in self.chain:
+                # Dead end — try to find a state with any recent word
+                found = False
+                for w in reversed(words[-10:]):
+                    matching = [k for k in keys if w in k]
+                    if matching:
+                        bridge = random.choice(matching)
+                        words.extend(list(bridge))
+                        found = True
+                        break
+                if not found:
+                    words.extend(list(random.choice(keys)))
+                continue
+
+            next_words = self.chain[key]
+            total = sum(next_words.values())
+            r = random.randint(1, total)
+            cumulative = 0
+            for word, count in next_words.items():
+                cumulative += count
+                if r <= cumulative:
+                    words.append(word)
+                    break
+
+        return ' '.join(words)
+
     def run_monte_carlo(self, terms: list[str],
                         num_simulations: int = 2000,
                         scenario_weights: Optional[dict] = None) -> dict:

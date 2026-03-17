@@ -461,6 +461,59 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </template>
 </div>
 
+<!-- ════════════════════════════════ TRUMPGPT ════════════════════════════════ -->
+<div class="section" :class="{active:tab==='trumpgpt'}">
+  <h1>TrumpGPT</h1>
+  <div class="sub">Prompt the Markov chain language model trained on Trump speeches</div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div style="margin-bottom:10px">
+      <label style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Prompt</label>
+      <textarea x-model="gptPrompt" placeholder="Start typing... e.g. 'We are going to build' or 'China has been'" style="width:100%;min-height:60px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px;resize:vertical;margin-top:4px"></textarea>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div>
+        <label style="font-size:10px;color:var(--dim)">Scenario</label><br>
+        <select x-model="gptScenario" style="width:160px">
+          <option value="rally">Rally (5000w)</option>
+          <option value="press_conference">Press Conf (2000w)</option>
+          <option value="chopper_talk">Chopper Talk (800w)</option>
+          <option value="fox_interview">Fox Interview (1500w)</option>
+          <option value="social_media">Social Media (300w)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:10px;color:var(--dim)">Words</label><br>
+        <input type="number" x-model.number="gptWordCount" min="50" max="5000" step="50" style="width:80px">
+      </div>
+      <div style="margin-top:14px">
+        <button class="btn primary" @click="generateTrumpGPT()" :disabled="gptLoading">
+          <template x-if="gptLoading"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
+          <span x-text="gptLoading?'Generating...':'Generate'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <template x-if="gptOutput">
+    <div class="card" style="max-height:500px;overflow-y:auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0;color:var(--accent)">TrumpGPT Output</h3>
+        <span style="font-size:11px;color:var(--dim)" x-text="gptOutput.split(' ').length+' words'"></span>
+      </div>
+      <div style="line-height:1.8;font-size:13px;white-space:pre-wrap;color:var(--text)" x-text="gptOutput"></div>
+    </div>
+  </template>
+
+  <template x-if="!gptOutput && !gptLoading">
+    <div class="idle-art">
+      <div style="font-size:48px">&#128172;</div>
+      <div class="quip">Give TrumpGPT a topic and watch it riff.</div>
+      <div style="margin-top:8px;font-size:12px;color:var(--dim)">Leave the prompt blank to generate a full speech from the selected scenario.</div>
+    </div>
+  </template>
+</div>
+
 </div><!-- /container -->
 
 <script>
@@ -473,12 +526,14 @@ function app(){return{
     {id:'predictions',label:'Predictions'},
     {id:'trading',label:'Trading'},
     {id:'system',label:'System'},
+    {id:'trumpgpt',label:'TrumpGPT'},
   ],
   health:false, pipelineMode:'',
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
+  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally',
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -547,6 +602,16 @@ function app(){return{
   async loadSystem(){
     const[h,v,a]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy')]);
     this.hw=h;this.versions=Array.isArray(v)?v:[];this.accuracy=a;
+  },
+
+  async generateTrumpGPT(){
+    this.gptLoading=true;this.gptOutput='';
+    try{
+      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario})});
+      const d=await r.json();
+      this.gptOutput=d.text||d.detail||'No output';
+    }catch(e){this.gptOutput='Error: '+e.message}
+    this.gptLoading=false;
   },
 
   async togglePaper(){await this.apiPut('/trading/config',{paper_mode:!this.botCfg.paper_mode});this.botCfg=await this.api('/trading/config')||this.botCfg},

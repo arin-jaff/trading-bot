@@ -257,7 +257,10 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <template x-if="importStatus?.state==='importing'||importStatus?.state==='downloading'"><span class="spinner" style="vertical-align:middle;margin-right:4px"></span></template>
         Import Twitter Archive
       </button>
-      <span style="font-size:11px;color:var(--dim)">Downloads ~56K tweets and groups into daily digests</span>
+      <button class="btn" @click="scrapeTruth()" style="border-color:var(--purple);color:var(--purple)">
+        Scrape Truth Social
+      </button>
+      <span style="font-size:11px;color:var(--dim)">Twitter: bulk archive | Truth Social: live scrape via API</span>
     </div>
     <template x-if="importStatus && (importStatus.state==='importing'||importStatus.state==='downloading')">
       <div style="margin-top:10px">
@@ -268,6 +271,22 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     <template x-if="importStatus?.state==='complete'">
       <div class="alert success" style="margin-top:8px">
         Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
+      </div>
+    </template>
+
+    <!-- RECENT POSTS -->
+    <template x-if="recentPosts && recentPosts.length>0">
+      <div style="margin-top:14px">
+        <h3 style="margin-bottom:8px">Recent Posts</h3>
+        <template x-for="post in recentPosts" :key="post.date+post.text.substring(0,20)">
+          <div style="border-left:3px solid var(--border);padding:8px 12px;margin:6px 0;background:var(--bg3);border-radius:0 4px 4px 0">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <span style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:1px" :style="'color:'+(post.source==='truth_social'?'var(--purple)':'var(--blue)')" x-text="post.source==='truth_social'?'Truth Social':'Twitter'"></span>
+              <span style="font-size:10px;color:var(--dim)" x-text="post.date?post.date.replace('T',' ').substring(0,16):''"></span>
+            </div>
+            <div style="font-size:12px;line-height:1.5;color:var(--text)" x-text="post.text"></div>
+          </div>
+        </template>
       </div>
     </template>
   </div>
@@ -693,7 +712,7 @@ function app(){return{
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true, gptModel:'markov',
-  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null, ftTrigger:null,
+  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null, ftTrigger:null, recentPosts:[],
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -745,13 +764,14 @@ function app(){return{
   },
 
   async loadPipeline(){
-    const[tr,log,imp,ss,ftp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/trigger-progress')]);
+    const[tr,log,imp,ss,ftp,rp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/trigger-progress'),this.api('/social-media/recent-posts?limit=5')]);
     this.training=tr;
     this.pipelineLog=Array.isArray(log)?log:[];
     this.fineTuneStatus=tr?.fine_tune_status||null;
     this.importStatus=imp;
     this.socialStats=ss;
     this.ftTrigger=ftp;
+    this.recentPosts=Array.isArray(rp)?rp:[];
     if(this.fineTuneStatus&&this.fineTuneStatus.state==='phase6_training'){this.loadLossChart()}
   },
 
@@ -768,6 +788,11 @@ function app(){return{
 
   async importTwitter(){
     await this.apiPost('/social-media/import-twitter');
+  },
+
+  async scrapeTruth(){
+    await this.apiPost('/social-media/scrape-truth');
+    setTimeout(()=>this.loadPipeline(),3000);
   },
 
   async toggleFineTune(){

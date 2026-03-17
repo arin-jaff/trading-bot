@@ -92,7 +92,17 @@ def create_scheduler() -> BackgroundScheduler:
             id='local_pipeline', replace_existing=True,
             name=f'Local training pipeline (every {retrain_hours}h)',
         )
-        logger.info(f"Pipeline mode: LOCAL (retrain every {retrain_hours}h)")
+
+        # Run pipeline once at startup (30s delay to let API finish booting)
+        from datetime import datetime, timedelta
+        scheduler.add_job(
+            _run_local_pipeline,
+            'date', run_date=datetime.utcnow() + timedelta(seconds=30),
+            args=[local_pipeline, speech_scraper, term_analyzer],
+            id='local_pipeline_startup', replace_existing=True,
+            name='Initial pipeline run at startup',
+        )
+        logger.info(f"Pipeline mode: LOCAL (retrain every {retrain_hours}h, first run in 30s)")
     else:
         from .ml.colab_pipeline import ColabPipeline
         colab_pipeline = ColabPipeline()

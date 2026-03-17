@@ -1067,6 +1067,22 @@ def _run_truth_import(importer, file_path: str):
         logger.error(f"Truth Social import failed: {e}")
 
 
+@app.post("/api/social-media/scrape-truth")
+def scrape_truth_social(background_tasks: BackgroundTasks):
+    """Scrape latest Truth Social posts via RSS/API (no file needed)."""
+    importer = _get_social_importer()
+    background_tasks.add_task(_run_truth_scrape, importer)
+    return {"status": "Truth Social scrape started"}
+
+
+def _run_truth_scrape(importer):
+    try:
+        new_posts = importer.scrape_latest_posts()
+        logger.info(f"Truth Social scrape: {new_posts} new posts")
+    except Exception as e:
+        logger.error(f"Truth Social scrape failed: {e}")
+
+
 @app.get("/api/social-media/import-status")
 def get_import_status():
     """Get social media import progress."""
@@ -1079,6 +1095,28 @@ def get_social_media_stats():
     """Get social media corpus statistics."""
     importer = _get_social_importer()
     return importer.get_stats()
+
+
+@app.get("/api/social-media/recent-posts")
+def get_recent_social_posts(limit: int = 5):
+    """Get the most recent social media posts from the DB."""
+    from ..database.models import Speech
+
+    with get_session() as session:
+        posts = session.query(Speech).filter(
+            Speech.speech_type == 'social_media',
+            Speech.transcript.isnot(None),
+        ).order_by(Speech.date.desc()).limit(limit).all()
+
+        return [
+            {
+                'source': p.source,
+                'text': p.transcript[:280] if p.transcript else '',
+                'date': p.date.isoformat() if p.date else None,
+                'word_count': p.word_count,
+            }
+            for p in posts
+        ]
 
 
 # --- Fine-Tune endpoints ---

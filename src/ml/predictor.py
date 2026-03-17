@@ -23,7 +23,7 @@ class TermPredictor:
     2. Temporal patterns (day-of-week, time-of-day, event-type effects)
     3. Topic-event correlation (certain events -> certain terms)
     4. Trend momentum (increasing/decreasing usage patterns)
-    5. Colab fine-tuned model Monte Carlo predictions (replaces LLM API calls)
+    5. Monte Carlo predictions (Markov chain local or Colab LLM)
     """
 
     def __init__(self):
@@ -32,14 +32,14 @@ class TermPredictor:
             'temporal': 0.10,
             'trend': 0.15,
             'event_correlation': 0.15,
-            'colab_monte_carlo': 0.40,  # highest weight: your fine-tuned model
+            'monte_carlo': 0.40,  # highest weight: Monte Carlo simulation
         }
-        self._colab_predictions = None
+        self._monte_carlo_predictions = None
 
     def predict_all_terms(self, event: Optional[dict] = None) -> list[dict]:
         """Generate predictions for all tracked terms."""
-        # Load Colab Monte Carlo predictions if available
-        self._load_colab_predictions()
+        # Load Monte Carlo predictions if available
+        self._load_monte_carlo_predictions()
 
         predictions = []
 
@@ -57,22 +57,22 @@ class TermPredictor:
         predictions.sort(key=lambda x: x['probability'], reverse=True)
         return predictions
 
-    def _load_colab_predictions(self):
-        """Load predictions from Colab fine-tuned model."""
+    def _load_monte_carlo_predictions(self):
+        """Load Monte Carlo predictions (from local Markov chain or Colab)."""
         try:
             from .colab_integration import ColabPredictor
-            colab = ColabPredictor()
-            preds = colab.get_predictions()
+            predictor = ColabPredictor()
+            preds = predictor.get_predictions()
             if preds:
-                self._colab_predictions = {
+                self._monte_carlo_predictions = {
                     p['term'].lower().strip(): p for p in preds
                 }
-                logger.info(f"Loaded {len(preds)} Colab Monte Carlo predictions")
+                logger.info(f"Loaded {len(preds)} Monte Carlo predictions")
             else:
-                self._colab_predictions = {}
+                self._monte_carlo_predictions = {}
         except Exception as e:
-            logger.debug(f"No Colab predictions available: {e}")
-            self._colab_predictions = {}
+            logger.debug(f"No Monte Carlo predictions available: {e}")
+            self._monte_carlo_predictions = {}
 
     def _predict_term(self, session, term: Term,
                       event: Optional[dict] = None) -> dict:
@@ -93,13 +93,13 @@ class TermPredictor:
             session, term, event
         )
 
-        # 5. Colab Monte Carlo prediction (your fine-tuned model)
-        colab_pred = self._colab_monte_carlo_score(term)
-        if colab_pred is not None:
-            scores['colab_monte_carlo'] = colab_pred
+        # 5. Monte Carlo prediction (local Markov chain or Colab LLM)
+        mc_pred = self._monte_carlo_score(term)
+        if mc_pred is not None:
+            scores['monte_carlo'] = mc_pred
         else:
-            # If no Colab prediction, redistribute weight to other components
-            scores['colab_monte_carlo'] = None
+            # If no prediction, redistribute weight to other components
+            scores['monte_carlo'] = None
 
         # Combined weighted score
         active_scores = {k: v for k, v in scores.items() if v is not None}
@@ -255,28 +255,29 @@ class TermPredictor:
 
         return min(1.0, matching_speeches / max(1, total_event_type))
 
-    def _colab_monte_carlo_score(self, term: Term) -> Optional[float]:
-        """Get probability from Colab fine-tuned Monte Carlo simulation.
+    def _monte_carlo_score(self, term: Term) -> Optional[float]:
+        """Get probability from Monte Carlo simulation.
 
-        This is the most powerful signal: a model fine-tuned on Trump's actual
-        speech patterns, run 1000 times to produce frequency-based probabilities.
+        This is the most powerful signal: simulated Trump speeches (via Markov
+        chain or fine-tuned LLM) run many times to produce frequency-based
+        probabilities.
         """
-        if not self._colab_predictions:
+        if not self._monte_carlo_predictions:
             return None
 
         normalized = term.normalized_term.lower().strip()
 
         # Direct match
-        if normalized in self._colab_predictions:
-            return self._colab_predictions[normalized]['probability']
+        if normalized in self._monte_carlo_predictions:
+            return self._monte_carlo_predictions[normalized]['probability']
 
         # For compound terms, check sub-terms
         if term.is_compound and term.sub_terms:
             sub_probs = []
             for st in term.sub_terms:
                 st_lower = st.lower().strip()
-                if st_lower in self._colab_predictions:
-                    sub_probs.append(self._colab_predictions[st_lower]['probability'])
+                if st_lower in self._monte_carlo_predictions:
+                    sub_probs.append(self._monte_carlo_predictions[st_lower]['probability'])
             if sub_probs:
                 # Any sub-term matching counts, so use max
                 return max(sub_probs)

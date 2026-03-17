@@ -221,6 +221,30 @@ class Trade(Base):
     )
 
 
+class ModelVersion(Base):
+    """Tracks each iteration of the TrumpGPT model."""
+    __tablename__ = 'model_versions'
+
+    id = Column(Integer, primary_key=True)
+    version = Column(String(20), unique=True, nullable=False)  # "1.0.0", "1.0.1"
+    model_type = Column(String(50), nullable=False)  # "markov_chain", "colab_llm"
+    markov_order = Column(Integer)
+    corpus_size = Column(Integer)  # number of speeches used
+    corpus_word_count = Column(Integer)  # total words in training corpus
+    training_duration_seconds = Column(Float)
+    simulation_count = Column(Integer)  # Monte Carlo runs
+    prediction_count = Column(Integer)  # terms predicted
+    metrics = Column(JSON)  # {avg_probability, unique_terms, etc.}
+    artifact_path = Column(String(500))  # path to saved model file
+    is_active = Column(Boolean, default=True)  # currently used model
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('idx_model_version', 'version'),
+    )
+
+
 class BotConfig(Base):
     """Bot configuration and state."""
     __tablename__ = 'bot_config'

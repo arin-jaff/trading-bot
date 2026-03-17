@@ -241,9 +241,9 @@ if live_events:
         st.error(f"LIVE NOW: {event['title']} (started {event.get('start_time', 'unknown')})")
 
 # --- Tab Layout ---
-tab_home, tab_markets, tab_terms, tab_trading, tab_events, tab_live, tab_ml, tab_data = st.tabs([
-    "Home", "Markets", "Terms", "Trading",
-    "Events", "Live Monitor", "TrumpGPT", "Data"
+tab_home, tab_markets, tab_terms, tab_trading, tab_history, tab_events, tab_live, tab_ml, tab_models, tab_pi, tab_data = st.tabs([
+    "Home", "Markets", "Terms", "Trading", "Trade History",
+    "Events", "Live Monitor", "TrumpGPT", "Model Versions", "Pi Status", "Data"
 ])
 
 
@@ -257,7 +257,14 @@ with tab_home:
         st.code(TRUMP_ART, language=None)
     with col_title:
         st.title("TrumpGPT")
-        st.caption("LoRA fine-tuned Llama-3.1-8B + Multi-Scenario Monte Carlo")
+        # Dynamic model type display
+        try:
+            _ms = requests.get(f"{API_BASE}/model/status", timeout=3).json()
+            _method = _ms.get('method', 'Monte Carlo')
+            _ver = _ms.get('version', '')
+            st.caption(f"{_method}" + (f" | v{_ver}" if _ver else ""))
+        except Exception:
+            st.caption("Monte Carlo Prediction Engine")
 
         # Quick stats
         model_status = api_get("/model/status") or {}
@@ -852,13 +859,25 @@ with tab_live:
 # ═══════════════════════════════════════════════════════════════════
 with tab_ml:
     st.header("TrumpGPT")
-    st.caption("LoRA fine-tuned Llama-3.1-8B + Multi-Scenario Monte Carlo Simulation Engine")
-
     model_status = api_get("/model/status") or {}
+    _method = model_status.get('method', 'Monte Carlo Simulation Engine')
+    _ver = model_status.get('version', '')
+    st.caption(f"{_method}" + (f" | v{_ver}" if _ver else ""))
+
+    # Training status bar (shown when pipeline is actively training)
+    training_status = api_get("/pipeline/training-status")
+    if training_status and training_status.get('state') == 'running':
+        st.info(f"Training in progress: {training_status.get('stage', '...')}")
+        st.progress(training_status.get('progress', 0))
+        trainer = training_status.get('trainer', {})
+        if trainer.get('eta_seconds'):
+            st.caption(f"ETA: {trainer['eta_seconds']:.0f}s remaining")
 
     if model_status.get('model_name'):
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Model", model_status.get('base_model', '').split('/')[-1])
+        vi = model_status.get('version_info', {})
+        model_label = f"v{vi['version']}" if vi and vi.get('version') else model_status.get('base_model', '').split('/')[-1]
+        col1.metric("Model", model_label)
         col2.metric("Terms Tracked", model_status.get('total_terms_tracked', 0))
         col3.metric("Colab Predictions", model_status.get('colab_predictions_count', 0))
         col4.metric("Discovered Phrases", model_status.get('discovered_phrases_count', 0))
@@ -996,6 +1015,194 @@ with tab_ml:
             width="stretch",
             hide_index=True,
         )
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TRADE HISTORY TAB
+# ═══════════════════════════════════════════════════════════════════
+with tab_history:
+    st.header("Trade History")
+
+    trade_data = api_get("/trades/history?page=1&per_page=100") or {}
+    summary = trade_data.get('summary', {})
+
+    # Summary metrics
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Trades", summary.get('total_trades', 0))
+    col2.metric("Win Rate", f"{summary.get('win_rate', 0):.0%}")
+    total_pnl = summary.get('total_pnl', 0)
+    col3.metric("Total P&L", f"${total_pnl:+.2f}",
+                delta_color="normal" if total_pnl >= 0 else "inverse")
+    col4.metric("Avg Trade Size", f"{summary.get('avg_trade_size', 0):.0f} contracts")
+
+    trades = trade_data.get('trades', [])
+    if trades:
+        # Cumulative P&L chart
+        pnl_trades = [t for t in reversed(trades) if t.get('pnl') is not None]
+        if pnl_trades:
+            cum_pnl = []
+            running = 0
+            for t in pnl_trades:
+                running += t['pnl']
+                cum_pnl.append({'date': t['created_at'][:10], 'P&L': round(running, 2)})
+
+            fig = px.line(
+                pd.DataFrame(cum_pnl), x='date', y='P&L',
+                title='Cumulative P&L Over Time',
+            )
+            fig.add_hline(y=0, line_dash="dash", line_color="gray")
+            st.plotly_chart(fig, width="stretch")
+
+        # Trade table
+        st.subheader("All Trades")
+        trade_rows = []
+        for t in trades:
+            pnl_str = f"${t['pnl']:+.2f}" if t.get('pnl') is not None else "pending"
+            trade_rows.append({
+                'Date': t.get('created_at', '?')[:16],
+                'Market': t.get('market_ticker', '?'),
+                'Side': t.get('side', '?').upper(),
+                'Qty': t.get('quantity', 0),
+                'Price': f"${t.get('price', 0):.2f}",
+                'P&L': pnl_str,
+                'Status': t.get('status', '?'),
+                'Strategy': t.get('strategy', '?'),
+            })
+        st.dataframe(pd.DataFrame(trade_rows), width="stretch")
+    else:
+        st.info("No trades yet. Trades will appear here once the bot starts executing.")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MODEL VERSIONS TAB
+# ═══════════════════════════════════════════════════════════════════
+with tab_models:
+    st.header("Model Version History")
+
+    versions = api_get("/model/versions") or []
+
+    if versions:
+        # Active model highlight
+        active = next((v for v in versions if v.get('is_active')), None)
+        if active:
+            st.success(
+                f"Active Model: **TrumpGPT v{active['version']}** | "
+                f"Type: {active.get('model_type', '?')} | "
+                f"Trained: {active.get('created_at', '?')[:16]} | "
+                f"Corpus: {active.get('corpus_size', '?')} speeches"
+            )
+
+        # Version table
+        st.subheader("All Versions")
+        version_rows = []
+        for v in versions:
+            version_rows.append({
+                'Version': f"v{v['version']}",
+                'Type': v.get('model_type', '?'),
+                'Order': v.get('markov_order', '-'),
+                'Corpus': f"{v.get('corpus_size', '?')} speeches",
+                'Words': f"{v.get('corpus_word_count', 0):,}" if v.get('corpus_word_count') else '-',
+                'Training': f"{v.get('training_duration_seconds', 0):.1f}s" if v.get('training_duration_seconds') else '-',
+                'Simulations': v.get('simulation_count', '-'),
+                'Predictions': v.get('prediction_count', '-'),
+                'Active': 'Yes' if v.get('is_active') else '',
+                'Date': v.get('created_at', '?')[:16],
+            })
+        st.dataframe(pd.DataFrame(version_rows), width="stretch")
+    else:
+        st.info("No model versions yet. Train the model to create the first version.")
+        if st.button("Train Now"):
+            resp = requests.post(f"{API_BASE}/pipeline/run", timeout=5)
+            if resp.status_code == 200:
+                st.success("Training pipeline started!")
+            else:
+                st.error(f"Failed to start training: {resp.text}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PI STATUS TAB
+# ═══════════════════════════════════════════════════════════════════
+with tab_pi:
+    st.header("System Hardware Status")
+
+    hw = api_get("/system/hardware")
+    if hw:
+        # Temperature
+        temp = hw.get('temperature_c')
+        if temp is not None:
+            temp_color = 'green' if temp < 60 else ('orange' if temp < 70 else 'red')
+            st.markdown(f"### Temperature: :{temp_color}[{temp:.1f} C]")
+
+        # Gauges
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            cpu = hw.get('cpu_percent', 0)
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number", value=cpu,
+                title={'text': "CPU"},
+                gauge={'axis': {'range': [0, 100]},
+                       'bar': {'color': '#2ecc71' if cpu < 70 else '#e74c3c'},
+                       'steps': [
+                           {'range': [0, 50], 'color': '#eafaf1'},
+                           {'range': [50, 80], 'color': '#fef9e7'},
+                           {'range': [80, 100], 'color': '#fdedec'},
+                       ]},
+                number={'suffix': '%'},
+            ))
+            fig.update_layout(height=250, margin=dict(t=40, b=0, l=30, r=30))
+            st.plotly_chart(fig, width="stretch")
+
+        with col2:
+            ram = hw.get('ram_percent', 0)
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number", value=ram,
+                title={'text': "RAM"},
+                gauge={'axis': {'range': [0, 100]},
+                       'bar': {'color': '#3498db' if ram < 80 else '#e74c3c'},
+                       'steps': [
+                           {'range': [0, 60], 'color': '#ebf5fb'},
+                           {'range': [60, 85], 'color': '#fef9e7'},
+                           {'range': [85, 100], 'color': '#fdedec'},
+                       ]},
+                number={'suffix': '%'},
+            ))
+            fig.update_layout(height=250, margin=dict(t=40, b=0, l=30, r=30))
+            st.plotly_chart(fig, width="stretch")
+
+        with col3:
+            disk = hw.get('disk_percent', 0)
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number", value=disk,
+                title={'text': "Disk"},
+                gauge={'axis': {'range': [0, 100]},
+                       'bar': {'color': '#9b59b6' if disk < 85 else '#e74c3c'},
+                       'steps': [
+                           {'range': [0, 70], 'color': '#f5eef8'},
+                           {'range': [70, 90], 'color': '#fef9e7'},
+                           {'range': [90, 100], 'color': '#fdedec'},
+                       ]},
+                number={'suffix': '%'},
+            ))
+            fig.update_layout(height=250, margin=dict(t=40, b=0, l=30, r=30))
+            st.plotly_chart(fig, width="stretch")
+
+        # Details
+        st.subheader("Details")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Uptime", f"{hw.get('uptime_hours', 0):.1f} hours")
+        col2.metric("RAM Used", f"{hw.get('ram_used_gb', 0):.1f} / {hw.get('ram_total_gb', 0):.1f} GB")
+        col3.metric("Disk Used", f"{hw.get('disk_used_gb', 0):.1f} / {hw.get('disk_total_gb', 0):.1f} GB")
+        col4.metric("Platform", hw.get('platform', '?'))
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Load (1m)", hw.get('load_avg_1m', 0))
+        col2.metric("Load (5m)", hw.get('load_avg_5m', 0))
+        col3.metric("Load (15m)", hw.get('load_avg_15m', 0))
+
+        st.caption(f"Python {hw.get('python_version', '?')}")
+    else:
+        st.warning("Could not fetch hardware status. Is the API running?")
 
 
 # ═══════════════════════════════════════════════════════════════════

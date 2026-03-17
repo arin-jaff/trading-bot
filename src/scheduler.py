@@ -13,7 +13,7 @@ from .scraper.speech_scraper import SpeechScraper
 from .scraper.term_analyzer import TermAnalyzer
 from .scraper.event_tracker import EventTracker
 from .ml.predictor import TermPredictor
-from .ml.colab_pipeline import ColabPipeline
+from .config import config
 
 
 def create_scheduler() -> BackgroundScheduler:
@@ -28,7 +28,6 @@ def create_scheduler() -> BackgroundScheduler:
     event_tracker = EventTracker()
     predictor = TermPredictor()
     trading_bot = TradingBot(client, predictor)
-    colab_pipeline = ColabPipeline()
 
     refresh_interval = int(os.getenv('REFRESH_INTERVAL_SECONDS', '300'))
 
@@ -80,20 +79,54 @@ def create_scheduler() -> BackgroundScheduler:
         name='Check trading opportunities',
     )
 
-    # Colab pipeline: export + upload + trigger training daily at 4 AM UTC
+    # Pipeline: local or Colab depending on config
+    if config.pipeline_mode == 'local':
+        from .ml.local_pipeline import LocalPipeline
+        local_pipeline = LocalPipeline()
+
+        # Local pipeline runs every N hours (default 6)
+        retrain_hours = config.retrain_interval_hours
+        scheduler.add_job(
+            _run_local_pipeline, IntervalTrigger(hours=retrain_hours),
+            args=[local_pipeline, speech_scraper, term_analyzer],
+            id='local_pipeline', replace_existing=True,
+            name=f'Local training pipeline (every {retrain_hours}h)',
+        )
+        logger.info(f"Pipeline mode: LOCAL (retrain every {retrain_hours}h)")
+    else:
+        from .ml.colab_pipeline import ColabPipeline
+        colab_pipeline = ColabPipeline()
+
+        # Colab pipeline: export + upload + trigger training daily at 4 AM UTC
+        scheduler.add_job(
+            _run_colab_pipeline, CronTrigger(hour=4, minute=0),
+            args=[colab_pipeline, speech_scraper, term_analyzer],
+            id='colab_pipeline', replace_existing=True,
+            name='Auto-retrain pipeline (daily)',
+        )
+
+        # Poll for Colab training completion every 15 minutes
+        scheduler.add_job(
+            _poll_colab_results, IntervalTrigger(minutes=15),
+            args=[colab_pipeline],
+            id='colab_poll', replace_existing=True,
+            name='Poll Colab for training results',
+        )
+        logger.info("Pipeline mode: COLAB (daily @ 4AM UTC)")
+
+    # Daily email digest at 8 AM UTC
     scheduler.add_job(
-        _run_colab_pipeline, CronTrigger(hour=4, minute=0),
-        args=[colab_pipeline, speech_scraper, term_analyzer],
-        id='colab_pipeline', replace_existing=True,
-        name='Auto-retrain pipeline (daily)',
+        _send_daily_digest, CronTrigger(hour=8, minute=0),
+        id='daily_digest', replace_existing=True,
+        name='Send daily email digest',
     )
 
-    # Poll for Colab training completion every 15 minutes
+    # Arbitrage scan every 10 minutes
     scheduler.add_job(
-        _poll_colab_results, IntervalTrigger(minutes=15),
-        args=[colab_pipeline],
-        id='colab_poll', replace_existing=True,
-        name='Poll Colab for training results',
+        _scan_arbitrage, IntervalTrigger(minutes=10),
+        args=[trading_bot],
+        id='arbitrage_scan', replace_existing=True,
+        name='Scan for arbitrage opportunities',
     )
 
     return scheduler
@@ -101,7 +134,6 @@ def create_scheduler() -> BackgroundScheduler:
 
 def _sync_markets(client: KalshiClient, sync: MarketSync):
     try:
-        # Market data is public, no auth needed
         sync.sync_markets()
     except Exception as e:
         logger.error(f"Scheduled market sync failed: {e}")
@@ -144,30 +176,63 @@ def _check_trading(bot: TradingBot):
         logger.error(f"Scheduled trading check failed: {e}")
 
 
-def _run_colab_pipeline(pipeline: ColabPipeline,
-                        scraper: SpeechScraper,
+def _run_local_pipeline(pipeline, scraper: SpeechScraper,
                         analyzer: TermAnalyzer):
-    """Daily job: scrape latest speeches, then run the full
-    export → upload → trigger → poll → import pipeline if enough
-    new data has accumulated."""
+    """Periodic job: scrape latest speeches, then train locally."""
     try:
-        # First scrape fresh data
         scraper.scrape_all_sources()
         analyzer.process_all_unprocessed()
+        result = pipeline.run_full_pipeline()
+        logger.info(f"Local pipeline result: {result}")
+    except Exception as e:
+        logger.error(f"Scheduled local pipeline failed: {e}")
 
-        # Then run pipeline (checks should_retrain internally)
+
+def _run_colab_pipeline(pipeline, scraper: SpeechScraper,
+                        analyzer: TermAnalyzer):
+    """Daily job (Colab mode): scrape then export → upload → trigger → poll."""
+    try:
+        scraper.scrape_all_sources()
+        analyzer.process_all_unprocessed()
         result = pipeline.run_full_pipeline()
         logger.info(f"Colab pipeline result: {result}")
     except Exception as e:
         logger.error(f"Scheduled Colab pipeline failed: {e}")
 
 
-def _poll_colab_results(pipeline: ColabPipeline):
-    """Periodic job: check if a previously-triggered Colab run has
-    completed and import the results."""
+def _poll_colab_results(pipeline):
+    """Periodic job: check if Colab training completed, import results."""
     try:
         result = pipeline.check_and_import()
         if result.get('status') == 'imported':
             logger.info(f"Imported Colab results: {result}")
     except Exception as e:
         logger.error(f"Colab poll failed: {e}")
+
+
+def _send_daily_digest():
+    """Send daily email digest with portfolio and activity summary."""
+    try:
+        from .notifications.email_notifier import email_notifier
+        if email_notifier.enabled:
+            email_notifier.send_daily_digest()
+    except Exception as e:
+        logger.error(f"Daily digest email failed: {e}")
+
+
+def _scan_arbitrage(bot: TradingBot):
+    """Scan for arbitrage opportunities and auto-execute if enabled."""
+    try:
+        opportunities = bot.find_arbitrage()
+        if opportunities:
+            from .alerts import alert_manager
+            for opp in opportunities:
+                alert_manager.add_alert(
+                    'trade_signal',
+                    f"Arbitrage: {opp['market_ticker']}",
+                    f"{opp['type']}: {opp['action']} (profit: ${opp['guaranteed_profit']:.4f})",
+                    severity='warning',
+                    data=opp,
+                )
+    except Exception as e:
+        logger.error(f"Arbitrage scan failed: {e}")

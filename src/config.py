@@ -27,6 +27,20 @@ class AppConfig(BaseModel):
     # YouTube
     youtube_api_key: str = os.getenv('YOUTUBE_API_KEY', '')
 
+    # Email notifications
+    email_enabled: bool = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
+    email_smtp_host: str = os.getenv('EMAIL_SMTP_HOST', 'smtp.gmail.com')
+    email_smtp_port: int = int(os.getenv('EMAIL_SMTP_PORT', '587'))
+    email_from: str = os.getenv('EMAIL_FROM', '')
+    email_app_password: str = os.getenv('EMAIL_APP_PASSWORD', '')
+    email_to: str = os.getenv('EMAIL_TO', '')
+
+    # Pipeline mode ('local' for Pi, 'colab' for Colab+Drive)
+    pipeline_mode: str = os.getenv('PIPELINE_MODE', 'local')
+    markov_order: int = int(os.getenv('MARKOV_ORDER', '3'))
+    monte_carlo_simulations: int = int(os.getenv('MONTE_CARLO_SIMULATIONS', '2000'))
+    retrain_interval_hours: int = int(os.getenv('RETRAIN_INTERVAL_HOURS', '6'))
+
     # App
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
     refresh_interval: int = int(os.getenv('REFRESH_INTERVAL_SECONDS', '300'))
@@ -39,11 +53,15 @@ class AppConfig(BaseModel):
     def validate_llm(self) -> bool:
         return bool(self.openai_api_key or self.anthropic_api_key)
 
+    def validate_email(self) -> bool:
+        return bool(self.email_enabled and self.email_from and self.email_app_password and self.email_to)
+
     def get_status(self) -> dict:
         return {
             'kalshi_configured': self.validate_kalshi(),
             'llm_configured': self.validate_llm(),
             'youtube_configured': bool(self.youtube_api_key),
+            'email_configured': self.validate_email(),
             'database_url': self.database_url,
         }
 

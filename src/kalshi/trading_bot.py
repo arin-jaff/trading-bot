@@ -1,7 +1,7 @@
 """Autonomous trading bot for Kalshi Trump Mentions markets."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from loguru import logger
 
@@ -30,6 +30,11 @@ class TradingBot:
         self.use_kelly = True
         self.kelly_fraction = 0.5  # half-Kelly for safety
         self.auto_trade = False  # manual approval by default
+
+        # Drawdown protection
+        self.max_drawdown_pct = 0.30  # halt if balance drops 30% from peak
+        self._peak_balance = None
+        self._cooldown_until = None  # pause trading until this time
 
     def get_config(self) -> dict:
         """Get current bot configuration."""
@@ -224,7 +229,15 @@ class TradingBot:
         }
 
     def check_daily_loss_limit(self) -> bool:
-        """Check if daily loss limit has been reached."""
+        """Check if daily loss limit has been reached.
+
+        Also enforces cooldown periods and drawdown protection.
+        """
+        # Check cooldown
+        if self._cooldown_until and datetime.utcnow() < self._cooldown_until:
+            logger.info(f"Trading paused until {self._cooldown_until.strftime('%H:%M UTC')}")
+            return True
+
         with get_session() as session:
             today_start = datetime.utcnow().replace(hour=0, minute=0, second=0)
             today_trades = session.query(Trade).filter(
@@ -233,7 +246,123 @@ class TradingBot:
             ).all()
 
             daily_pnl = sum(t.pnl for t in today_trades)
+
+            # Hard stop at daily loss limit
             if daily_pnl < -self.max_daily_loss:
                 logger.warning(f"Daily loss limit reached: ${daily_pnl:.2f}")
+                self._send_loss_alert(daily_pnl, 'daily_limit')
                 return True
+
+            # Cooldown: if losses hit 50% of limit, pause for 2 hours
+            if daily_pnl < -(self.max_daily_loss * 0.5) and not self._cooldown_until:
+                self._cooldown_until = datetime.utcnow() + timedelta(hours=2)
+                logger.warning(f"Entering 2-hour cooldown after ${daily_pnl:.2f} daily loss")
+                self._send_loss_alert(daily_pnl, 'cooldown')
+                return True
+
+        # Drawdown protection: check against peak balance
+        if self._check_drawdown():
+            return True
+
+        return False
+
+    def _check_drawdown(self) -> bool:
+        """Halt trading if balance has dropped too far from peak."""
+        try:
+            balance_data = self.client.get_balance()
+            balance = balance_data.get('balance', 0) / 100
+        except Exception:
             return False
+
+        if self._peak_balance is None:
+            self._peak_balance = balance
+
+        if balance > self._peak_balance:
+            self._peak_balance = balance
+
+        if self._peak_balance > 0:
+            drawdown = (self._peak_balance - balance) / self._peak_balance
+            if drawdown >= self.max_drawdown_pct:
+                logger.warning(
+                    f"Drawdown protection triggered: {drawdown:.1%} "
+                    f"(peak=${self._peak_balance:.2f}, now=${balance:.2f})"
+                )
+                self._send_loss_alert(
+                    balance - self._peak_balance, 'drawdown',
+                    details={'peak': self._peak_balance, 'current': balance,
+                             'drawdown_pct': f"{drawdown:.1%}"}
+                )
+                return True
+        return False
+
+    def _send_loss_alert(self, pnl: float, reason: str,
+                         details: Optional[dict] = None):
+        """Send email alert when loss protections trigger."""
+        try:
+            from ..notifications.email_notifier import email_notifier
+            titles = {
+                'daily_limit': 'Daily Loss Limit Reached',
+                'cooldown': 'Trading Cooldown Activated',
+                'drawdown': 'Drawdown Protection Triggered',
+            }
+            email_notifier.send_critical_alert(
+                titles.get(reason, 'Loss Alert'),
+                f"P&L: ${pnl:+.2f}. Auto-trading paused.",
+                details or {'daily_pnl': f"${pnl:+.2f}", 'reason': reason}
+            )
+        except Exception as e:
+            logger.debug(f"Could not send loss alert email: {e}")
+
+    def find_arbitrage(self) -> list[dict]:
+        """Scan active markets for arbitrage opportunities.
+
+        Looks for:
+        1. YES+NO price sum < $0.98 (guaranteed profit minus Kalshi fees)
+        2. Correlated term pairs where one is mispriced vs the other
+        """
+        opportunities = []
+
+        with get_session() as session:
+            markets = session.query(Market).filter(
+                Market.status.in_(['active', 'open'])
+            ).all()
+
+            for market in markets:
+                yes_price = market.yes_price or 0.5
+                no_price = market.no_price if hasattr(market, 'no_price') and market.no_price else (1.0 - yes_price)
+
+                spread = yes_price + no_price
+
+                # Arbitrage: if YES + NO < 0.98, buying both guarantees profit
+                # (Kalshi pays $1 on settlement, minus fees)
+                if spread < 0.98:
+                    profit = 1.0 - spread
+                    opportunities.append({
+                        'type': 'spread_arbitrage',
+                        'market_ticker': market.kalshi_ticker,
+                        'market_title': market.title,
+                        'yes_price': yes_price,
+                        'no_price': no_price,
+                        'spread': spread,
+                        'guaranteed_profit': round(profit, 4),
+                        'action': f'Buy YES@{yes_price:.2f} + NO@{no_price:.2f}',
+                    })
+
+                # Overpriced: if YES + NO > 1.02, sell both sides
+                if spread > 1.02:
+                    profit = spread - 1.0
+                    opportunities.append({
+                        'type': 'overpriced_spread',
+                        'market_ticker': market.kalshi_ticker,
+                        'market_title': market.title,
+                        'yes_price': yes_price,
+                        'no_price': no_price,
+                        'spread': spread,
+                        'guaranteed_profit': round(profit, 4),
+                        'action': f'Sell YES@{yes_price:.2f} + NO@{no_price:.2f}',
+                    })
+
+        if opportunities:
+            logger.info(f"Found {len(opportunities)} arbitrage opportunities")
+
+        return opportunities

@@ -1,0 +1,26 @@
+[Unit]
+Description=TrumpGPT Trading Bot API + Scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/trading-bot
+ExecStart=/home/pi/trading-bot/venv/bin/python run_api.py
+Restart=always
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/home/pi/trading-bot/.env
+
+# Resource limits for Pi 4
+MemoryMax=1G
+CPUQuota=80%
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trumpbot-api
+
+[Install]
+WantedBy=multi-user.target

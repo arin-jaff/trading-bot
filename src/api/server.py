@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from loguru import logger
 
 from ..database.db import init_db, get_session
-from ..database.models import Term, Market, TrumpEvent, Trade, TermPrediction
+from ..database.models import Term, Market, TrumpEvent, Trade, TermPrediction, ModelVersion
 from ..kalshi.client import KalshiClient
 from ..kalshi.market_sync import MarketSync
 from ..kalshi.trading_bot import TradingBot
@@ -20,8 +20,6 @@ from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
 from ..ml.model_trainer import ModelTrainer
 from ..ml.colab_integration import ColabPredictor
-from ..ml.colab_pipeline import ColabPipeline
-from ..ml.drive_sync import DriveSync
 from ..scraper.live_monitor import LiveSpeechMonitor
 from ..alerts import alert_manager
 from ..config import config as app_config
@@ -64,9 +62,19 @@ predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
 model_trainer = ModelTrainer()
 colab_predictor = ColabPredictor()
-colab_pipeline = ColabPipeline()
-drive_sync = DriveSync()
 live_monitor = LiveSpeechMonitor()
+
+# Pipeline: local or Colab depending on config
+_pipeline = None
+_drive_sync = None
+if app_config.pipeline_mode == 'local':
+    from ..ml.local_pipeline import LocalPipeline
+    _pipeline = LocalPipeline()
+else:
+    from ..ml.colab_pipeline import ColabPipeline
+    from ..ml.drive_sync import DriveSync
+    _pipeline = ColabPipeline()
+    _drive_sync = DriveSync()
 
 
 @app.on_event("startup")
@@ -263,7 +271,7 @@ def generate_predictions(background_tasks: BackgroundTasks):
 
 def _run_predictions():
     try:
-        _update_job('predictions', 'Loading Colab predictions...')
+        _update_job('predictions', 'Loading Monte Carlo predictions...')
         preds = predictor.predict_all_terms()
         _update_job('predictions', f'Saving {len(preds)} predictions...')
         predictor.save_predictions(preds)
@@ -459,22 +467,30 @@ def get_discovered_phrases():
 @app.get("/api/pipeline/status")
 def get_pipeline_status():
     """Get the status of the automated training pipeline."""
-    return {
-        'pipeline': colab_pipeline.get_status(),
-        'drive': drive_sync.get_status(),
-    }
+    status = {'pipeline': _pipeline.get_status(), 'mode': app_config.pipeline_mode}
+    if _drive_sync:
+        status['drive'] = _drive_sync.get_status()
+    return status
+
+
+@app.get("/api/pipeline/training-status")
+def get_training_status():
+    """Get real-time training progress for GUI polling."""
+    return _pipeline.get_status()
 
 
 @app.post("/api/pipeline/run")
-def run_pipeline(background_tasks: BackgroundTasks, force: bool = False):
-    """Trigger the full automated pipeline: export → upload → trigger Colab → poll → import."""
-    colab_pipeline.run_pipeline_async(force=force)
-    return {"status": "pipeline started", "force": force}
+def run_pipeline(background_tasks: BackgroundTasks):
+    """Trigger the training pipeline (local or Colab depending on config)."""
+    _pipeline.run_pipeline_async()
+    return {"status": "pipeline started", "mode": app_config.pipeline_mode}
 
 
 @app.post("/api/pipeline/export-upload")
 def pipeline_export_upload(background_tasks: BackgroundTasks):
-    """Export training data and upload to Google Drive (no training trigger)."""
+    """Export training data and upload to Google Drive (Colab mode only)."""
+    if app_config.pipeline_mode == 'local':
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
     background_tasks.add_task(_run_export_upload)
     return {"status": "export and upload started"}
 
@@ -482,9 +498,8 @@ def pipeline_export_upload(background_tasks: BackgroundTasks):
 def _run_export_upload():
     try:
         _update_job('export_upload', 'Exporting training data...')
-        result = colab_pipeline.export_and_upload()
+        result = _pipeline.export_and_upload()
         _update_job('export_upload', f'Done: {result}', done=True)
-        logger.info(f"Export & upload result: {result}")
     except Exception as e:
         _update_job('export_upload', '', done=True, error=str(e))
         logger.error(f"Export & upload failed: {e}")
@@ -493,11 +508,12 @@ def _run_export_upload():
 @app.post("/api/pipeline/trigger-training")
 def trigger_training():
     """Upload latest data to Drive and write a trigger file for Colab."""
-    upload = drive_sync.upload_training_data()
+    if not _drive_sync:
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
+    upload = _drive_sync.upload_training_data()
     if 'error' in upload:
         raise HTTPException(status_code=500, detail=upload['error'])
-
-    trigger = drive_sync.write_trigger_file(
+    trigger = _drive_sync.write_trigger_file(
         trigger_type='manual',
         extra_data={'triggered_from': 'api'},
     )
@@ -507,25 +523,33 @@ def trigger_training():
 @app.post("/api/pipeline/poll")
 def poll_colab_results():
     """Check if Colab training has completed and import results."""
-    return colab_pipeline.check_and_import()
+    if app_config.pipeline_mode == 'local':
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
+    return _pipeline.check_and_import()
 
 
 @app.get("/api/drive/status")
 def get_drive_status():
     """Get Google Drive integration status."""
-    return drive_sync.get_status()
+    if not _drive_sync:
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
+    return _drive_sync.get_status()
 
 
 @app.post("/api/drive/upload")
 def upload_to_drive():
     """Upload training exports to Google Drive."""
-    return drive_sync.upload_training_data()
+    if not _drive_sync:
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
+    return _drive_sync.upload_training_data()
 
 
 @app.post("/api/drive/download-predictions")
 def download_predictions_from_drive():
     """Download latest predictions from Google Drive."""
-    return drive_sync.download_predictions()
+    if not _drive_sync:
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
+    return _drive_sync.download_predictions()
 
 
 # --- Job status endpoint ---
@@ -547,6 +571,8 @@ def get_job_status(job_name: str):
 @app.post("/api/drive/download-and-import")
 def download_and_import_predictions(background_tasks: BackgroundTasks):
     """Download predictions from Drive and import into DB."""
+    if not _drive_sync:
+        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
     background_tasks.add_task(_run_download_import)
     return {"status": "downloading predictions from Drive..."}
 
@@ -554,7 +580,7 @@ def download_and_import_predictions(background_tasks: BackgroundTasks):
 def _run_download_import():
     try:
         _update_job('drive_download', 'Downloading predictions_latest.json from Drive...')
-        result = drive_sync.download_predictions()
+        result = _drive_sync.download_predictions()
         if 'error' in result:
             _update_job('drive_download', '', done=True, error=result['error'])
             return
@@ -630,10 +656,33 @@ def get_model_status():
             Speech.created_at >= datetime.utcnow() - timedelta(days=1),
         ).count()
 
+    # Get active model version
+    with get_session() as session:
+        active_model = session.query(ModelVersion).filter_by(
+            is_active=True
+        ).order_by(ModelVersion.created_at.desc()).first()
+        model_version_info = None
+        if active_model:
+            model_version_info = {
+                'version': active_model.version,
+                'model_type': active_model.model_type,
+                'markov_order': active_model.markov_order,
+                'corpus_size': active_model.corpus_size,
+                'training_duration': active_model.training_duration_seconds,
+                'trained_at': active_model.created_at.isoformat() if active_model.created_at else None,
+            }
+
+    sim_params = colab_meta.get('simulation_params', {})
+    model_type = sim_params.get('model_type', 'markov_chain' if app_config.pipeline_mode == 'local' else 'colab_llm')
+    method = 'Markov Chain + Monte Carlo' if model_type == 'markov_chain' else 'LoRA fine-tune + Monte Carlo'
+
     return {
         'model_name': 'TrumpGPT',
-        'base_model': colab_meta.get('simulation_params', {}).get('base_model', 'unsloth/Meta-Llama-3.1-8B'),
-        'method': 'LoRA fine-tune + Monte Carlo simulation',
+        'version': model_version_info.get('version') if model_version_info else None,
+        'version_info': model_version_info,
+        'pipeline_mode': app_config.pipeline_mode,
+        'base_model': sim_params.get('base_model', model_type),
+        'method': method,
         'ensemble_weights': ensemble_weights,
         'last_run': colab_meta.get('generated_at'),
         'simulation_params': colab_meta.get('simulation_params', {}),
@@ -781,11 +830,152 @@ def get_final_predictions():
         return results
 
 
+@app.get("/api/system/hardware")
+def get_hardware_status():
+    """Get Raspberry Pi / system hardware metrics."""
+    import psutil
+    import platform
+
+    # CPU, RAM, disk
+    cpu_percent = psutil.cpu_percent(interval=1)
+    ram = psutil.virtual_memory()
+    disk = psutil.disk_usage('/')
+    load_1, load_5, load_15 = psutil.getloadavg()
+    boot_time = datetime.fromtimestamp(psutil.boot_time())
+    uptime_hours = (datetime.utcnow() - boot_time).total_seconds() / 3600
+
+    # Temperature (Pi-specific via vcgencmd, fallback for other platforms)
+    temperature = None
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['vcgencmd', 'measure_temp'], capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            temp_str = result.stdout.strip()  # "temp=52.0'C"
+            temperature = float(temp_str.split('=')[1].split("'")[0])
+    except Exception:
+        # Try psutil sensors as fallback
+        try:
+            temps = psutil.sensors_temperatures()
+            if temps:
+                for name, entries in temps.items():
+                    if entries:
+                        temperature = entries[0].current
+                        break
+        except Exception:
+            pass
+
+    return {
+        'cpu_percent': cpu_percent,
+        'ram_total_gb': round(ram.total / (1024**3), 2),
+        'ram_used_gb': round(ram.used / (1024**3), 2),
+        'ram_percent': ram.percent,
+        'disk_total_gb': round(disk.total / (1024**3), 2),
+        'disk_used_gb': round(disk.used / (1024**3), 2),
+        'disk_percent': round(disk.percent, 1),
+        'temperature_c': temperature,
+        'uptime_hours': round(uptime_hours, 1),
+        'load_avg_1m': round(load_1, 2),
+        'load_avg_5m': round(load_5, 2),
+        'load_avg_15m': round(load_15, 2),
+        'platform': platform.machine(),
+        'python_version': platform.python_version(),
+    }
+
+
+@app.get("/api/trades/history")
+def get_trade_history(page: int = 1, per_page: int = 50,
+                      status: Optional[str] = None):
+    """Get paginated trade history with P&L."""
+    with get_session() as session:
+        query = session.query(Trade).join(Market)
+        if status and status != 'all':
+            query = query.filter(Trade.status == status)
+
+        total = query.count()
+        trades = query.order_by(Trade.created_at.desc()).offset(
+            (page - 1) * per_page
+        ).limit(per_page).all()
+
+        # Summary stats
+        all_trades = session.query(Trade).all()
+        filled = [t for t in all_trades if t.pnl is not None]
+        wins = [t for t in filled if (t.pnl or 0) > 0]
+        total_pnl = sum(t.pnl or 0 for t in filled)
+
+        return {
+            'trades': [
+                {
+                    'id': t.id,
+                    'market_ticker': t.market.kalshi_ticker if t.market else '?',
+                    'market_title': t.market.title if t.market else '?',
+                    'side': t.side,
+                    'action': t.action,
+                    'quantity': t.quantity,
+                    'price': t.price,
+                    'fill_price': t.fill_price,
+                    'pnl': t.pnl,
+                    'status': t.status,
+                    'strategy': t.strategy,
+                    'reasoning': t.reasoning,
+                    'created_at': t.created_at.isoformat() if t.created_at else None,
+                }
+                for t in trades
+            ],
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'pages': (total + per_page - 1) // per_page,
+            },
+            'summary': {
+                'total_trades': len(all_trades),
+                'filled_trades': len(filled),
+                'win_count': len(wins),
+                'win_rate': round(len(wins) / max(1, len(filled)), 4),
+                'total_pnl': round(total_pnl, 2),
+                'avg_trade_size': round(
+                    sum(t.quantity for t in all_trades) / max(1, len(all_trades)), 1
+                ),
+            },
+        }
+
+
+@app.get("/api/model/versions")
+def get_model_versions():
+    """Get all model version records."""
+    with get_session() as session:
+        versions = session.query(ModelVersion).order_by(
+            ModelVersion.created_at.desc()
+        ).all()
+
+        return [
+            {
+                'id': v.id,
+                'version': v.version,
+                'model_type': v.model_type,
+                'markov_order': v.markov_order,
+                'corpus_size': v.corpus_size,
+                'corpus_word_count': v.corpus_word_count,
+                'training_duration_seconds': v.training_duration_seconds,
+                'simulation_count': v.simulation_count,
+                'prediction_count': v.prediction_count,
+                'metrics': v.metrics,
+                'is_active': v.is_active,
+                'notes': v.notes,
+                'created_at': v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in versions
+        ]
+
+
 @app.get("/api/system/health")
 def health_check():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
+        "pipeline_mode": app_config.pipeline_mode,
         "live_monitoring": live_monitor.is_monitoring,
         "config": app_config.get_status(),
     }

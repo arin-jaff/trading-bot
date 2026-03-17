@@ -10,6 +10,7 @@ Replaces the OpenAI/Anthropic LLM calls with your own fine-tuned model.
 import os
 import json
 import glob
+import math
 from datetime import datetime
 from typing import Optional
 from loguru import logger
@@ -122,6 +123,12 @@ class ColabPredictor:
                     normalized = pred['term'].lower().strip()
                     pred['term_id'] = term_map.get(normalized)
 
+            # Apply Poisson length normalization (Fix A)
+            # Monte Carlo generates ~430-word snippets, but real speeches are
+            # 5,000-10,000+ words. Use Poisson model to correct probabilities
+            # for full-length speech.
+            predictions = self._apply_poisson_correction(predictions, data)
+
             logger.info(f"Loaded {len(predictions)} predictions from {latest_path}")
             logger.info(f"Generated at: {data.get('generated_at', 'unknown')}")
 
@@ -135,6 +142,46 @@ class ColabPredictor:
         except Exception as e:
             logger.error(f"Failed to load predictions: {e}")
             return []
+
+    def _apply_poisson_correction(self, predictions: list[dict],
+                                    data: dict) -> list[dict]:
+        """Correct Monte Carlo probabilities for full-length speeches.
+
+        Uses Poisson model: P(term in speech) = 1 - exp(-lambda * target_words)
+        where lambda = avg_mentions_per_speech / snippet_words.
+
+        The snippet word count is read from simulation_params if available
+        (local Markov chain generates full-length speeches), otherwise falls
+        back to 430 words (Colab LLM snippet default).
+        """
+        # Read actual simulation word count from metadata if available
+        sim_params = data.get('simulation_params', {})
+        snippet_words = sim_params.get('avg_words_per_speech', 430)
+        TARGET_WORDS = 7000   # typical rally length
+
+        # If the simulation already generates near-rally-length speeches,
+        # Poisson correction is minimal (correct behavior)
+        if snippet_words >= TARGET_WORDS * 0.8:
+            logger.debug("Simulations already near rally length, skipping Poisson correction")
+            return predictions
+
+        corrected_count = 0
+        for pred in predictions:
+            avg_mentions = pred.get('avg_mentions_per_speech')
+            if avg_mentions and avg_mentions > 0:
+                lambda_per_word = avg_mentions / snippet_words
+                corrected_prob = 1.0 - math.exp(-lambda_per_word * TARGET_WORDS)
+                pred['raw_probability'] = pred['probability']
+                pred['probability'] = round(corrected_prob, 4)
+                corrected_count += 1
+
+        if corrected_count:
+            logger.info(
+                f"Poisson-corrected {corrected_count} predictions "
+                f"(snippet={snippet_words:.0f}w -> target={TARGET_WORDS}w)"
+            )
+
+        return predictions
 
     def import_predictions_file(self, file_path: str) -> dict:
         """Import a predictions JSON file (downloaded from Colab/Drive).

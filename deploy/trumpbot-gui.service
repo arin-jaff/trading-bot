@@ -1,0 +1,25 @@
+[Unit]
+Description=TrumpGPT Streamlit Dashboard
+After=trumpbot-api.service
+Wants=trumpbot-api.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/trading-bot
+ExecStart=/home/pi/trading-bot/venv/bin/streamlit run run_gui.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+Restart=always
+RestartSec=30
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/home/pi/trading-bot/.env
+
+# Resource limits
+MemoryMax=512M
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trumpbot-gui
+
+[Install]
+WantedBy=multi-user.target

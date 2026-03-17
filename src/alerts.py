@@ -47,6 +47,10 @@ class AlertManager:
         if severity == 'critical':
             self._desktop_notification(title, message)
 
+        # Email notification for critical and trade alerts
+        if severity == 'critical' or alert_type == 'trade_signal':
+            self._email_notification(alert_type, title, message, severity, data)
+
         logger.info(f"[ALERT][{severity}] {title}: {message}")
 
     def _desktop_notification(self, title: str, message: str):
@@ -58,6 +62,21 @@ class AlertManager:
             ], timeout=5, capture_output=True)
         except Exception as e:
             logger.debug(f"Desktop notification failed: {e}")
+
+    def _email_notification(self, alert_type: str, title: str,
+                             message: str, severity: str,
+                             data: Optional[dict] = None):
+        """Send email for critical alerts and trade signals."""
+        try:
+            from .notifications.email_notifier import email_notifier
+            if not email_notifier.enabled:
+                return
+            if alert_type == 'trade_signal' and data:
+                email_notifier.send_trade_alert(data)
+            elif severity == 'critical':
+                email_notifier.send_critical_alert(title, message, data)
+        except Exception as e:
+            logger.debug(f"Email notification failed: {e}")
 
     def get_recent_alerts(self, limit: int = 50,
                           alert_type: Optional[str] = None,

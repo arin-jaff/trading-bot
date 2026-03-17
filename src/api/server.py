@@ -1155,6 +1155,18 @@ def get_fine_tune_trigger_progress():
     }
 
 
+class FineTuneToggle(BaseModel):
+    enabled: bool
+
+
+@app.put("/api/fine-tune/toggle")
+def toggle_fine_tune(req: FineTuneToggle):
+    """Toggle fine-tuning enabled/disabled at runtime."""
+    app_config.fine_tune_enabled = req.enabled
+    logger.info(f"Fine-tuning {'enabled' if req.enabled else 'disabled'} via API")
+    return {"enabled": app_config.fine_tune_enabled}
+
+
 @app.get("/api/fine-tune/loss-history")
 def get_fine_tune_loss_history():
     """Get loss curve data for charting."""

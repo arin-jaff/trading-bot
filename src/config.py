@@ -45,7 +45,7 @@ class AppConfig(BaseModel):
     retrain_interval_hours: int = int(os.getenv('RETRAIN_INTERVAL_HOURS', '6'))
 
     # Fine-tuning (Pi-native GPT-2)
-    fine_tune_enabled: bool = os.getenv('FINE_TUNE_ENABLED', 'false').lower() == 'true'
+    fine_tune_enabled: bool = os.getenv('FINE_TUNE_ENABLED', 'true').lower() == 'true'
     fine_tune_model: str = os.getenv('FINE_TUNE_MODEL', 'EleutherAI/pythia-410m')
     fine_tune_lora_rank: int = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
     fine_tune_epochs: int = int(os.getenv('FINE_TUNE_EPOCHS', '3'))

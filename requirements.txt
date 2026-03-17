@@ -15,6 +15,9 @@ youtube-transcript-api>=0.6.0
 google-api-python-client>=2.100.0
 google-auth>=2.23.0
 
+# Gemini (news enrichment)
+google-generativeai>=0.3.0
+
 # Data & ML
 pandas>=2.1.0
 numpy>=1.25.0

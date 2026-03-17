@@ -60,6 +60,15 @@ class LocalPipeline:
         }
         # Track corpus size at time of last fine-tune
         self._last_fine_tune_corpus_size = self._get_last_fine_tune_corpus_size()
+        # Pipeline-level fine-tune phase tracker (wraps the full Phase 6-8 lifecycle)
+        self._ft_phase_status = {
+            'state': 'idle',  # idle, phase6_training, phase7_monte_carlo, phase8_blending, complete, error
+            'phase': None,    # 6, 7, or 8
+            'stage': '',
+            'progress': 0.0,  # 0-1 across all three phases
+            'started_at': None,
+            'error': None,
+        }
 
     def _get_fine_tuner(self):
         """Lazy-load GPT2FineTuner only when needed."""
@@ -113,12 +122,15 @@ class LocalPipeline:
         else:
             status['eta_seconds'] = None
 
-        # Include fine-tune status when available
+        # Include fine-tune phase status (pipeline-level Phase 6-8 tracker)
+        ft_phase = self._ft_phase_status.copy()
         ft = self._get_fine_tuner()
         if ft:
-            ft_status = ft.get_status()
-            if ft_status['state'] != 'idle':
-                status['fine_tune_status'] = ft_status
+            ft_detail = ft.get_status()
+            ft_phase['trainer'] = ft_detail  # nested fine-tuner detail
+
+        if ft_phase['state'] != 'idle':
+            status['fine_tune_status'] = ft_phase
 
         return status
 
@@ -381,6 +393,7 @@ class LocalPipeline:
 
         Holds _ft_lock for the entire duration. On completion, updates
         _last_fine_tune_corpus_size so the next trigger check works correctly.
+        Updates _ft_phase_status throughout for the UI progress bar.
         """
         ft = self._get_fine_tuner()
         if not ft:
@@ -389,20 +402,32 @@ class LocalPipeline:
             return
 
         try:
-            # Phase 6: Fine-tune
+            self._ft_phase_status.update(
+                state='phase6_training', phase=6,
+                stage='Fine-tuning Pythia with LoRA',
+                progress=0.0,
+                started_at=datetime.utcnow().isoformat(),
+                error=None,
+            )
+
+            # Phase 6: Fine-tune (~90% of total time)
             self._log_event('Phase 6: Fine-tuning Pythia with LoRA (this will take hours)...')
             ft_result = ft.train()
 
             if not ft_result:
+                self._ft_phase_status.update(state='error', error='Fine-tuning returned None')
                 self._log_event('Phase 6: Fine-tuning returned None — check logs')
                 return
             if ft_result.get('status') in ('error', 'already_running'):
+                self._ft_phase_status.update(state='error', error=ft_result.get('status'))
                 self._log_event(f'Phase 6: Fine-tuning skipped — {ft_result.get("status")}')
                 return
             if ft_result.get('status') == 'stopped':
+                self._ft_phase_status.update(state='idle', stage='Stopped by user')
                 self._log_event('Phase 6: Fine-tuning stopped by user — checkpoint saved')
                 return
 
+            self._ft_phase_status.update(progress=0.85)
             self._log_event(
                 f'Phase 6: Fine-tuning complete — '
                 f'{ft_result.get("total_steps", 0)} steps, '
@@ -410,17 +435,28 @@ class LocalPipeline:
                 f'{ft_result.get("training_seconds", 0):.0f}s'
             )
 
-            # Phase 7: GPT-2 Monte Carlo
+            # Phase 7: Pythia Monte Carlo (~10% of total time)
             if term_list:
                 mc_sims = config.fine_tune_mc_sims
+                self._ft_phase_status.update(
+                    state='phase7_monte_carlo', phase=7,
+                    stage=f'Pythia Monte Carlo ({mc_sims} sims)',
+                    progress=0.85,
+                )
                 self._log_event(f'Phase 7: Running Pythia Monte Carlo ({mc_sims} sims)...')
                 gpt2_predictions = ft.run_monte_carlo(term_list, num_simulations=mc_sims)
 
                 if gpt2_predictions and gpt2_predictions.get('term_predictions'):
                     n_preds = len(gpt2_predictions['term_predictions'])
+                    self._ft_phase_status.update(progress=0.95)
                     self._log_event(f'Phase 7: Pythia Monte Carlo complete — {n_preds} predictions')
 
-                    # Phase 8: Blend with Markov predictions
+                    # Phase 8: Blend with Markov predictions (~5%)
+                    self._ft_phase_status.update(
+                        state='phase8_blending', phase=8,
+                        stage='Blending Markov + Pythia predictions',
+                        progress=0.95,
+                    )
                     self._blend_predictions(gpt2_predictions)
                     self._log_event('Phase 8: Blended Pythia + Markov predictions (60/40) and re-imported to DB')
                 else:
@@ -434,6 +470,11 @@ class LocalPipeline:
                     Speech.word_count >= 50,
                 ).count()
 
+            self._ft_phase_status.update(
+                state='complete', phase=None,
+                stage='Fine-tune pipeline complete',
+                progress=1.0,
+            )
             self._log_event(f'Fine-tune pipeline complete. Next trigger after {MIN_NEW_SPEECHES_FOR_FINE_TUNE}+ new speeches.')
 
             # Email notification
@@ -450,6 +491,7 @@ class LocalPipeline:
                 pass
 
         except Exception as e:
+            self._ft_phase_status.update(state='error', error=str(e))
             self._log_event(f'Fine-tune pipeline error: {e}')
             logger.error(f"Fine-tune phases failed: {e}")
         finally:

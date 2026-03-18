@@ -157,6 +157,7 @@ class TermPrediction(Base):
     id = Column(Integer, primary_key=True)
     term_id = Column(Integer, ForeignKey('terms.id'), nullable=False)
     event_id = Column(Integer, ForeignKey('trump_events.id'), nullable=True)
+    model_version_id = Column(Integer, ForeignKey('model_versions.id'), nullable=True)
     model_name = Column(String(100), nullable=False)
     probability = Column(Float, nullable=False)
     confidence = Column(Float)
@@ -172,6 +173,7 @@ class TermPrediction(Base):
     __table_args__ = (
         Index('idx_prediction_term', 'term_id'),
         Index('idx_prediction_date', 'prediction_date'),
+        Index('idx_prediction_model_version', 'model_version_id'),
     )
 
 

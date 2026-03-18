@@ -978,6 +978,24 @@ def get_trade_history(page: int = 1, per_page: int = 50,
         }
 
 
+def _get_version_accuracy(session, model_version_id: int) -> Optional[dict]:
+    """Compute accuracy for a specific model version from tagged predictions."""
+    from ..database.models import TermPrediction
+    preds = session.query(TermPrediction).filter(
+        TermPrediction.model_version_id == model_version_id,
+        TermPrediction.was_correct.isnot(None),
+    ).all()
+    if not preds:
+        return None
+    correct = sum(1 for p in preds if p.was_correct)
+    brier = sum((p.probability - (1.0 if p.was_correct else 0.0)) ** 2 for p in preds) / len(preds)
+    return {
+        'hit_rate': round(correct / len(preds), 4),
+        'brier_score': round(brier, 4),
+        'evaluated': len(preds),
+    }
+
+
 @app.get("/api/model/versions")
 def get_model_versions():
     """Get all model version records."""
@@ -1000,6 +1018,7 @@ def get_model_versions():
                 'metrics': v.metrics,
                 'is_active': v.is_active,
                 'notes': v.notes,
+                'accuracy': _get_version_accuracy(session, v.id),
                 'created_at': v.created_at.isoformat() if v.created_at else None,
             }
             for v in versions

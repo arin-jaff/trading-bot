@@ -446,12 +446,20 @@ Respond in JSON format:
     def save_predictions(self, predictions: list[dict],
                          event_id: Optional[int] = None,
                          target_date: Optional[datetime] = None):
-        """Save predictions to database."""
+        """Save predictions to database, tagged with the active model version."""
         with get_session() as session:
+            # Get active model version ID for tagging
+            from ..database.models import ModelVersion
+            active_mv = session.query(ModelVersion).filter_by(
+                is_active=True
+            ).order_by(ModelVersion.created_at.desc()).first()
+            mv_id = active_mv.id if active_mv else None
+
             for pred in predictions:
                 term_pred = TermPrediction(
                     term_id=pred['term_id'],
                     event_id=event_id,
+                    model_version_id=mv_id,
                     model_name=pred.get('model_name', 'ensemble_v1'),
                     probability=pred['probability'],
                     confidence=pred.get('confidence', 0),
@@ -713,6 +721,7 @@ Respond in JSON format:
                             'confidence': pred.confidence,
                             'term': term.term,
                             'market': market.kalshi_ticker,
+                            'model_version_id': pred.model_version_id,
                         })
 
                         # Update was_correct field
@@ -750,6 +759,41 @@ Respond in JSON format:
                         'count': len(bucket_points),
                     }
 
+            # Per-version accuracy breakdown
+            from ..database.models import ModelVersion
+            version_metrics = []
+            # Group data_points by model_version_id
+            by_version = {}
+            for d in data_points:
+                vid = d.get('model_version_id')
+                if vid not in by_version:
+                    by_version[vid] = []
+                by_version[vid].append(d)
+
+            for vid, vpoints in by_version.items():
+                v_brier = sum((d['predicted'] - d['actual']) ** 2 for d in vpoints) / len(vpoints)
+                v_correct = sum(
+                    1 for d in vpoints
+                    if (d['predicted'] > 0.5 and d['actual'] == 1.0) or
+                       (d['predicted'] <= 0.5 and d['actual'] == 0.0)
+                )
+                v_hit = v_correct / len(vpoints)
+
+                version_str = None
+                if vid:
+                    mv = session.query(ModelVersion).filter_by(id=vid).first()
+                    version_str = mv.version if mv else None
+
+                version_metrics.append({
+                    'version': version_str or 'untagged',
+                    'model_version_id': vid,
+                    'brier_score': round(v_brier, 4),
+                    'hit_rate': round(v_hit, 4),
+                    'data_points': len(vpoints),
+                })
+
+            version_metrics.sort(key=lambda x: x['version'])
+
             return {
                 'brier_score': round(brier_score, 4),
                 'hit_rate': round(hit_rate, 4),
@@ -757,4 +801,5 @@ Respond in JSON format:
                 'settled_markets': len(settled),
                 'calibration': buckets,
                 'ready_for_live': brier_score < 0.25,
+                'per_version': version_metrics,
             }

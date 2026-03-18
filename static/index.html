@@ -503,6 +503,16 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     <div style="color:var(--dim);text-align:center;padding:12px;margin-bottom:14px">Loading accuracy data...</div>
   </template>
 
+  <!-- ACCURACY OVER TIME -->
+  <template x-if="accuracy && accuracy.per_version && accuracy.per_version.length>1">
+    <div>
+      <h2>Accuracy Over Time</h2>
+      <div class="card" style="margin-bottom:14px">
+        <canvas id="accuracyChart" style="max-height:200px"></canvas>
+      </div>
+    </div>
+  </template>
+
   <!-- MODEL VERSIONS -->
   <h2>Model Versions</h2>
   <template x-for="v in versions" :key="v.id">
@@ -520,6 +530,13 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <div><span class="label">Training</span><br><span x-text="(v.training_duration_seconds||0).toFixed(1)+'s'"></span></div>
         <div><span class="label">Predictions</span><br><span x-text="v.prediction_count||'-'"></span></div>
       </div>
+      <template x-if="v.accuracy">
+        <div class="grid g3" style="margin-top:6px">
+          <div><span class="label">Hit Rate</span><br><span :style="'color:'+(v.accuracy.hit_rate>=0.6?'var(--green)':'var(--red)')" x-text="(v.accuracy.hit_rate*100).toFixed(1)+'%'"></span></div>
+          <div><span class="label">Brier</span><br><span :style="'color:'+(v.accuracy.brier_score<0.25?'var(--green)':'var(--red)')" x-text="v.accuracy.brier_score.toFixed(4)"></span></div>
+          <div><span class="label">Evaluated</span><br><span x-text="v.accuracy.evaluated"></span></div>
+        </div>
+      </template>
     </div>
   </template>
   <template x-if="versions.length===0">
@@ -618,7 +635,7 @@ function app(){return{
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
-  versions:[], hw:null, pipelineLog:[], accuracy:null,
+  versions:[], hw:null, pipelineLog:[], accuracy:null, _accChart:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   pChart:null,
@@ -702,6 +719,7 @@ function app(){return{
   async loadSystem(){
     const[h,v,a]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy')]);
     this.hw=h;this.versions=Array.isArray(v)?v:[];this.accuracy=a;
+    this.$nextTick(()=>this.renderAccuracyChart());
   },
 
   async generateTrumpGPT(){
@@ -716,6 +734,25 @@ function app(){return{
 
   async togglePaper(){await this.apiPut('/trading/config',{paper_mode:!this.botCfg.paper_mode});this.botCfg=await this.api('/trading/config')||this.botCfg},
   async toggleAutoTrade(){await this.apiPut('/trading/config',{auto_trade:!this.botCfg.auto_trade});this.botCfg=await this.api('/trading/config')||this.botCfg},
+
+  renderAccuracyChart(){
+    if(!this.accuracy||!this.accuracy.per_version||this.accuracy.per_version.length<2)return;
+    const c=document.getElementById('accuracyChart');if(!c)return;
+    const vd=this.accuracy.per_version.filter(v=>v.version!=='untagged');
+    if(vd.length<2)return;
+    const labels=vd.map(v=>v.version);
+    const hitData=vd.map(v=>+(v.hit_rate*100).toFixed(1));
+    const brierData=vd.map(v=>+v.brier_score.toFixed(4));
+    if(this._accChart)this._accChart.destroy();
+    this._accChart=new Chart(c,{type:'line',data:{labels,datasets:[
+      {label:'Hit Rate %',data:hitData,borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y'},
+      {label:'Brier Score',data:brierData,borderColor:'#e74c3c',backgroundColor:'rgba(231,76,60,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1'},
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#888',font:{size:10}}}},scales:{
+      x:{ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}},
+      y:{position:'left',title:{display:true,text:'Hit Rate %',color:'#2ecc71'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'},min:0,max:100},
+      y1:{position:'right',title:{display:true,text:'Brier',color:'#e74c3c'},ticks:{color:'#555',font:{size:9}},grid:{display:false},min:0,max:0.5},
+    }}});
+  },
 
   renderPortfolio(trades){
     const c=document.getElementById('portfolioChart');if(!c)return;

@@ -6,7 +6,7 @@ A fully automated trading system that predicts which words/phrases Donald Trump 
 
 Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches + tweets + Truth Social → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
-Auto-fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the Pi 4 CPU when the corpus grows by 50+ documents — no manual intervention needed. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
+Fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on Mac, pushes predictions to Pi via API. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
 
 > See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
 
@@ -28,7 +28,7 @@ Auto-fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on the Pi 4 
 │    • Local pipeline ──────── every 6 hours (train + simulate)    │
 │    • Daily email digest ──── 8 AM UTC                            │
 │    • Live speech monitor ─── every 1 min                         │
-│    • Fine-tune (auto) ────── when corpus grows 50+ speeches      │
+│    • Pythia blend ─────────── if predictions synced from Mac      │
 │                                                                   │
 │  API: FastAPI on :8000 ──── Dashboard: static HTML on :8000      │
 │  Database: SQLite (SQLAlchemy ORM)                               │
@@ -205,43 +205,37 @@ Post-prediction processing:
 4. **Phase 3:** Runs 2,000 Monte Carlo simulations across 5 scenario types (rally=5000w, press_conference=2000w, chopper_talk=800w, fox_interview=1500w, social_media=300w). Adjusts scenario weights based on next confirmed TrumpEvent.
 5. **Phase 4-5:** Saves `predictions_latest.json`, imports to DB, creates `ModelVersion` record (TrumpGPT v1.0.X)
 
-**Auto-triggered fine-tuning (Phases 6-8, background thread when `FINE_TUNE_ENABLED=true`):**
+**Pythia blending (automatic if predictions exist on disk):**
 
-6. **Phase 6:** Fine-tunes Pythia-410M with LoRA (~8-9 hours on Pi 4 CPU). Runs at `os.nice(19)` (lowest CPU priority) so the bot continues trading.
-7. **Phase 7:** Runs Pythia Monte Carlo simulations (200 sims default, shorter texts + Poisson correction)
-8. **Phase 8:** Blends Markov + Pythia predictions (60/40 weighted average), re-imports to DB
+After Phase 5, the pipeline checks if `data/predictions/predictions_pythia.json` exists (synced from Mac). If present, it blends Markov (60%) + Pythia (40%) predictions and re-imports to DB.
 
-**Self-regulating trigger:** Phases 6-8 auto-launch when the corpus has grown by 50+ speeches since the last fine-tune AND no fine-tune is currently running. This is checked every pipeline cycle (6 hours). No manual intervention or weekly cron needed — the pipeline decides when fine-tuning is worthwhile.
-
-Phases 6-8 are **non-blocking** — Markov predictions from Phase 5 are available immediately while fine-tuning runs in the background for hours. A separate `_ft_lock` prevents double-starts.
+**Fine-tuning runs on Mac** via `scripts/fine_tune_mac.py`. After completion, predictions are pushed to the Pi via `POST /api/fine-tune/upload-predictions`. See the Mac Fine-Tuning section below.
 
 Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
 
-### Pi-Native Fine-Tuning
+### Mac Fine-Tuning
 
-`src/ml/fine_tuner.py` — `GPT2FineTuner` class:
+`scripts/fine_tune_mac.py` — standalone all-in-one script:
 
-**Model: Pythia-410M (EleutherAI)**
-- 410M parameters, trained on The Pile (825GB) — includes political speeches, news, Reddit commentary
-- LoRA adapter: rank 16, ~2-3MB trainable params, targeting `query_key_value` (auto-detected)
-- Peak training RAM: ~3.0GB (with batch_size=1, grad_accum=8, fp32)
-- Training speed: ~9-11 tok/s on ARM Cortex-A72
-- Architecture auto-detection via `_detect_lora_targets()` — supports GPT-2, Pythia/GPT-NeoX, Llama, OPT, etc.
+**Model: Llama-3.2-1B (Meta)**
+- 1B parameters, trained on 15T tokens — dramatically better language quality than smaller models
+- LoRA adapter: rank 16, ~2-3MB trainable params, targeting `q_proj`/`v_proj` (auto-detected)
+- Runs on Mac (Apple Silicon or Intel) — ~1 hour on M-series, ~2-3 hours on Intel
+- Configurable via `FINE_TUNE_MODEL` env var (also supports `EleutherAI/pythia-410m`, `gpt2`, etc.)
 
-**Features:**
-- `os.nice(19)` for lowest CPU priority — dashboard stays responsive during training
-- Checkpointing every 500 steps (~2MB LoRA adapter saved)
-- Graceful stop via `stop_training()` — saves checkpoint, can resume later
-- Loss history tracking for real-time UI chart
-- Memory monitoring via psutil
-- `generate_speech()` / `generate_from_prompt()` / `run_monte_carlo()` matching the MarkovChainTrainer API
-- Configurable model via `FINE_TUNE_MODEL` env var (default: `EleutherAI/pythia-410m`)
+**Workflow:**
+1. `scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db`
+2. `python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000`
+3. Script trains, runs Monte Carlo, and POSTs predictions to Pi automatically
 
-**Why Pythia-410M over GPT-2 Small:**
-- The Pile pretraining includes far more political/rhetorical text than GPT-2's WebText
-- 410M params with LoRA fits in ~3GB peak RAM (3GB headroom on 8GB Pi)
-- Significantly better long-form coherence than GPT-2 Small (124M)
-- ~9 hours training for 3 epochs — runs overnight without disrupting trading
+**Architecture auto-detection** via `_detect_lora_targets()` — supports GPT-2, Pythia/GPT-NeoX, Llama, OPT, etc. Change model with `FINE_TUNE_MODEL` env var.
+
+**Why Llama-3.2-1B:**
+- 15T token pretraining (vs Pythia's 300B) — far better language quality
+- 1B params fits in ~6GB RAM on Mac with LoRA
+- ~1 hour training on Apple Silicon — runs overnight via launchd
+- Pi never loads the model — only reads the ~50KB predictions JSON
+- PyTorch doesn't support Raspberry Pi ARM — fine-tuning must run on Mac
 
 ### Colab Training Pipeline (optional — PIPELINE_MODE=colab)
 
@@ -286,9 +280,7 @@ View all versions via `GET /api/model/versions` or the **Model Versions** dashbo
 ## Email Notifications
 
 `src/notifications/email_notifier.py`:
-- **Trade alerts** — sent on each trade execution
-- **Daily digest** — 8 AM UTC, includes P&L, trades, top predictions
-- **Critical alerts** — loss limits, training failures, drawdown events
+- **Daily digest** — 8 AM ET, includes P&L, trades, top predictions, scraper stats
 
 ## Environment Variables
 
@@ -311,17 +303,6 @@ PIPELINE_MODE=local                    # 'local' (Pi) or 'colab' (GPU cloud)
 MARKOV_ORDER=3
 MONTE_CARLO_SIMULATIONS=2000
 RETRAIN_INTERVAL_HOURS=6
-
-# Fine-tuning (optional — Pi-native Pythia-410M with LoRA)
-FINE_TUNE_ENABLED=false                # Set to 'true' to enable
-FINE_TUNE_MODEL=EleutherAI/pythia-410m # HuggingFace model ID (also supports gpt2, gpt2-medium, etc.)
-FINE_TUNE_LORA_RANK=16                 # LoRA rank (higher = more params, more RAM)
-FINE_TUNE_EPOCHS=3                     # Training epochs (~9 hours for 3 on Pi 4)
-FINE_TUNE_MAX_LENGTH=512               # Token sequence length
-FINE_TUNE_BATCH_SIZE=1                 # Must be 1 on Pi 4
-FINE_TUNE_GRAD_ACCUM=8                 # Effective batch size = batch_size * grad_accum
-FINE_TUNE_LR=5e-4                      # Learning rate
-FINE_TUNE_MC_SIMS=200                  # Monte Carlo sims for Pythia (fewer than Markov — slower per sim)
 
 # Google Drive (only needed if PIPELINE_MODE=colab)
 GOOGLE_DRIVE_FOLDER_ID=
@@ -360,24 +341,17 @@ make gui
 # → Streamlit at http://localhost:8501
 ```
 
-### With Fine-Tuning
+### Fine-Tuning (on Mac)
 
 ```bash
-# 1. Install fine-tuning dependencies (torch, transformers, peft)
+# 1. Install fine-tuning deps on your Mac
 make install-finetune
 
-# 2. Enable fine-tuning in .env
-echo "FINE_TUNE_ENABLED=true" >> .env
+# 2. Copy latest DB from Pi
+scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
 
-# 3. (Optional) Import Twitter corpus first for more training data
-make import-twitter   # Downloads ~56K tweets, creates daily digests
-
-# 4. Start the API (fine-tuning runs as Phase 6-8 of the pipeline)
-make api
-
-# 5. Or trigger fine-tuning manually from the dashboard:
-#    Pipeline tab → "Start Fine-Tuning" button
-#    Or via API: curl -X POST http://localhost:8000/api/fine-tune/start
+# 3. Fine-tune + auto-push predictions to Pi
+python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
 ```
 
 ### Raspberry Pi Deployment
@@ -474,9 +448,9 @@ All endpoints prefixed with `/api/`:
 **Model:** `GET /model/status`, `GET /model/versions`, `GET /model/accuracy`
 **Colab:** `GET /colab/predictions`, `POST /colab/import`, `POST /colab/save-to-db`, `GET /colab/discovered-phrases`
 **Pipeline:** `GET /pipeline/status`, `GET /pipeline/training-status`, `GET /pipeline/log`, `POST /pipeline/run`, `POST /pipeline/export-upload`, `POST /pipeline/trigger-training`, `POST /pipeline/poll`
-**Social Media:** `POST /social-media/import-twitter`, `POST /social-media/import-truth`, `GET /social-media/import-status`, `GET /social-media/stats`
-**Fine-Tune:** `POST /fine-tune/start`, `POST /fine-tune/stop`, `GET /fine-tune/status`, `GET /fine-tune/loss-history`
-**TrumpGPT:** `POST /trumpgpt/generate` (accepts `model: 'markov' | 'gpt2'`)
+**Social Media:** `POST /social-media/import-twitter`, `POST /social-media/scrape-truth`, `GET /social-media/import-status`, `GET /social-media/stats`, `GET /social-media/recent-posts`
+**Pythia:** `GET /fine-tune/pythia-status`, `POST /fine-tune/upload-predictions`
+**TrumpGPT:** `POST /trumpgpt/generate`
 **Drive:** `GET /drive/status`, `POST /drive/upload`, `POST /drive/download-predictions` (disabled in local mode)
 **Live Monitor:** `POST /live/start`, `POST /live/stop`, `GET /live/status`
 **System:** `POST /system/full-refresh`, `GET /system/health`, `GET /system/hardware`
@@ -501,32 +475,37 @@ All endpoints prefixed with `/api/`:
 ## Data Flow Summary
 
 ```
-[10 scraper sources + social media import]
-                    ↓
-              Speech table
-                    ↓
-        TermAnalyzer → TermOccurrence table
-                    ↓
-    ┌───────────────┼───────────────────┐
-    ↓               ↓                   ↓
-Markov Chain    Pythia-410M LoRA    DataExporter
-(Phase 1-5)     (Phase 6-8)         (Colab mode)
-    ↓               ↓                   ↓
-Monte Carlo    Monte Carlo         Google Drive → Colab
-(2000 sims)    (200 sims)              ↓
-    ↓               ↓           predictions_latest.json
-    └───────┬───────┘                   ↓
-      Blend (60/40)            ColabPipeline import
-            ↓
-  predictions_latest.json
-            ↓
-  TermPrediction table
-            ↓
-  TermPredictor (weighted ensemble)
-            ↓
-  TradingBot (Kelly criterion)
-            ↓
-  Kalshi API → Trade table
+┌─── RASPBERRY PI ───────────────────────────────────────────┐
+│                                                             │
+│  [10 scrapers + Truth Social + Twitter/X]                  │
+│                    ↓                                        │
+│              Speech table                                   │
+│                    ↓                                        │
+│        TermAnalyzer → TermOccurrence table                 │
+│                    ↓                                        │
+│            Markov Chain (Phase 1-5, ~35s)                   │
+│                    ↓                                        │
+│            Monte Carlo (2000 sims)                          │
+│                    ↓                                        │
+│        predictions_latest.json ←── blend if available ──┐  │
+│                    ↓                                     │  │
+│          TermPrediction table                            │  │
+│                    ↓                                     │  │
+│        TermPredictor (6-signal ensemble)                 │  │
+│                    ↓                                     │  │
+│        TradingBot (Kelly criterion)                      │  │
+│                    ↓                                     │  │
+│          Kalshi API → Trade table                        │  │
+└──────────────────────────────────────────────────────────┘  │
+                                                              │
+┌─── MAC (fine-tuning) ──────────────────────────────────┐   │
+│                                                         │   │
+│  scp DB from Pi → fine_tune_mac.py                     │   │
+│    → Pythia-410M LoRA fine-tune                        │   │
+│    → Monte Carlo (200 sims)                            │   │
+│    → POST predictions_pythia.json to Pi API ───────────┼───┘
+│                                                         │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Known Data Quality Issues

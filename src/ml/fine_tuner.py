@@ -1,13 +1,9 @@
-"""Pi-native LLM fine-tuning with LoRA.
+"""LLM fine-tuning with LoRA — RUNS ON MAC ONLY, NOT ON PI.
 
-Default model: Pythia-410M (EleutherAI) — trained on The Pile (825GB),
-which includes political speeches, news, and commentary. Peak training
-RAM ~3.0GB with LoRA rank 16, leaving ~3GB headroom on Pi 4 (8GB).
+Used by: scripts/fine_tune_mac.py
+NOT imported by any Pi code path. PyTorch does not run on Raspberry Pi ARM.
 
-Falls back to GPT-2 Small if configured via FINE_TUNE_MODEL=gpt2.
-
-All torch/transformers imports are lazy — this module can be imported safely
-on systems without these packages installed.
+Default model: Llama-3.2-1B (Meta). All torch/transformers imports are lazy.
 """
 
 import os

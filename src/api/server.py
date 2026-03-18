@@ -20,7 +20,6 @@ from ..scraper.speech_scraper import SpeechScraper
 from ..scraper.term_analyzer import TermAnalyzer
 from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
-from ..ml.model_trainer import ModelTrainer
 from ..ml.colab_integration import ColabPredictor
 from ..scraper.live_monitor import LiveSpeechMonitor
 from ..alerts import alert_manager
@@ -62,7 +61,6 @@ term_analyzer = TermAnalyzer()
 event_tracker = EventTracker()
 predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
-model_trainer = ModelTrainer()
 colab_predictor = ColabPredictor()
 live_monitor = LiveSpeechMonitor()
 
@@ -452,33 +450,21 @@ def get_live_status():
 # --- ML Model endpoints ---
 
 @app.post("/api/ml/train")
-def train_models(background_tasks: BackgroundTasks):
-    """Trigger model training."""
-    background_tasks.add_task(_train_models)
-    return {"status": "training started"}
-
-
-def _train_models():
-    try:
-        _update_job('ml_train', 'Training local ML models...')
-        results = model_trainer.train()
-        _update_job('ml_train', f'Done: {len(results)} models trained', done=True)
-        logger.info(f"Model training results: {results}")
-    except Exception as e:
-        _update_job('ml_train', '', done=True, error=str(e))
-        logger.error(f"Model training failed: {e}")
+def train_models():
+    """Deprecated — use POST /api/pipeline/run instead."""
+    return {"status": "deprecated", "message": "Use POST /api/pipeline/run"}
 
 
 @app.get("/api/ml/info")
 def get_model_info():
-    """Get information about trained models."""
-    return model_trainer.get_model_info()
+    """Deprecated — use GET /api/model/status instead."""
+    return {"status": "deprecated", "message": "Use GET /api/model/status"}
 
 
 @app.get("/api/ml/predictions")
 def get_ml_predictions():
-    """Get ML model predictions."""
-    return model_trainer.predict()
+    """Deprecated — use GET /api/predictions/final instead."""
+    return {"status": "deprecated", "message": "Use GET /api/predictions/final"}
 
 
 @app.get("/api/colab/predictions")
@@ -1143,11 +1129,20 @@ def get_pythia_status():
 async def upload_pythia_predictions(request: Request):
     """Receive Pythia predictions JSON from Mac after fine-tuning.
 
+    Requires X-API-Key header matching KALSHI_API_KEY for basic auth.
+
     Usage from Mac:
         curl -X POST http://<pi-ip>:8000/api/fine-tune/upload-predictions \
              -H "Content-Type: application/json" \
+             -H "X-API-Key: <your-kalshi-api-key>" \
              -d @data/predictions/predictions_pythia.json
     """
+    # Basic auth: check shared secret
+    api_key = request.headers.get('X-API-Key', '')
+    expected = app_config.kalshi_api_key
+    if expected and api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     try:
         data = await request.json()
         if 'term_predictions' not in data:

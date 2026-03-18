@@ -131,39 +131,50 @@ class KalshiClient:
         """Get the full path for signing (must include /trade-api/v2 prefix)."""
         return f'/trade-api/v2{endpoint}'
 
+    def _request_with_retry(self, method: str, endpoint: str,
+                             params: Optional[dict] = None,
+                             data: Optional[dict] = None,
+                             max_retries: int = 3) -> dict:
+        """Make an HTTP request with exponential backoff on 429/5xx."""
+        for attempt in range(max_retries + 1):
+            self._rate_limit()
+            url = f'{self.base_url}{endpoint}'
+            full_path = self._full_path(endpoint)
+            headers = self._sign_request(method, full_path) if self._auth else {'Content-Type': 'application/json'}
+
+            if method == 'GET':
+                resp = self._session.get(url, headers=headers, params=params or {})
+            elif method == 'POST':
+                resp = self._session.post(url, headers=headers, json=data or {})
+            elif method == 'DELETE':
+                resp = self._session.delete(url, headers=headers)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+
+            if resp.status_code == 429 or resp.status_code >= 500:
+                if attempt < max_retries:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(f"Kalshi {resp.status_code} on {endpoint}, retrying in {wait}s (attempt {attempt+1}/{max_retries})")
+                    time.sleep(wait)
+                    continue
+            resp.raise_for_status()
+            return resp.json()
+
+        resp.raise_for_status()
+        return resp.json()
+
     def _get(self, endpoint: str, params: Optional[dict] = None,
              require_auth: bool = False) -> dict:
-        """Make a GET request. Auth headers added if available."""
-        self._rate_limit()
-        url = f'{self.base_url}{endpoint}'
-        full_path = self._full_path(endpoint)
-        headers = self._sign_request('GET', full_path) if self._auth else {'Content-Type': 'application/json'}
-
-        resp = self._session.get(url, headers=headers, params=params or {})
-        resp.raise_for_status()
-        return resp.json()
+        """Make a GET request with retry."""
+        return self._request_with_retry('GET', endpoint, params=params)
 
     def _post(self, endpoint: str, data: Optional[dict] = None) -> dict:
-        """Make authenticated POST request."""
-        self._rate_limit()
-        url = f'{self.base_url}{endpoint}'
-        full_path = self._full_path(endpoint)
-        headers = self._sign_request('POST', full_path)
-
-        resp = self._session.post(url, headers=headers, json=data or {})
-        resp.raise_for_status()
-        return resp.json()
+        """Make authenticated POST request with retry."""
+        return self._request_with_retry('POST', endpoint, data=data)
 
     def _delete(self, endpoint: str) -> dict:
-        """Make authenticated DELETE request."""
-        self._rate_limit()
-        url = f'{self.base_url}{endpoint}'
-        full_path = self._full_path(endpoint)
-        headers = self._sign_request('DELETE', full_path)
-
-        resp = self._session.delete(url, headers=headers)
-        resp.raise_for_status()
-        return resp.json()
+        """Make authenticated DELETE request with retry."""
+        return self._request_with_retry('DELETE', endpoint)
 
     # --- Market Discovery (public, no auth needed) ---
 

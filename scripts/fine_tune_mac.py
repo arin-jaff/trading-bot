@@ -30,7 +30,7 @@ from src.database.models import Speech, Term, ModelVersion
 
 # ── Configuration (edit these if needed) ──
 
-MODEL_NAME = os.getenv('FINE_TUNE_MODEL', 'EleutherAI/pythia-410m')
+MODEL_NAME = os.getenv('FINE_TUNE_MODEL', 'meta-llama/Llama-3.2-1B')
 LORA_RANK = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
 EPOCHS = int(os.getenv('FINE_TUNE_EPOCHS', '3'))
 MAX_LENGTH = int(os.getenv('FINE_TUNE_MAX_LENGTH', '512'))
@@ -322,12 +322,16 @@ def push_to_pi(pred_path: str, pi_url: str) -> bool:
     import requests as req
 
     upload_url = f'{pi_url.rstrip("/")}/api/fine-tune/upload-predictions'
+    api_key = os.getenv('KALSHI_API_KEY', '')
     print(f"\nPushing predictions to Pi at {upload_url}...")
 
     try:
         with open(pred_path) as f:
             data = json.load(f)
-        resp = req.post(upload_url, json=data, timeout=30)
+        headers = {'Content-Type': 'application/json'}
+        if api_key:
+            headers['X-API-Key'] = api_key
+        resp = req.post(upload_url, json=data, headers=headers, timeout=30)
         if resp.status_code == 200:
             result = resp.json()
             print(f"  Pushed {result.get('predictions_saved', '?')} predictions to Pi")

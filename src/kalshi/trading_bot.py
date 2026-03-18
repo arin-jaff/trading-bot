@@ -1,11 +1,10 @@
 """Autonomous trading bot for Kalshi Trump Mentions markets."""
 
-import os
 from datetime import datetime, timedelta
 from typing import Optional
 from loguru import logger
 
-from ..database.models import Trade, Market, BotConfig
+from ..database.models import Trade, Market
 from ..database.db import get_session
 from .client import KalshiClient
 from ..ml.predictor import TermPredictor
@@ -169,17 +168,24 @@ class TradingBot:
         return min(position, max_by_exposure)
 
     def _get_current_exposure(self) -> float:
-        """Calculate current total exposure from open positions."""
+        """Calculate current total exposure from open positions using actual prices."""
         try:
             positions = self.client.get_positions()
-            total = 0
+            total = 0.0
             for pos in positions.get('market_positions', []):
                 qty = abs(pos.get('position', 0))
-                # Rough exposure estimate
-                total += qty * 0.50  # assume ~50 cent average price
+                if qty == 0:
+                    continue
+                # Use actual market price from DB
+                ticker = pos.get('ticker', '')
+                with get_session() as session:
+                    market = session.query(Market).filter_by(kalshi_ticker=ticker).first()
+                    price = market.yes_price if market and market.yes_price else 0.50
+                cost = price if pos.get('position', 0) > 0 else (1 - price)
+                total += qty * cost
             return total
         except Exception:
-            return 0
+            return 0.0
 
     def execute_trade(self, suggestion: dict, quantity: Optional[int] = None,
                       require_confirmation: bool = True) -> Optional[dict]:
@@ -218,9 +224,23 @@ class TradingBot:
             order_details['status'] = 'pending_confirmation'
             return order_details
 
-        # Paper mode: log but don't place real orders
+        # Paper mode: log and record in DB (but don't place real orders)
         if self.paper_mode:
             logger.info(f"[PAPER] Would place: {order_details['action']} {qty}x {side} on {ticker} @ {price_cents}c")
+            with get_session() as session:
+                market = session.query(Market).filter_by(kalshi_ticker=ticker).first()
+                if market:
+                    trade = Trade(
+                        market_id=market.id,
+                        side=side,
+                        action='buy',
+                        quantity=qty,
+                        price=price_cents / 100,
+                        status='paper',
+                        strategy='ml_predictor',
+                        reasoning=suggestion.get('reasoning', ''),
+                    )
+                    session.add(trade)
             return {**order_details, 'status': 'paper_trade', 'paper_mode': True}
 
         # Place the order
@@ -352,7 +372,7 @@ class TradingBot:
         return False
 
     def _send_loss_alert(self, pnl: float, reason: str,
-                         details: Optional[dict] = None):
+                         details: Optional[dict] = None):  # noqa: ARG002
         """Log loss alert (email notifications limited to daily digest only)."""
         logger.warning(f"Loss alert: {reason}, P&L: ${pnl:+.2f}")
 

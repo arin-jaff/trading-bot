@@ -124,7 +124,22 @@ def create_scheduler() -> BackgroundScheduler:
         )
         logger.info("Pipeline mode: COLAB (daily @ 4AM UTC)")
 
-    # Daily email digest at 8 AM UTC
+    # Database pruning — daily cleanup of old predictions
+    scheduler.add_job(
+        _prune_old_predictions, CronTrigger(hour=6, minute=30),
+        id='prune_predictions', replace_existing=True,
+        name='Prune old TermPredictions (keep 7 days)',
+    )
+
+    # Accuracy evaluation — run daily to recalibrate against settled markets
+    scheduler.add_job(
+        _evaluate_accuracy, CronTrigger(hour=7, minute=0),
+        args=[predictor],
+        id='accuracy_eval', replace_existing=True,
+        name='Evaluate prediction accuracy vs settled markets',
+    )
+
+    # Daily email digest at 8 AM
     scheduler.add_job(
         _send_daily_digest, CronTrigger(hour=8, minute=0),
         id='daily_digest', replace_existing=True,
@@ -226,9 +241,9 @@ def _check_trading(bot: TradingBot):
 
 def _run_local_pipeline(pipeline, scraper: SpeechScraper,
                         analyzer: TermAnalyzer):
-    """Periodic job: scrape latest speeches, then train locally."""
+    """Periodic job: run pipeline (scraping handled by separate 2h jobs)."""
     try:
-        scraper.scrape_all_sources()
+        # Process any unprocessed speeches from the last scrape cycle
         analyzer.process_all_unprocessed()
         result = pipeline.run_full_pipeline()
         logger.info(f"Local pipeline result: {result}")
@@ -266,6 +281,35 @@ def _send_daily_digest():
             email_notifier.send_daily_digest()
     except Exception as e:
         logger.error(f"Daily digest email failed: {e}")
+
+
+def _prune_old_predictions():
+    """Daily: delete TermPrediction rows older than 7 days."""
+    try:
+        from datetime import datetime, timedelta
+        from .database.db import get_session
+        from .database.models import TermPrediction
+        cutoff = datetime.now() - timedelta(days=7)
+        with get_session() as session:
+            deleted = session.query(TermPrediction).filter(
+                TermPrediction.created_at < cutoff,
+            ).delete()
+            if deleted:
+                logger.info(f"Pruned {deleted} old TermPrediction rows (>7 days)")
+    except Exception as e:
+        logger.error(f"Prediction pruning failed: {e}")
+
+
+def _evaluate_accuracy(predictor: TermPredictor):
+    """Daily: evaluate prediction accuracy and log calibration metrics."""
+    try:
+        result = predictor.evaluate_accuracy()
+        if 'brier_score' in result:
+            logger.info(f"Accuracy eval: Brier={result['brier_score']:.4f}, "
+                        f"hit_rate={result.get('hit_rate', 0):.1%}, "
+                        f"data_points={result.get('data_points', 0)}")
+    except Exception as e:
+        logger.error(f"Accuracy evaluation failed: {e}")
 
 
 def _scrape_social_media():

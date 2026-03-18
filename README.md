@@ -2,7 +2,7 @@
 
 Fully automated trading system that predicts which words/phrases Donald Trump will say in upcoming speeches, trades on those predictions via [Kalshi](https://kalshi.com) prediction markets, and continuously improves its model by scraping speeches, tweets, and Truth Social posts.
 
-Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away. Auto-imports ~56K tweets on first run, scrapes Truth Social + Twitter/X every 2 hours, and auto-fine-tunes Pythia-410M when the corpus grows.
+Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away. Auto-imports ~56K tweets on first run, scrapes Truth Social + Twitter/X every 2 hours. Fine-tuning runs on Mac and predictions are pushed to Pi via API.
 
 ## How It Works
 
@@ -13,9 +13,8 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 │    Scrape speeches ──► Train Markov chain ──► Monte Carlo sims   │
 │    ──► Term probability predictions ──► Kelly criterion trading  │
 │                                                                   │
-│  Optional (FINE_TUNE_ENABLED=true):                              │
-│    Fine-tune Pythia-410M with LoRA ──► Blend predictions         │
-│    (~9 hours, runs at lowest CPU priority in background)         │
+│  Pythia blend (if predictions synced from Mac):                  │
+│    Mac fine-tunes Pythia-410M ──► pushes predictions via API     │
 │                                                                   │
 │  Continuous:                                                     │
 │    Market sync (5min) • News enrichment (1hr)                    │
@@ -41,7 +40,7 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 3. **Simulate** — 2,000 Monte Carlo simulated speeches across 5 scenario types (rally, press conference, chopper talk, interview, social media)
 4. **Predict** — Count term occurrences across simulations, blend with 5 other signals (historical frequency, temporal patterns, trends, event correlation, news relevance) into final probabilities
 5. **Trade** — Compare predictions to Kalshi market prices, execute trades where our edge exceeds the threshold using Kelly criterion position sizing
-6. **(Optional) Fine-tune** — Train Pythia-410M (EleutherAI) with LoRA on the Pi 4 CPU, blend its Monte Carlo predictions with Markov results for higher accuracy
+6. **(Mac) Fine-tune** — Train Pythia-410M with LoRA on your Mac, push predictions to Pi via API, auto-blended with Markov results
 
 ## Directory Structure
 
@@ -160,22 +159,18 @@ make import-twitter
 
 Or from the dashboard: **Pipeline** tab → **Import Twitter Archive** button.
 
-### 6. (Optional) Enable Fine-Tuning
+### 6. (Optional) Fine-Tune on Mac
 
-For higher-quality text generation using Pythia-410M:
+For higher-quality predictions using Pythia-410M:
 
 ```bash
-# Install PyTorch + transformers + PEFT
+# On your Mac:
 make install-finetune
-
-# Enable in .env
-echo "FINE_TUNE_ENABLED=true" >> .env
-
-# Restart the API
-make api
+scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
+python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
 ```
 
-Fine-tuning auto-triggers when the corpus grows by 50+ speeches since the last run. It runs as Phase 6-8 in a background thread at lowest CPU priority. You can also trigger it manually from the dashboard: **Pipeline** tab → **Start Fine-Tuning**.
+Predictions are auto-pushed to the Pi and blended with Markov on the next pipeline run.
 
 ## Raspberry Pi Deployment
 
@@ -217,24 +212,17 @@ curl http://localhost:8000/api/system/health
 6. Installs systemd services (auto-start on boot, auto-restart on crash)
 7. Sets up watchdog cron (checks health every 5 min, restarts if down)
 
-### Enabling Fine-Tuning on the Pi
+### Fine-Tuning (runs on Mac, not Pi)
+
+PyTorch doesn't support Raspberry Pi ARM. Fine-tuning runs on your Mac:
 
 ```bash
-# SSH into the Pi, then:
-cd /home/pi/trading-bot
-source venv/bin/activate
-
-# Install fine-tuning deps (~1.5GB download)
-make install-finetune
-
-# Add to .env
-echo "FINE_TUNE_ENABLED=true" >> .env
-
-# Restart the service
-sudo systemctl restart trumpbot-api
+# On Mac: copy DB, train, push predictions
+scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
+python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
 ```
 
-Fine-tuning uses ~3GB RAM (out of 8GB) and runs at lowest CPU priority (`os.nice(19)`), so the bot continues trading normally. Training takes ~9 hours for 3 epochs — it runs overnight.
+Takes ~20-30 min on Apple Silicon. Predictions are POSTed to the Pi's API automatically.
 
 ### Access
 - **Dashboard**: `http://<pi-ip>:8000`
@@ -323,11 +311,9 @@ Every 6 hours (or when 5+ new speeches are scraped):
 | 3 | Monte Carlo simulation (2,000 speeches x 5 scenarios) | ~30s |
 | 4 | Save predictions JSON | <1s |
 | 5 | Import to database + create ModelVersion | <1s |
-| 6 | Fine-tune Pythia-410M with LoRA | ~9h (background) |
-| 7 | Pythia Monte Carlo (200 sims) | ~hours (background) |
-| 8 | Blend Markov + Pythia predictions (60/40) | <1s |
+| 5b | Blend with Pythia predictions if synced from Mac | <1s |
 
-Phases 1-5 complete in ~35 seconds. Phases 6-8 auto-trigger in a background thread when `FINE_TUNE_ENABLED=true` AND the corpus has grown by 50+ speeches since the last fine-tune. No manual scheduling needed.
+Phases 0-5 complete in ~45 seconds. Fine-tuning runs on Mac separately via `scripts/fine_tune_mac.py`.
 
 ## Trading Bot
 
@@ -422,7 +408,6 @@ curl -X PUT http://<pi-ip>:8000/api/trading/config \
 | Position mgmt | 5 min | Profit-taking and stop-loss checks |
 | Local pipeline | 6 hours | Train Markov chain + Monte Carlo + import |
 | Daily digest | 8 AM UTC | Sends email summary |
-| Fine-tune | Auto | Pythia-410M LoRA training — auto-triggers when corpus grows 50+ speeches |
 
 ## Make Targets
 

@@ -103,7 +103,7 @@ class TermPredictor:
         scores['temporal'] = self._temporal_score(session, term, event)
 
         # 3. Trend momentum
-        scores['trend'] = self._trend_score(term)
+        scores['trend'] = self._trend_score(session, term)
 
         # 4. Event-type correlation
         scores['event_correlation'] = self._event_correlation_score(
@@ -211,21 +211,26 @@ class TermPredictor:
         current_dow = now.weekday()
         current_month = now.month
 
-        # 1B: Check for date poisoning — count speeches near the known bad date
-        poison_date = datetime(2026, 3, 8)
+        # 1B: Check for date poisoning — detect any single date with suspiciously
+        # many speeches (from batch scrapes that defaulted to datetime.now())
         total_speeches = session.query(Speech).filter(
             Speech.date.isnot(None)
         ).count()
 
         if total_speeches > 0:
-            poisoned_count = session.query(Speech).filter(
-                Speech.date.isnot(None),
-                Speech.date >= poison_date - timedelta(days=1),
-                Speech.date <= poison_date + timedelta(days=1),
-            ).count()
+            from sqlalchemy import func as sa_func
+            # Find the most common date (by day)
+            most_common = session.query(
+                sa_func.date(Speech.date),
+                sa_func.count(Speech.id),
+            ).filter(
+                Speech.date.isnot(None)
+            ).group_by(
+                sa_func.date(Speech.date)
+            ).order_by(sa_func.count(Speech.id).desc()).first()
 
-            if poisoned_count / total_speeches > 0.30:
-                # Too many fake dates — temporal signal is anti-predictive
+            if most_common and most_common[1] / total_speeches > 0.30:
+                # A single date has >30% of all speeches — dates are poisoned
                 return None
 
         # Get historical occurrences with speech dates
@@ -262,7 +267,7 @@ class TermPredictor:
 
         return min(1.0, (dow_score + month_score) / 2)
 
-    def _trend_score(self, term: Term) -> float:
+    def _trend_score(self, session, term: Term) -> float:
         """Score based on recent trend direction and weekly acceleration.
 
         Combines two signals:
@@ -277,32 +282,31 @@ class TermPredictor:
 
         # Weekly acceleration: if we have occurrence data, check week-over-week
         try:
-            with get_session() as session:
-                now = datetime.utcnow()
-                # This week (last 7 days)
-                this_week = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
-                    TermOccurrence.term_id == term.id,
-                    Speech.date >= now - timedelta(days=7),
-                ).scalar() or 0
+            now = datetime.utcnow()
+            # This week (last 7 days)
+            this_week = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                TermOccurrence.term_id == term.id,
+                Speech.date >= now - timedelta(days=7),
+            ).scalar() or 0
 
-                # Past 4 weeks average (days 7-35)
-                past_4w = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
-                    TermOccurrence.term_id == term.id,
-                    Speech.date >= now - timedelta(days=35),
-                    Speech.date < now - timedelta(days=7),
-                ).scalar() or 0
+            # Past 4 weeks average (days 7-35)
+            past_4w = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                TermOccurrence.term_id == term.id,
+                Speech.date >= now - timedelta(days=35),
+                Speech.date < now - timedelta(days=7),
+            ).scalar() or 0
 
-                weekly_avg = past_4w / 4.0 if past_4w > 0 else 0
+            weekly_avg = past_4w / 4.0 if past_4w > 0 else 0
 
-                if weekly_avg > 0:
-                    # Acceleration: how much above/below the weekly average
-                    accel = (this_week - weekly_avg) / weekly_avg
-                    accel_score = 1 / (1 + math.exp(-accel * 2))  # steeper sigmoid
-                else:
-                    accel_score = 0.6 if this_week > 0 else 0.4
+            if weekly_avg > 0:
+                # Acceleration: how much above/below the weekly average
+                accel = (this_week - weekly_avg) / weekly_avg
+                accel_score = 1 / (1 + math.exp(-accel * 2))  # steeper sigmoid
+            else:
+                accel_score = 0.6 if this_week > 0 else 0.4
 
-                # Blend: 60% base trend, 40% weekly acceleration
-                return base_score * 0.6 + accel_score * 0.4
+            # Blend: 60% base trend, 40% weekly acceleration
+            return base_score * 0.6 + accel_score * 0.4
 
         except Exception:
             return base_score

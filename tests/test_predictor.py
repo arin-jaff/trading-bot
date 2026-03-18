@@ -49,15 +49,15 @@ class TestTrendScore:
 
         # Zero trend -> 0.5
         term.trend_score = 0.0
-        score = predictor._trend_score(term)
+        score = predictor._trend_score(None, term)
         assert abs(score - 0.5) < 0.01
 
         # Positive trend -> > 0.5
         term.trend_score = 2.0
-        score = predictor._trend_score(term)
+        score = predictor._trend_score(None, term)
         assert score > 0.5
 
         # Negative trend -> < 0.5
         term.trend_score = -2.0
-        score = predictor._trend_score(term)
+        score = predictor._trend_score(None, term)
         assert score < 0.5

@@ -530,7 +530,16 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 <!-- ════════════════════════════════ TRUMPGPT ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='trumpgpt'}">
   <h1>TrumpGPT</h1>
-  <div class="sub">Prompt the Markov chain or fine-tuned Pythia-410M model trained on Trump speeches, tweets, and Truth Social posts</div>
+  <div class="sub">Demo: Markov chain text generator trained on Trump speeches, tweets, and Truth Social posts</div>
+
+  <div class="card" style="margin-bottom:14px;background:var(--bg2);border-color:var(--border)">
+    <div style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px">
+      <strong style="color:var(--accent)">How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
+      Under the hood, the bot runs 2,000 simulated speeches per cycle and counts which terms appear — that's how it predicts what Trump will say.
+      This tab lets you see one of those simulations in action. The output captures Trump's vocabulary and phrase patterns but won't produce coherent arguments — it's a statistical model, not AI reasoning.
+      <strong style="color:var(--text)">The trading value comes from the aggregate statistics across thousands of simulations, not any single generation.</strong>
+    </div>
+  </div>
 
   <div class="card" style="margin-bottom:14px">
     <div style="margin-bottom:10px">

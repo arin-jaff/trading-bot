@@ -6,7 +6,7 @@ from typing import Optional
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from ..database.models import Market, Term, market_term_association
+from ..database.models import Market, Term, PriceSnapshot, market_term_association
 from ..database.db import get_session
 from .client import KalshiClient
 
@@ -201,6 +201,17 @@ class MarketSync:
 
                 market.yes_price = yes_price
                 market.no_price = no_price
+
+                # Record price snapshot for history
+                if yes_price is not None:
+                    snapshot = PriceSnapshot(
+                        market_id=market.id,
+                        yes_price=yes_price,
+                        no_price=no_price,
+                        volume=market.volume,
+                        open_interest=market.open_interest,
+                    )
+                    session.add(snapshot)
 
                 # Volume: v2 uses volume_fp (fixed-point string), fallback to volume
                 market.volume = self._parse_fp_field(

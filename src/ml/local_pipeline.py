@@ -127,6 +127,13 @@ class LocalPipeline:
             logger.info("No trained model found — training from scratch")
             return True
 
+        # Force retrain if the Markov pickle is missing/corrupt
+        if not self.trainer.chain:
+            self.trainer._load_latest_model()
+            if not self.trainer.chain:
+                logger.warning("Markov model missing or corrupt — forcing retrain")
+                return True
+
         return False
 
     def run_full_pipeline(self) -> dict:
@@ -265,6 +272,13 @@ class LocalPipeline:
         synced to the Pi via scp. Returns True if blending occurred.
         """
         if not os.path.exists(PYTHIA_PREDICTIONS_PATH):
+            return False
+
+        # Skip if predictions are older than 7 days
+        max_age_days = 7
+        file_age = time.time() - os.path.getmtime(PYTHIA_PREDICTIONS_PATH)
+        if file_age > max_age_days * 86400:
+            logger.warning(f"Pythia predictions are {file_age/86400:.0f} days old (>{max_age_days}d) — skipping blend")
             return False
 
         try:

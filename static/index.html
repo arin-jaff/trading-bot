@@ -240,7 +240,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
         <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
         <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
-        <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM UTC</td><td>Email P&L summary</td></tr>
+        <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM ET</td><td>Email P&L summary</td></tr>
       </tbody>
     </table>
   </div>
@@ -284,7 +284,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           <div style="border-left:3px solid var(--border);padding:8px 12px;margin:6px 0;background:var(--bg3);border-radius:0 4px 4px 0">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
               <span style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:1px" :style="'color:'+(post.source==='truth_social'?'var(--purple)':'var(--blue)')" x-text="post.source==='truth_social'?'Truth Social':'Twitter'"></span>
-              <span style="font-size:10px;color:var(--dim)" x-text="post.date?post.date.replace('T',' ').substring(0,16):''"></span>
+              <span style="font-size:10px;color:var(--dim)" x-text="post.date?post.date.replace('T',' ').substring(0,16)+' ET':''"></span>
             </div>
             <div style="font-size:12px;line-height:1.5;color:var(--text)" x-text="post.text"></div>
           </div>
@@ -293,115 +293,19 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </template>
   </div>
 
-  <!-- FINE-TUNE TRIGGER PROGRESS -->
-  <h2>Next Fine-Tune Cycle</h2>
+  <!-- PYTHIA PREDICTIONS (synced from Mac) -->
+  <h2>Pythia Predictions</h2>
   <div class="card" style="margin-bottom:14px">
-    <template x-if="ftTrigger">
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:12px;color:var(--text)">
-            <strong x-text="ftTrigger.new_since_last"></strong><span style="color:var(--dim)"> / <span x-text="ftTrigger.threshold"></span> new docs since last fine-tune</span>
-          </span>
-          <span style="font-size:11px" :style="'color:'+(ftTrigger.progress>=1?'var(--green)':'var(--dim)')" x-text="ftTrigger.progress>=1?'Ready to fine-tune!':Math.round(ftTrigger.progress*100)+'%'"></span>
-        </div>
-        <div class="pbar" style="height:12px;border-radius:6px">
-          <div class="fill" :style="'width:'+Math.min(100,ftTrigger.progress*100)+'%;background:'+(ftTrigger.progress>=1?'var(--green)':'var(--purple)')+';border-radius:6px;transition:width 1s'"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
-          <span style="font-size:10px;color:var(--dim)" x-text="ftTrigger.enabled?'Auto-triggers when bar fills up. Corpus: '+ftTrigger.current_corpus+' total docs.':'Fine-tuning disabled — toggle to enable.'"></span>
-          <label style="cursor:pointer;font-size:11px;display:flex;align-items:center;gap:4px;user-select:none">
-            <span :style="ftTrigger.enabled?'color:var(--green)':'color:var(--dim)'" x-text="ftTrigger.enabled?'Enabled':'Disabled'"></span>
-            <input type="checkbox" :checked="ftTrigger.enabled" @change="toggleFineTune()" style="cursor:pointer">
-          </label>
-        </div>
+    <template x-if="pythiaStatus && pythiaStatus.available">
+      <div class="alert success">
+        <strong>Pythia predictions available</strong> — <span x-text="pythiaStatus.predictions"></span> terms, synced <span x-text="pythiaStatus.last_synced?.replace('T',' ').substring(0,16)+' ET'"></span>.
+        Blended with Markov predictions automatically.
       </div>
     </template>
-    <template x-if="!ftTrigger">
-      <div style="color:var(--dim);font-size:12px;padding:8px">Loading fine-tune progress...</div>
-    </template>
-  </div>
-
-  <!-- FINE-TUNE STATUS -->
-  <h2>Fine-Tune Status</h2>
-  <div class="card" style="margin-bottom:14px">
-    <!-- IDLE -->
-    <template x-if="!fineTuneStatus || fineTuneStatus.state==='idle'">
-      <div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn primary" @click="apiPost('/fine-tune/start')">Start Fine-Tuning</button>
-          <span style="font-size:11px;color:var(--dim)">Runs at lowest CPU priority — dashboard stays responsive</span>
-        </div>
+    <template x-if="!pythiaStatus || !pythiaStatus.available">
+      <div style="font-size:12px;color:var(--dim);padding:4px">
+        No Pythia predictions on disk. Run <code style="background:var(--bg3);padding:2px 6px;border-radius:3px">python scripts/fine_tune_mac.py</code> on your Mac, then scp the file to this Pi.
       </div>
-    </template>
-
-    <!-- PHASE 6: TRAINING -->
-    <template x-if="fineTuneStatus && fineTuneStatus.state==='phase6_training'">
-      <div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div><span style="font-size:16px">&#9881;</span> <strong style="color:var(--accent)">PHASE 6: FINE-TUNING PYTHIA</strong></div>
-          <button class="btn" @click="apiPost('/fine-tune/stop')" style="border-color:var(--red);color:var(--red)">Stop</button>
-        </div>
-        <!-- Overall Phase 6-8 progress -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          <span style="font-size:10px;color:var(--dim);width:80px">Overall</span>
-          <div class="pbar" style="flex:1;height:8px"><div class="fill" :style="'width:'+(fineTuneStatus.progress*100)+'%;background:var(--accent)'"></div></div>
-          <span style="font-size:10px;color:var(--dim);width:32px;text-align:right" x-text="Math.round(fineTuneStatus.progress*100)+'%'"></span>
-        </div>
-        <!-- Training-specific progress (from nested trainer) -->
-        <template x-if="fineTuneStatus.trainer && fineTuneStatus.trainer.progress>0">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="font-size:10px;color:var(--dim);width:80px">Training</span>
-            <div class="pbar" style="flex:1;height:8px"><div class="fill" :style="'width:'+(fineTuneStatus.trainer.progress*100)+'%;background:var(--blue)'"></div></div>
-            <span style="font-size:10px;color:var(--dim);width:32px;text-align:right" x-text="Math.round(fineTuneStatus.trainer.progress*100)+'%'"></span>
-          </div>
-        </template>
-        <div class="grid g4">
-          <div class="card" style="text-align:center"><div class="label">Epoch</div><div class="val" style="font-size:16px" x-text="(fineTuneStatus.trainer?.current_epoch||0)+'/'+(fineTuneStatus.trainer?.total_epochs||3)"></div></div>
-          <div class="card" style="text-align:center"><div class="label">Loss</div><div class="val" style="font-size:16px;color:var(--blue)" x-text="fineTuneStatus.trainer?.loss||'-'"></div></div>
-          <div class="card" style="text-align:center"><div class="label">Tok/s</div><div class="val" style="font-size:16px" x-text="fineTuneStatus.trainer?.tokens_per_second||'-'"></div></div>
-          <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:16px" x-text="fineTuneStatus.trainer?.eta_seconds?fmtSec(fineTuneStatus.trainer.eta_seconds):'-'"></div></div>
-        </div>
-        <div style="font-size:11px;color:var(--dim);margin-top:6px;text-align:center" x-text="'Step '+(fineTuneStatus.trainer?.current_step||0)+'/'+(fineTuneStatus.trainer?.total_steps||'?')+(fineTuneStatus.trainer?.memory_mb?' | RAM: '+fineTuneStatus.trainer.memory_mb+'MB':'')"></div>
-        <canvas id="lossChart" style="max-height:150px;margin-top:12px"></canvas>
-      </div>
-    </template>
-
-    <!-- PHASE 7: MONTE CARLO -->
-    <template x-if="fineTuneStatus && fineTuneStatus.state==='phase7_monte_carlo'">
-      <div>
-        <div style="margin-bottom:8px"><span style="font-size:16px">&#127922;</span> <strong style="color:var(--purple)">PHASE 7: PYTHIA MONTE CARLO</strong></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:10px;color:var(--dim);width:80px">Overall</span>
-          <div class="pbar" style="flex:1;height:10px"><div class="fill" :style="'width:'+(fineTuneStatus.progress*100)+'%;background:var(--purple)'"></div></div>
-          <span style="font-size:11px;color:var(--dim);width:32px;text-align:right" x-text="Math.round(fineTuneStatus.progress*100)+'%'"></span>
-        </div>
-        <div style="font-size:12px;color:var(--dim);text-align:center" x-text="fineTuneStatus.stage"></div>
-      </div>
-    </template>
-
-    <!-- PHASE 8: BLENDING -->
-    <template x-if="fineTuneStatus && fineTuneStatus.state==='phase8_blending'">
-      <div>
-        <div style="margin-bottom:8px"><span style="font-size:16px">&#128256;</span> <strong style="color:var(--green)">PHASE 8: BLENDING PREDICTIONS</strong></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="font-size:10px;color:var(--dim);width:80px">Overall</span>
-          <div class="pbar" style="flex:1;height:10px"><div class="fill" :style="'width:95%;background:var(--green)'"></div></div>
-          <span style="font-size:11px;color:var(--dim);width:32px;text-align:right">95%</span>
-        </div>
-        <div style="font-size:12px;color:var(--dim);text-align:center">Blending Markov (60%) + Pythia (40%) predictions...</div>
-      </div>
-    </template>
-
-    <!-- COMPLETE -->
-    <template x-if="fineTuneStatus?.state==='complete'">
-      <div>
-        <div class="alert success" style="margin-bottom:8px"><span style="font-size:14px">&#10003;</span> <span x-text="fineTuneStatus.stage||'Fine-tune pipeline complete'"></span></div>
-        <div style="text-align:center"><button class="btn" @click="apiPost('/fine-tune/start')">Run Again</button></div>
-      </div>
-    </template>
-    <!-- ERROR -->
-    <template x-if="fineTuneStatus?.state==='error'">
-      <div class="alert error">Fine-tuning error: <span x-text="fineTuneStatus.error"></span></div>
     </template>
   </div>
 
@@ -413,7 +317,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </template>
     <template x-for="entry in pipelineLog" :key="entry.timestamp+entry.message">
       <div class="log-entry">
-        <span class="ts" x-text="entry.timestamp.substring(11,19)"></span>
+        <span class="ts" x-text="entry.timestamp.substring(11,19)+' ET'"></span>
         <span x-text="entry.message"></span>
       </div>
     </template>
@@ -635,13 +539,6 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
-        <label style="font-size:10px;color:var(--dim)">Model</label><br>
-        <select x-model="gptModel" style="width:160px">
-          <option value="markov">Markov Chain (fast)</option>
-          <option value="gpt2">Fine-Tuned GPT-2</option>
-        </select>
-      </div>
-      <div>
         <label style="font-size:10px;color:var(--dim)">Scenario</label><br>
         <select x-model="gptScenario" style="width:160px">
           <option value="rally">Rally (5000w)</option>
@@ -713,8 +610,8 @@ function app(){return{
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
-  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true, gptModel:'markov',
-  fineTuneStatus:null, lossHistory:[], lossChart:null, importStatus:null, socialStats:null, ftTrigger:null, recentPosts:[],
+  gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
+  importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -766,26 +663,13 @@ function app(){return{
   },
 
   async loadPipeline(){
-    const[tr,log,imp,ss,ftp,rp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/trigger-progress'),this.api('/social-media/recent-posts?limit=5')]);
+    const[tr,log,imp,ss,ps,rp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/pythia-status'),this.api('/social-media/recent-posts?limit=5')]);
     this.training=tr;
     this.pipelineLog=Array.isArray(log)?log:[];
-    this.fineTuneStatus=tr?.fine_tune_status||null;
     this.importStatus=imp;
     this.socialStats=ss;
-    this.ftTrigger=ftp;
+    this.pythiaStatus=ps;
     this.recentPosts=Array.isArray(rp)?rp:[];
-    if(this.fineTuneStatus&&this.fineTuneStatus.state==='phase6_training'){this.loadLossChart()}
-  },
-
-  async loadLossChart(){
-    const data=await this.api('/fine-tune/loss-history');
-    if(!data||!data.length)return;
-    this.lossHistory=data;
-    const c=document.getElementById('lossChart');if(!c)return;
-    const labels=data.map(d=>d.step);const vals=data.map(d=>d.loss);
-    if(this.lossChart)this.lossChart.destroy();
-    this.lossChart=new Chart(c,{type:'line',data:{labels,datasets:[{data:vals,borderColor:'#3498db',backgroundColor:'rgba(52,152,219,.08)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]},
-      options:{responsive:true,plugins:{legend:{display:false},title:{display:true,text:'Training Loss',color:'#888',font:{size:11}}},scales:{x:{title:{display:true,text:'Step',color:'#555'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}},y:{title:{display:true,text:'Loss',color:'#555'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}}}}});
   },
 
   async importTwitter(){
@@ -795,13 +679,6 @@ function app(){return{
   async scrapeTruth(){
     await this.apiPost('/social-media/scrape-truth');
     setTimeout(()=>this.loadPipeline(),3000);
-  },
-
-  async toggleFineTune(){
-    const newVal=!(this.ftTrigger&&this.ftTrigger.enabled);
-    await this.apiPut('/fine-tune/toggle',{enabled:newVal});
-    const ftp=await this.api('/fine-tune/trigger-progress');
-    this.ftTrigger=ftp;
   },
 
   async loadMarkets(){const d=await this.api('/markets');this.markets=Array.isArray(d)?d:[]},
@@ -821,7 +698,7 @@ function app(){return{
   async generateTrumpGPT(){
     this.gptLoading=true;this.gptOutput='';
     try{
-      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario,temperature:this.gptTemperature,qa_mode:this.gptQaMode,model:this.gptModel})});
+      const r=await fetch('/api/trumpgpt/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:this.gptPrompt,word_count:this.gptWordCount,scenario:this.gptScenario,temperature:this.gptTemperature,qa_mode:this.gptQaMode})});
       const d=await r.json();
       this.gptOutput=d.text||d.detail||'No output';
     }catch(e){this.gptOutput='Error: '+e.message}

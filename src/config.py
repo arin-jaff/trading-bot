@@ -44,17 +44,6 @@ class AppConfig(BaseModel):
     monte_carlo_simulations: int = int(os.getenv('MONTE_CARLO_SIMULATIONS', '2000'))
     retrain_interval_hours: int = int(os.getenv('RETRAIN_INTERVAL_HOURS', '6'))
 
-    # Fine-tuning (Pi-native GPT-2)
-    fine_tune_enabled: bool = os.getenv('FINE_TUNE_ENABLED', 'true').lower() == 'true'
-    fine_tune_model: str = os.getenv('FINE_TUNE_MODEL', 'EleutherAI/pythia-410m')
-    fine_tune_lora_rank: int = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
-    fine_tune_epochs: int = int(os.getenv('FINE_TUNE_EPOCHS', '3'))
-    fine_tune_max_length: int = int(os.getenv('FINE_TUNE_MAX_LENGTH', '512'))
-    fine_tune_batch_size: int = int(os.getenv('FINE_TUNE_BATCH_SIZE', '1'))
-    fine_tune_grad_accum: int = int(os.getenv('FINE_TUNE_GRAD_ACCUM', '8'))
-    fine_tune_learning_rate: float = float(os.getenv('FINE_TUNE_LR', '5e-4'))
-    fine_tune_mc_sims: int = int(os.getenv('FINE_TUNE_MC_SIMS', '200'))
-
     # App
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
     refresh_interval: int = int(os.getenv('REFRESH_INTERVAL_SECONDS', '300'))

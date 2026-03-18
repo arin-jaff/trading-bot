@@ -353,21 +353,8 @@ class TradingBot:
 
     def _send_loss_alert(self, pnl: float, reason: str,
                          details: Optional[dict] = None):
-        """Send email alert when loss protections trigger."""
-        try:
-            from ..notifications.email_notifier import email_notifier
-            titles = {
-                'daily_limit': 'Daily Loss Limit Reached',
-                'cooldown': 'Trading Cooldown Activated',
-                'drawdown': 'Drawdown Protection Triggered',
-            }
-            email_notifier.send_critical_alert(
-                titles.get(reason, 'Loss Alert'),
-                f"P&L: ${pnl:+.2f}. Auto-trading paused.",
-                details or {'daily_pnl': f"${pnl:+.2f}", 'reason': reason}
-            )
-        except Exception as e:
-            logger.debug(f"Could not send loss alert email: {e}")
+        """Log loss alert (email notifications limited to daily digest only)."""
+        logger.warning(f"Loss alert: {reason}, P&L: ${pnl:+.2f}")
 
     def manage_positions(self) -> list[dict]:
         """Active position management: profit-taking and stop-loss (3B).

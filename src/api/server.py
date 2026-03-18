@@ -4,7 +4,7 @@ import os
 import json
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -1119,99 +1119,55 @@ def get_recent_social_posts(limit: int = 5):
         ]
 
 
-# --- Fine-Tune endpoints ---
+# --- Pythia predictions (fine-tuning runs on Mac, pushed to Pi via API) ---
 
-@app.post("/api/fine-tune/start")
-def start_fine_tune(background_tasks: BackgroundTasks):
-    """Start GPT-2 fine-tuning in background."""
-    if not app_config.fine_tune_enabled:
-        return {"status": "disabled", "message": "Set FINE_TUNE_ENABLED=true to enable"}
-    if hasattr(_pipeline, 'run_fine_tune_only'):
-        result = _pipeline.run_fine_tune_only()
-        return result
-    return {"status": "error", "message": "Pipeline does not support fine-tuning"}
-
-
-@app.post("/api/fine-tune/stop")
-def stop_fine_tune():
-    """Gracefully stop fine-tuning (saves checkpoint)."""
-    if hasattr(_pipeline, 'fine_tuner') and _pipeline.fine_tuner:
-        _pipeline.fine_tuner.stop_training()
-        return {"status": "stop requested"}
-    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
-    if ft:
-        ft.stop_training()
-        return {"status": "stop requested"}
-    return {"status": "no active fine-tuning"}
+@app.get("/api/fine-tune/pythia-status")
+def get_pythia_status():
+    """Check if Pythia predictions are available on disk."""
+    pythia_path = os.path.join('data', 'predictions', 'predictions_pythia.json')
+    if os.path.exists(pythia_path):
+        mtime = os.path.getmtime(pythia_path)
+        with open(pythia_path) as f:
+            data = json.load(f)
+        return {
+            "available": True,
+            "predictions": len(data.get('term_predictions', [])),
+            "generated_at": data.get('generated_at'),
+            "last_synced": datetime.fromtimestamp(mtime).isoformat(),
+            "model": data.get('simulation_params', {}).get('model_name', 'pythia'),
+        }
+    return {"available": False}
 
 
-@app.get("/api/fine-tune/status")
-def get_fine_tune_status():
-    """Get fine-tuning progress."""
-    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
-    if ft:
-        return ft.get_status()
-    return {"state": "unavailable", "error": "Fine-tuner not available"}
+@app.post("/api/fine-tune/upload-predictions")
+async def upload_pythia_predictions(request: Request):
+    """Receive Pythia predictions JSON from Mac after fine-tuning.
 
-
-@app.get("/api/fine-tune/trigger-progress")
-def get_fine_tune_trigger_progress():
-    """Get how close we are to auto-triggering the next fine-tune cycle.
-
-    Returns new docs since last fine-tune, the threshold, and a 0-1 progress.
+    Usage from Mac:
+        curl -X POST http://<pi-ip>:8000/api/fine-tune/upload-predictions \
+             -H "Content-Type: application/json" \
+             -d @data/predictions/predictions_pythia.json
     """
-    from ..database.models import Speech
-
-    if not hasattr(_pipeline, '_last_fine_tune_corpus_size'):
-        return {"new_since_last": 0, "threshold": 50, "progress": 0.0, "enabled": False}
-
-    threshold = 50
     try:
-        from ..ml.local_pipeline import MIN_NEW_SPEECHES_FOR_FINE_TUNE
-        threshold = MIN_NEW_SPEECHES_FOR_FINE_TUNE
-    except ImportError:
-        pass
+        data = await request.json()
+        if 'term_predictions' not in data:
+            raise HTTPException(status_code=400, detail="Missing 'term_predictions' field")
 
-    with get_session() as session:
-        current_corpus = session.query(Speech).filter(
-            Speech.transcript.isnot(None),
-            Speech.is_processed == True,
-            Speech.word_count >= 50,
-        ).count()
+        pred_path = os.path.join('data', 'predictions', 'predictions_pythia.json')
+        os.makedirs(os.path.dirname(pred_path), exist_ok=True)
+        with open(pred_path, 'w') as f:
+            json.dump(data, f, indent=2)
 
-    last_ft_size = _pipeline._last_fine_tune_corpus_size
-    new_since = max(0, current_corpus - last_ft_size)
-    progress = min(1.0, new_since / threshold) if threshold > 0 else 0.0
+        n_preds = len(data.get('term_predictions', []))
+        logger.info(f"Received {n_preds} Pythia predictions from Mac")
 
-    return {
-        "new_since_last": new_since,
-        "threshold": threshold,
-        "progress": round(progress, 3),
-        "current_corpus": current_corpus,
-        "last_fine_tune_corpus": last_ft_size,
-        "enabled": app_config.fine_tune_enabled,
-    }
-
-
-class FineTuneToggle(BaseModel):
-    enabled: bool
-
-
-@app.put("/api/fine-tune/toggle")
-def toggle_fine_tune(req: FineTuneToggle):
-    """Toggle fine-tuning enabled/disabled at runtime."""
-    app_config.fine_tune_enabled = req.enabled
-    logger.info(f"Fine-tuning {'enabled' if req.enabled else 'disabled'} via API")
-    return {"enabled": app_config.fine_tune_enabled}
-
-
-@app.get("/api/fine-tune/loss-history")
-def get_fine_tune_loss_history():
-    """Get loss curve data for charting."""
-    ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
-    if ft:
-        return ft.get_loss_history()
-    return []
+        return {
+            "status": "ok",
+            "predictions_saved": n_preds,
+            "message": "Predictions will be blended on next pipeline run",
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
 
 
 # --- TrumpGPT prompt endpoint ---
@@ -1222,32 +1178,19 @@ class PromptRequest(BaseModel):
     scenario: Optional[str] = None
     temperature: float = 1.0
     qa_mode: bool = False
-    model: str = 'markov'  # 'markov' or 'gpt2'
 
 
 @app.post("/api/trumpgpt/generate")
 def generate_trumpgpt(req: PromptRequest):
-    """Generate text from TrumpGPT given a prompt or scenario."""
-    # Clamp temperature to safe range
+    """Generate text from TrumpGPT Markov chain."""
     temp = max(0.3, min(2.0, req.temperature))
 
-    if req.model == 'gpt2':
-        # Use fine-tuned GPT-2
-        ft = _pipeline._get_fine_tuner() if hasattr(_pipeline, '_get_fine_tuner') else None
-        if not ft or not ft.has_trained_model():
-            raise HTTPException(status_code=400, detail="No fine-tuned GPT-2 model available. Train one first.")
-        if req.prompt.strip():
-            text = ft.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
-        else:
-            text = ft.generate_speech(scenario_type=req.scenario or 'rally', word_count=req.word_count, temperature=temp)
+    from ..ml.markov_trainer import MarkovChainTrainer
+    trainer = MarkovChainTrainer(order=app_config.markov_order)
+    if req.prompt.strip():
+        text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
     else:
-        # Use Markov chain (default)
-        from ..ml.markov_trainer import MarkovChainTrainer
-        trainer = MarkovChainTrainer(order=app_config.markov_order)
-        if req.prompt.strip():
-            text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
-        else:
-            text = trainer.generate_speech(scenario_type=req.scenario or 'rally', word_count=req.word_count, temperature=temp)
+        text = trainer.generate_speech(scenario_type=req.scenario or 'rally', word_count=req.word_count, temperature=temp)
 
     if not text:
         raise HTTPException(status_code=500, detail="No trained model found. Run the pipeline first.")
@@ -1257,7 +1200,6 @@ def generate_trumpgpt(req: PromptRequest):
         'word_count': len(text.split()),
         'prompt': req.prompt,
         'scenario': req.scenario,
-        'model': req.model,
     }
 
 

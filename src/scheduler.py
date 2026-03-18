@@ -153,9 +153,6 @@ def create_scheduler() -> BackgroundScheduler:
         name='Manage open positions (profit-take/stop-loss)',
     )
 
-    if config.fine_tune_enabled:
-        logger.info("Fine-tuning enabled: auto-triggers when corpus grows by 50+ speeches")
-
     return scheduler
 
 
@@ -176,17 +173,6 @@ def _sync_markets(client: KalshiClient, sync: MarketSync):
                     severity='warning',
                     data={'ticker': ticker},
                 )
-            # Send email for new markets
-            try:
-                from .notifications.email_notifier import email_notifier
-                if email_notifier.enabled:
-                    email_notifier.send_critical_alert(
-                        f'{len(new_tickers)} New Kalshi Markets',
-                        f'New markets: {", ".join(new_tickers)}. Check for front-running.',
-                        {'tickers': new_tickers},
-                    )
-            except Exception:
-                pass
     except Exception as e:
         logger.error(f"Scheduled market sync failed: {e}")
 

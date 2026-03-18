@@ -84,7 +84,6 @@ def load_corpus() -> list[str]:
     with get_session() as session:
         speeches = session.query(Speech).filter(
             Speech.transcript.isnot(None),
-            Speech.is_processed == True,
             Speech.word_count >= 50,
         ).all()
         return [s.transcript for s in speeches if s.transcript]

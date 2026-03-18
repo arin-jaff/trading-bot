@@ -2,7 +2,7 @@
 
 Fully automated trading system that predicts which words/phrases Donald Trump will say in upcoming speeches, trades on those predictions via [Kalshi](https://kalshi.com) prediction markets, and continuously improves its model by scraping speeches, tweets, and Truth Social posts.
 
-Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away. Auto-imports ~56K tweets on first run, scrapes Truth Social + Twitter/X every 2 hours. Fine-tuning runs on Mac and predictions are pushed to Pi via API.
+Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away. Auto-imports ~56K tweets on first run, scrapes Truth Social + Twitter/X every 2 hours. Fine-tuning runs on Mac with a single command — the script auto-downloads the DB from the Pi and pushes predictions back via API, no SSH/SCP needed. Works from any network via Cloudflare Tunnel.
 
 ## How It Works
 
@@ -22,15 +22,16 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 │    Event tracking (30min) • Live speech monitor (1min)           │
 │                                                                   │
 │  API + Dashboard: FastAPI :8000                                  │
+│  Fine-Tune API: DB download + prediction upload (X-API-Key auth) │
 │  Database: SQLite ─────── Email: SMTP notifications              │
-└──────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌──── Kalshi ────────┐
-                    │  RSA key-pair auth │
-                    │  Market data       │
-                    │  Order execution   │
-                    └────────────────────┘
+└────────────────────────────┬─────────────────┬───────────────────┘
+                             │                 │
+                             ▼                 ▼
+                   ┌──── Kalshi ────────┐  ┌──── Mac ──────────────┐
+                   │  RSA key-pair auth │  │  GET /download-db      │
+                   │  Market data       │  │  POST /upload-pred     │
+                   │  Order execution   │  │  (any network/tunnel)  │
+                   └────────────────────┘  └────────────────────────┘
 ```
 
 ### The Core Loop
@@ -40,7 +41,7 @@ Designed to run autonomously on a Raspberry Pi 4 — plug in, fund it, walk away
 3. **Simulate** — 2,000 Monte Carlo simulated speeches across 5 scenario types (rally, press conference, chopper talk, interview, social media)
 4. **Predict** — Count term occurrences across simulations, blend with 5 other signals (historical frequency, temporal patterns, trends, event correlation, news relevance) into final probabilities
 5. **Trade** — Compare predictions to Kalshi market prices, execute trades where our edge exceeds the threshold using Kelly criterion position sizing
-6. **(Mac) Fine-tune** — Train Pythia-410M with LoRA on your Mac, push predictions to Pi via API, auto-blended with Markov results
+6. **(Mac) Fine-tune** — Single command: auto-downloads DB from Pi, trains Pythia-410M with LoRA, pushes predictions back via API, auto-blended with Markov results. Works from any network.
 
 ## Directory Structure
 
@@ -90,6 +91,11 @@ src/
 
 static/
   index.html                   # Single-page dashboard (Alpine.js + Chart.js)
+
+scripts/
+  fine_tune_mac.py             # Mac fine-tuning: auto-downloads DB, trains LoRA, pushes predictions back
+  backfill_settlements.py      # One-time: match settled markets to predictions
+  clean_html_posts.py          # One-time: strip HTML from old social media posts
 
 deploy/
   setup-pi.sh                 # One-command Raspberry Pi setup script
@@ -161,16 +167,20 @@ Or from the dashboard: **Pipeline** tab → **Import Twitter Archive** button.
 
 ### 6. (Optional) Fine-Tune on Mac
 
-For higher-quality predictions using Pythia-410M:
+For higher-quality predictions using Pythia-410M. Single command — no SSH/SCP needed:
 
 ```bash
 # On your Mac:
 make install-finetune
-scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
+
+# Auto-downloads DB from Pi, trains, pushes predictions back
 python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
+
+# Or via Cloudflare Tunnel (works from any network):
+python scripts/fine_tune_mac.py --pi-url https://trumpgpt.yourdomain.com
 ```
 
-Predictions are auto-pushed to the Pi and blended with Markov on the next pipeline run.
+Set `KALSHI_API_KEY` env var for authentication. Predictions are auto-pushed to the Pi and blended with Markov on the next pipeline run.
 
 ## Raspberry Pi Deployment
 
@@ -217,12 +227,14 @@ curl http://localhost:8000/api/system/health
 PyTorch doesn't support Raspberry Pi ARM. Fine-tuning runs on your Mac:
 
 ```bash
-# On Mac: copy DB, train, push predictions
-scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
+# Single command: downloads DB from Pi, trains, pushes predictions back
 python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
+
+# Or via Cloudflare Tunnel (any network):
+python scripts/fine_tune_mac.py --pi-url https://trumpgpt.yourdomain.com
 ```
 
-Takes ~20-30 min on Apple Silicon. Predictions are POSTed to the Pi's API automatically.
+Takes ~20-30 min on Apple Silicon. The script downloads the DB via `GET /api/fine-tune/download-db`, trains, and POSTs predictions back via `POST /api/fine-tune/upload-predictions`. Both endpoints require `KALSHI_API_KEY` for auth.
 
 ### Access
 - **Dashboard**: `http://<pi-ip>:8000`
@@ -371,6 +383,9 @@ curl -X PUT http://<pi-ip>:8000/api/trading/config \
 | POST | `/api/fine-tune/stop` | Graceful stop (saves checkpoint) |
 | GET | `/api/fine-tune/status` | Epoch, loss, ETA, tokens/sec, RAM |
 | GET | `/api/fine-tune/loss-history` | Loss curve data for charting |
+| GET | `/api/fine-tune/download-db` | Download SQLite DB for Mac fine-tuning (X-API-Key auth) |
+| POST | `/api/fine-tune/upload-predictions` | Upload Pythia predictions from Mac (X-API-Key auth) |
+| GET | `/api/fine-tune/pythia-status` | Check if Pythia predictions are available |
 
 ### Social Media Import
 | Method | Endpoint | Description |
@@ -423,6 +438,9 @@ make import-twitter   # Download + import Trump Twitter archive (~56K tweets)
 make deploy-pi        # Run Pi setup script
 make export-colab     # Export training data for Colab
 make clean            # Delete DB + caches
+
+# Fine-tuning (on Mac)
+python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000  # Auto-downloads DB, trains, pushes predictions
 
 # One-time scripts
 python scripts/clean_html_posts.py   # Strip HTML from old social media posts

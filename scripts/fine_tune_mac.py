@@ -9,6 +9,8 @@ Usage:
 
     # Or without Pi connection (use a local DB):
     python scripts/fine_tune_mac.py
+
+    python scripts/fine_tune_mac.py --pi-url https://trumpgpt.arinjaff.com
 """
 
 import json

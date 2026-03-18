@@ -6,7 +6,7 @@ A fully automated trading system that predicts which words/phrases Donald Trump 
 
 Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches + tweets + Truth Social → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
-Fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on Mac, pushes predictions to Pi via API. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
+Fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on Mac, automatically downloads the DB and pushes predictions back to Pi via API — no SSH/SCP needed. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
 
 > See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
 
@@ -31,16 +31,17 @@ Fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on Mac, pushes pr
 │    • Pythia blend ─────────── if predictions synced from Mac      │
 │                                                                   │
 │  API: FastAPI on :8000 ──── Dashboard: static HTML on :8000      │
+│  Fine-Tune API: DB download + prediction upload (X-API-Key auth) │
 │  Database: SQLite (SQLAlchemy ORM)                               │
 │  Email: SMTP notifications                                       │
-└──────────────────────────────────────────────────────┬───────────┘
-                                                       │ Kalshi API
-                                                       ▼
-                                            ┌──── Kalshi ────────┐
-                                            │  RSA key-pair auth │
-                                            │  Market data (pub) │
-                                            │  Order execution   │
-                                            └────────────────────┘
+└──────────────────────────────────────┬───────────┬───────────────┘
+                                       │ Kalshi API│ Fine-Tune API
+                                       ▼           ▼
+                            ┌──── Kalshi ────────┐  ┌──── Mac ──────────┐
+                            │  RSA key-pair auth │  │  GET /download-db  │
+                            │  Market data (pub) │  │  POST /upload-pred │
+                            │  Order execution   │  │  (any network)     │
+                            └────────────────────┘  └────────────────────┘
 ```
 
 ### Colab Mode (optional — set PIPELINE_MODE=colab)
@@ -116,8 +117,9 @@ notebooks/
   02_monte_carlo_predictor.ipynb # Monte Carlo simulation (Colab mode only)
 
 scripts/
-  backfill_settlements.py    # One-time: match settled markets to predictions, Platt calibration
-  clean_html_posts.py        # One-time: strip HTML from social media posts imported before cleaning was added
+  fine_tune_mac.py         # Mac fine-tuning: auto-downloads DB from Pi, trains LoRA, pushes predictions back
+  backfill_settlements.py  # One-time: match settled markets to predictions, Platt calibration
+  clean_html_posts.py      # One-time: strip HTML from social media posts imported before cleaning was added
 
 data/
   exports/          # Exported training data (.jsonl, .json)
@@ -137,7 +139,7 @@ tests/
 - **Speech** — scraped transcript: source, title, type, date, word_count, is_processed
 - **TermOccurrence** — join of Term+Speech: count, context_snippets (JSON)
 - **TrumpEvent** — upcoming appearance: type, location, time, is_live, topics
-- **TermPrediction** — ML prediction: probability, confidence, model_name, features_used
+- **TermPrediction** — ML prediction: probability, confidence, model_name, model_version_id (FK), features_used
 - **PriceSnapshot** — historical market prices
 - **Trade** — executed trades: side, quantity, price, pnl, strategy
 - **ModelVersion** — model iteration: version string, corpus size, training duration, metrics, is_active (model_type: `markov_chain` or `gpt2_lora`)
@@ -209,7 +211,7 @@ Post-prediction processing:
 
 After Phase 5, the pipeline checks if `data/predictions/predictions_pythia.json` exists (synced from Mac). If present, it blends Markov (60%) + Pythia (40%) predictions and re-imports to DB.
 
-**Fine-tuning runs on Mac** via `scripts/fine_tune_mac.py`. After completion, predictions are pushed to the Pi via `POST /api/fine-tune/upload-predictions`. See the Mac Fine-Tuning section below.
+**Fine-tuning runs on Mac** via `scripts/fine_tune_mac.py`. The script auto-downloads the DB from the Pi (`GET /api/fine-tune/download-db`), trains, and pushes predictions back (`POST /api/fine-tune/upload-predictions`). Works from any network — no SSH/SCP needed. See the Mac Fine-Tuning section below.
 
 Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
 
@@ -223,10 +225,18 @@ Scheduled every 6 hours (configurable via `RETRAIN_INTERVAL_HOURS`).
 - Runs on Mac (Apple Silicon or Intel) — ~1 hour on M-series, ~2-3 hours on Intel
 - Configurable via `FINE_TUNE_MODEL` env var (also supports `EleutherAI/pythia-410m`, `gpt2`, etc.)
 
-**Workflow:**
-1. `scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db`
-2. `python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000`
-3. Script trains, runs Monte Carlo, and POSTs predictions to Pi automatically
+**Workflow (single command, works from any network):**
+```bash
+python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
+```
+
+This single command:
+1. Downloads the latest DB from the Pi via `GET /api/fine-tune/download-db` (authenticated with `KALSHI_API_KEY`)
+2. Trains the LoRA adapter on the speech corpus
+3. Runs Monte Carlo simulations to generate predictions
+4. POSTs `predictions_pythia.json` back to the Pi via `POST /api/fine-tune/upload-predictions`
+
+No SSH or SCP required — the Pi serves the DB over HTTP and accepts predictions back over HTTP. Works from any network as long as the Pi's port 8000 is reachable (use Tailscale or Cloudflare Tunnel for remote access).
 
 **Architecture auto-detection** via `_detect_lora_targets()` — supports GPT-2, Pythia/GPT-NeoX, Llama, OPT, etc. Change model with `FINE_TUNE_MODEL` env var.
 
@@ -347,11 +357,12 @@ make gui
 # 1. Install fine-tuning deps on your Mac
 make install-finetune
 
-# 2. Copy latest DB from Pi
-scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
-
-# 3. Fine-tune + auto-push predictions to Pi
+# 2. Fine-tune (auto-downloads DB from Pi, trains, pushes predictions back)
+#    Set KALSHI_API_KEY env var for authentication
 python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
+
+# Or without Pi connection (use a local DB you already have):
+python scripts/fine_tune_mac.py
 ```
 
 ### Raspberry Pi Deployment
@@ -449,7 +460,7 @@ All endpoints prefixed with `/api/`:
 **Colab:** `GET /colab/predictions`, `POST /colab/import`, `POST /colab/save-to-db`, `GET /colab/discovered-phrases`
 **Pipeline:** `GET /pipeline/status`, `GET /pipeline/training-status`, `GET /pipeline/log`, `POST /pipeline/run`, `POST /pipeline/export-upload`, `POST /pipeline/trigger-training`, `POST /pipeline/poll`
 **Social Media:** `POST /social-media/import-twitter`, `POST /social-media/scrape-truth`, `GET /social-media/import-status`, `GET /social-media/stats`, `GET /social-media/recent-posts`
-**Pythia:** `GET /fine-tune/pythia-status`, `POST /fine-tune/upload-predictions`
+**Pythia/Fine-Tune:** `GET /fine-tune/pythia-status`, `POST /fine-tune/upload-predictions`, `GET /fine-tune/download-db`
 **TrumpGPT:** `POST /trumpgpt/generate`
 **Drive:** `GET /drive/status`, `POST /drive/upload`, `POST /drive/download-predictions` (disabled in local mode)
 **Live Monitor:** `POST /live/start`, `POST /live/stop`, `GET /live/status`
@@ -497,13 +508,16 @@ All endpoints prefixed with `/api/`:
 │                    ↓                                     │  │
 │          Kalshi API → Trade table                        │  │
 └──────────────────────────────────────────────────────────┘  │
-                                                              │
-┌─── MAC (fine-tuning) ──────────────────────────────────┐   │
-│                                                         │   │
-│  scp DB from Pi → fine_tune_mac.py                     │   │
-│    → Pythia-410M LoRA fine-tune                        │   │
-│    → Monte Carlo (200 sims)                            │   │
-│    → POST predictions_pythia.json to Pi API ───────────┼───┘
+                         ↑ GET /fine-tune/download-db          │
+                         │ (X-API-Key auth, any network)       │
+┌─── MAC (fine-tuning) ─┼───────────────────────────────┐    │
+│                        │                               │    │
+│  HTTP download DB from Pi API                          │    │
+│    → fine_tune_mac.py                                  │    │
+│    → Pythia-410M LoRA fine-tune                        │    │
+│    → Monte Carlo (200 sims)                            │    │
+│    → POST predictions_pythia.json to Pi API ───────────┼────┘
+│      (POST /fine-tune/upload-predictions)              │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```

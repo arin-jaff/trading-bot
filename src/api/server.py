@@ -1184,6 +1184,31 @@ async def upload_pythia_predictions(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
 
+@app.get("/api/fine-tune/download-db")
+def download_db(request: Request):
+    """Download the SQLite database for fine-tuning on Mac.
+
+    Requires X-API-Key header matching KALSHI_API_KEY for basic auth.
+
+    Usage from Mac:
+        curl -H "X-API-Key: <key>" http://<pi-ip>:8000/api/fine-tune/download-db -o data/trading_bot.db
+    """
+    api_key = request.headers.get('X-API-Key', '')
+    expected = app_config.kalshi_api_key
+    if expected and api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    db_path = os.path.join('data', 'trading_bot.db')
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    return FileResponse(
+        db_path,
+        media_type='application/octet-stream',
+        filename='trading_bot.db',
+    )
+
+
 # --- TrumpGPT prompt endpoint ---
 
 class PromptRequest(BaseModel):

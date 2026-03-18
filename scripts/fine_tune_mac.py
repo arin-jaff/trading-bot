@@ -4,13 +4,10 @@ Runs the full Pythia-410M LoRA fine-tuning pipeline locally on your Mac,
 then pushes predictions to the Pi via API.
 
 Usage:
-    # 1. Copy the latest DB from Pi (get the latest corpus)
-    scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db
-
-    # 2. Run fine-tuning (auto-pushes to Pi when done)
+    # Fully automated: downloads DB from Pi, trains, pushes predictions back
     python scripts/fine_tune_mac.py --pi-url http://<pi-ip>:8000
 
-    # Or without auto-push (manual scp later):
+    # Or without Pi connection (use a local DB):
     python scripts/fine_tune_mac.py
 """
 
@@ -317,6 +314,36 @@ def run_monte_carlo(terms: list[str], adapter_path: str) -> dict:
     }
 
 
+def pull_db_from_pi(pi_url: str) -> bool:
+    """Download the latest DB from the Pi via its API."""
+    import requests as req
+
+    download_url = f'{pi_url.rstrip("/")}/api/fine-tune/download-db'
+    api_key = os.getenv('KALSHI_API_KEY', '')
+    db_path = os.path.join('data', 'trading_bot.db')
+    print(f"\nDownloading DB from Pi at {download_url}...")
+
+    try:
+        headers = {}
+        if api_key:
+            headers['X-API-Key'] = api_key
+        resp = req.get(download_url, headers=headers, timeout=120, stream=True)
+        if resp.status_code == 200:
+            os.makedirs('data', exist_ok=True)
+            with open(db_path, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            size_mb = os.path.getsize(db_path) / (1024 * 1024)
+            print(f"  DB downloaded: {size_mb:.1f} MB → {db_path}")
+            return True
+        else:
+            print(f"  Download failed: {resp.status_code} — {resp.text}")
+            return False
+    except Exception as e:
+        print(f"  Download failed: {e}")
+        return False
+
+
 def push_to_pi(pred_path: str, pi_url: str) -> bool:
     """Push predictions to the Pi via its API."""
     import requests as req
@@ -351,14 +378,18 @@ def main():
                         help='Pi API URL (e.g. http://192.168.0.100:8000). Auto-pushes predictions when set.')
     args = parser.parse_args()
 
+    # Pull DB from Pi if --pi-url is set
+    if args.pi_url:
+        if not pull_db_from_pi(args.pi_url):
+            print("WARNING: Could not download DB from Pi, using local copy")
+
     init_db()
 
     # Load corpus
     print("Loading corpus from DB...")
     corpus = load_corpus()
     if not corpus:
-        print("ERROR: No training texts found. Copy the DB from Pi first:")
-        print("  scp arin@<pi-ip>:~/trading-bot/data/trading_bot.db data/trading_bot.db")
+        print("ERROR: No training texts found. Run with --pi-url or copy DB manually.")
         sys.exit(1)
     print(f"  {len(corpus)} texts loaded")
 

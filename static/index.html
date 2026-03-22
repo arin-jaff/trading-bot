@@ -3,75 +3,133 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TrumpGPT</title>
+<title>TrumpGPT — Making Predictions Great Again</title>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
-:root { --bg:#0e1117; --bg2:#1a1d24; --bg3:#262a33; --text:#e0e0e0; --dim:#888; --accent:#d4af37; --green:#2ecc71; --red:#e74c3c; --blue:#3498db; --purple:#9b59b6; --border:#333; }
+:root { --bg:#0A1628; --bg2:#0F1F3D; --bg3:#162A50; --text:#FFFFFF; --dim:#8899BB; --accent:#FF3B3B; --green:#2ecc71; --red:#FF3B3B; --blue:#3B82F6; --white:#FFFFFF; --gold:#FFD700; --border:#1E3A6E; --navy:#0A1628; --star:#FFD700; }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Courier New',monospace;background:var(--bg);color:var(--text);font-size:13px}
-a{color:var(--accent);text-decoration:none}
-nav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;overflow-x:auto;position:sticky;top:0;z-index:100}
-nav .logo{color:var(--accent);font-weight:bold;font-size:15px;padding:12px 16px 12px 0;white-space:nowrap;border-right:1px solid var(--border);margin-right:4px;letter-spacing:2px}
-nav .tab{padding:12px 12px;cursor:pointer;color:var(--dim);font-size:11px;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s}
-nav .tab:hover{color:var(--text)}
-nav .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-nav .status{margin-left:auto;padding:12px;font-size:11px;display:flex;align-items:center;gap:6px}
+body{font-family:'Georgia','Times New Roman',serif;background:var(--bg);color:var(--text);font-size:13px;
+  background-image:
+    radial-gradient(circle at 20% 50%, rgba(59,130,246,.06) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255,59,59,.06) 0%, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(255,215,0,.03) 0%, transparent 50%);
+}
+a{color:var(--gold);text-decoration:none}
+
+/* Stars background */
+body::before{
+  content:'';position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(2px 2px at 10% 15%, var(--star) 50%, transparent 50%),
+    radial-gradient(2px 2px at 25% 35%, var(--star) 50%, transparent 50%),
+    radial-gradient(1px 1px at 40% 10%, var(--star) 50%, transparent 50%),
+    radial-gradient(2px 2px at 55% 45%, var(--star) 50%, transparent 50%),
+    radial-gradient(1px 1px at 70% 20%, var(--star) 50%, transparent 50%),
+    radial-gradient(2px 2px at 85% 40%, var(--star) 50%, transparent 50%),
+    radial-gradient(1px 1px at 95% 8%, var(--star) 50%, transparent 50%),
+    radial-gradient(2px 2px at 15% 80%, var(--star) 50%, transparent 50%),
+    radial-gradient(1px 1px at 60% 75%, var(--star) 50%, transparent 50%),
+    radial-gradient(2px 2px at 90% 85%, var(--star) 50%, transparent 50%);
+  opacity:.15;
+}
+
+/* Red-white-blue stripe accent at top */
+nav{position:sticky;top:0;z-index:100;
+  background:linear-gradient(180deg, #B31942 0%, #B31942 33%, #FFFFFF 33%, #FFFFFF 66%, #002868 66%, #002868 100%);
+  padding:0;display:flex;flex-direction:column;
+}
+nav .stripe-bar{display:flex;align-items:center;padding:0 16px;background:var(--bg2);border-bottom:3px solid var(--gold)}
+nav .logo{color:var(--gold);font-weight:bold;font-size:18px;padding:14px 16px 14px 0;white-space:nowrap;border-right:2px solid var(--gold);margin-right:8px;letter-spacing:3px;font-family:'Georgia',serif;text-shadow:0 0 20px rgba(255,215,0,.3)}
+nav .logo .flag{margin-right:8px}
+nav .tab{padding:14px 14px;cursor:pointer;color:var(--dim);font-size:11px;white-space:nowrap;border-bottom:3px solid transparent;transition:all .2s;text-transform:uppercase;letter-spacing:1px;font-weight:bold}
+nav .tab:hover{color:var(--white)}
+nav .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+nav .status{margin-left:auto;padding:14px;font-size:11px;display:flex;align-items:center;gap:6px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%}
-.dot.on{background:var(--green);box-shadow:0 0 6px var(--green)} .dot.off{background:var(--red)}
-.container{max-width:1100px;margin:0 auto;padding:20px}
+.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)} .dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
+.container{max-width:1100px;margin:0 auto;padding:20px;position:relative;z-index:1}
 .section{display:none} .section.active{display:block}
-h1{font-size:22px;color:var(--accent);margin-bottom:4px}
-h2{font-size:16px;color:var(--text);margin:20px 0 8px}
+h1{font-size:26px;color:var(--gold);margin-bottom:4px;text-shadow:0 0 30px rgba(255,215,0,.2);font-family:'Georgia',serif}
+h2{font-size:16px;color:var(--white);margin:20px 0 8px;text-transform:uppercase;letter-spacing:1px}
 h3{font-size:13px;color:var(--dim);margin:12px 0 6px}
 .sub{color:var(--dim);font-size:11px;margin-bottom:14px}
 .grid{display:grid;gap:10px} .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr} .g4{grid-template-columns:1fr 1fr 1fr 1fr}
 @media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .card .label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
 .card .val{font-size:22px;font-weight:bold;margin-top:2px}
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:6px 8px;color:var(--dim);border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+th{text-align:left;padding:6px 8px;color:var(--gold);border-bottom:2px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:1px}
 td{padding:6px 8px;border-bottom:1px solid var(--bg3)}
 tr:hover{background:var(--bg3)}
-.btn{padding:6px 14px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text);cursor:pointer;font-family:inherit;font-size:11px;transition:all .2s}
-.btn:hover{border-color:var(--accent);color:var(--accent)}
-.btn.primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:bold}
-.btn.primary:hover{background:#c4a030}
+.btn{padding:8px 18px;border:2px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s;font-weight:bold;text-transform:uppercase;letter-spacing:1px}
+.btn:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.2)}
+.btn.primary{background:linear-gradient(135deg,#B31942,#FF3B3B);color:var(--white);border-color:#FF3B3B;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.btn.primary:hover{background:linear-gradient(135deg,#D4214F,#FF5555);box-shadow:0 0 20px rgba(255,59,59,.4)}
+.btn.blue{background:linear-gradient(135deg,#002868,#3B82F6);color:var(--white);border-color:#3B82F6}
+.btn.blue:hover{box-shadow:0 0 20px rgba(59,130,246,.4)}
+.btn.gold{background:linear-gradient(135deg,#B8860B,#FFD700);color:#0A1628;border-color:#FFD700}
+.btn.gold:hover{box-shadow:0 0 20px rgba(255,215,0,.4)}
 .pbar{background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;margin:6px 0}
 .pbar .fill{height:100%;border-radius:4px;transition:width .5s}
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;text-transform:uppercase}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;text-transform:uppercase;font-weight:bold}
 .badge.active{background:rgba(46,204,113,.2);color:var(--green)} .badge.yes{background:rgba(46,204,113,.2);color:var(--green)}
-.badge.no{background:rgba(231,76,60,.2);color:var(--red)} .badge.closed{background:rgba(136,136,136,.2);color:var(--dim)}
-.badge.paper{background:rgba(212,175,55,.2);color:var(--accent)}
-.alert{padding:10px 14px;border-radius:4px;margin:8px 0;font-size:12px}
+.badge.no{background:rgba(255,59,59,.2);color:var(--red)} .badge.closed{background:rgba(136,136,136,.2);color:var(--dim)}
+.badge.paper{background:rgba(255,215,0,.2);color:var(--gold)}
+.alert{padding:10px 14px;border-radius:6px;margin:8px 0;font-size:12px}
 .alert.success{background:rgba(46,204,113,.12);border:1px solid var(--green);color:var(--green)}
-.alert.error{background:rgba(231,76,60,.12);border:1px solid var(--red);color:var(--red)}
-.alert.info{background:rgba(52,152,219,.12);border:1px solid var(--blue);color:var(--blue)}
-.alert.warning{background:rgba(212,175,55,.12);border:1px solid var(--accent);color:var(--accent)}
-.ascii{font-size:5px;line-height:5.5px;color:var(--accent);opacity:.5;white-space:pre;text-align:center}
-.log-entry{padding:4px 8px;font-size:11px;border-left:2px solid var(--border);margin:2px 0;color:var(--dim)}
-.log-entry .ts{color:var(--accent);margin-right:8px}
+.alert.error{background:rgba(255,59,59,.12);border:1px solid var(--red);color:var(--red)}
+.alert.info{background:rgba(59,130,246,.12);border:1px solid var(--blue);color:var(--blue)}
+.alert.warning{background:rgba(255,215,0,.12);border:1px solid var(--gold);color:var(--gold)}
+.log-entry{padding:4px 8px;font-size:11px;border-left:3px solid var(--gold);margin:2px 0;color:var(--dim)}
+.log-entry .ts{color:var(--gold);margin-right:8px}
 input[type="number"],select{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-family:inherit;font-size:12px;width:80px}
-.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .idle-art{text-align:center;padding:30px;color:var(--dim)}
 .idle-art .emoji{font-size:40px;margin-bottom:10px}
-.idle-art .quip{font-size:14px;font-style:italic;color:var(--accent)}
+.idle-art .quip{font-size:14px;font-style:italic;color:var(--gold)}
+
+/* Patriotic decorative elements */
+.trump-img{border-radius:8px;border:3px solid var(--gold);box-shadow:0 4px 20px rgba(255,215,0,.2);opacity:.9;transition:all .3s}
+.trump-img:hover{opacity:1;box-shadow:0 4px 30px rgba(255,215,0,.4);transform:scale(1.02)}
+.seal-watermark{position:fixed;bottom:20px;right:20px;width:120px;height:120px;opacity:.04;pointer-events:none;z-index:0}
+.stars-divider{text-align:center;color:var(--gold);font-size:10px;letter-spacing:8px;margin:16px 0;opacity:.5}
+
+/* Command Center */
+.command-center{background:linear-gradient(135deg, var(--bg2), var(--bg3));border:2px solid var(--gold);border-radius:12px;padding:20px;margin-bottom:20px;position:relative;overflow:hidden}
+.command-center::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#B31942,#FFFFFF,#002868)}
+.command-center h2{color:var(--gold);margin:0 0 4px;font-size:18px}
+.command-center .sub{margin-bottom:16px}
+.command-center .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch}
+.command-center .action-card{flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.command-center .action-card h3{color:var(--white);margin:0;font-size:14px}
+.command-center .action-card p{color:var(--dim);font-size:11px;line-height:1.5;flex:1;margin:0}
+.command-center .action-card .time{color:var(--gold);font-size:11px;font-weight:bold}
+
+/* Floating decorative images */
+.decor-img{position:absolute;opacity:.08;pointer-events:none;z-index:0}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
 
+<!-- Great Seal watermark -->
+<img src="images/great-seal.svg" class="seal-watermark" alt="">
+
 <nav>
-  <div class="logo">TRUMPGPT</div>
-  <template x-for="t in tabs" :key="t.id">
-    <div class="tab" :class="{active:tab===t.id}" @click="tab=t.id;loadTab()" x-text="t.label"></div>
-  </template>
-  <div class="status">
-    <span class="dot" :class="health?'on':'off'"></span>
-    <span x-text="health?'Online':'Offline'"></span>
-    <template x-if="botCfg.paper_mode"><span class="badge paper" style="margin-left:6px">PAPER</span></template>
-    <template x-if="botCfg.auto_trade && !botCfg.paper_mode"><span class="badge active" style="margin-left:6px">LIVE</span></template>
+  <div class="stripe-bar">
+    <div class="logo"><span class="flag">&#127482;&#127480;</span> TRUMPGPT</div>
+    <template x-for="t in tabs" :key="t.id">
+      <div class="tab" :class="{active:tab===t.id}" @click="tab=t.id;loadTab()" x-text="t.label"></div>
+    </template>
+    <div class="status">
+      <span class="dot" :class="health?'on':'off'"></span>
+      <span x-text="health?'ONLINE':'OFFLINE'" style="font-weight:bold;letter-spacing:1px"></span>
+      <template x-if="botCfg.paper_mode"><span class="badge paper" style="margin-left:6px">PAPER</span></template>
+      <template x-if="botCfg.auto_trade && !botCfg.paper_mode"><span class="badge active" style="margin-left:6px">LIVE</span></template>
+    </div>
   </div>
 </nav>
 
@@ -79,82 +137,58 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ HOME ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='home'}">
-  <div style="display:flex;align-items:flex-start;gap:20px;margin-bottom:8px">
+  <div style="display:flex;align-items:flex-start;gap:24px;margin-bottom:14px">
     <div style="flex:1">
-      <h1>TrumpGPT Trading Bot</h1>
+      <h1>&#127482;&#127480; TrumpGPT Trading Bot &#127482;&#127480;</h1>
       <div class="sub" x-text="modelMethod+(modelVer?' | v'+modelVer:'')"></div>
-      <p style="color:var(--dim);font-size:12px;line-height:1.6;margin-bottom:12px">
-        Fully autonomous prediction market bot running on Raspberry Pi. Scrapes Trump speeches,
-        tweets, and Truth Social posts, trains a Markov chain + fine-tunes Pythia-160M with LoRA nightly,
-        runs Monte Carlo simulations to predict which words he'll say, and trades on
+      <p style="color:var(--dim);font-size:12px;line-height:1.8;margin-bottom:12px">
+        <strong style="color:var(--gold)">The most tremendous prediction bot ever built.</strong> Fully autonomous on Raspberry Pi.
+        Scrapes Trump speeches, tweets, and Truth Social posts. Trains a Markov chain + fine-tunes Pythia-160M with LoRA nightly.
+        Runs Monte Carlo simulations to predict which words he'll say, then trades on
         <a href="https://kalshi.com" target="_blank">Kalshi</a> when it finds an edge.
-        Zero intervention — completely self-managing.
+        <strong style="color:var(--white)">Zero intervention — completely self-managing. Believe me.</strong>
       </p>
       <div style="font-size:11px;color:var(--dim);line-height:1.8">
-        <strong style="color:var(--text)">Navigate:</strong>
-        <strong style="color:var(--accent)">Pipeline</strong> to watch training + fine-tuning live &bull;
-        <strong style="color:var(--accent)">Markets</strong> for Kalshi data &bull;
-        <strong style="color:var(--accent)">Predictions</strong> for model output &bull;
-        <strong style="color:var(--accent)">Trading</strong> to configure the bot &bull;
-        <strong style="color:var(--accent)">TrumpGPT</strong> to generate text with Markov or Pythia
+        <strong style="color:var(--white)">&#9733; Navigate:</strong>
+        <strong style="color:var(--gold)">Pipeline</strong> to watch training + fine-tuning live &bull;
+        <strong style="color:var(--gold)">Markets</strong> for Kalshi data &bull;
+        <strong style="color:var(--gold)">Predictions</strong> for model output &bull;
+        <strong style="color:var(--gold)">Trading</strong> to configure the bot &bull;
+        <strong style="color:var(--gold)">TrumpGPT</strong> to generate text
       </div>
     </div>
-    <pre class="ascii">                     ..... ..... ....
-                    .%%%%%%%%%%%%%%%%@%.
-                 .#%%%%%%%%%%%%%%%%%%%%%%%*.
-                .%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
-               .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
-              .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%:
-              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@......
-             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+.
-           .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
-          .%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.
-           .@%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%-.
-            +%%.-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%..
-         .%%%%%%#..+%%%%%%%%%%%%%%%%%%%%%%%%%%..
-      .#%%%%%%%%%%=...@%%%%%%%%%%%%%%%%%%%%%%.
-   ..@%%%%%%%%%%%%%%.   +@%%%%%%%%%%%%%%%%%%%.
-  .%%%%%%%%%%%%%%%%%%%.  .:%%%%%%%%%%%%%%%%%%.
-.%%%%%%%%%%%%%%%%%%%%%%%   .+%%%%%%%%%%%%%#.
-%%%%%%%%%%%%%%%%%%%%%%%%%.   .%%%%%%@*..
-%%%%%%%%%%%%%%%%%%%%%%%%%%..  .@%%: .
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%.   *@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@  :%%.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%+.%%%.
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@...
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%=
-.............................................
-</pre>
+    <img src="images/trump-portrait.jpg" alt="Donald J. Trump" class="trump-img" style="width:140px;height:auto">
   </div>
+
+  <div class="stars-divider">&#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733;</div>
 
   <!-- PORTFOLIO CHART -->
   <div class="card" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0;color:var(--text)">Portfolio Value</h3>
-      <span :class="(tradeSummary.total_pnl||0)>=0?'':''" :style="'font-size:18px;font-weight:bold;color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span>
+      <h3 style="margin:0;color:var(--white)">&#128176; Portfolio Value</h3>
+      <span :style="'font-size:18px;font-weight:bold;color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span>
     </div>
     <canvas id="portfolioChart" height="140"></canvas>
   </div>
 
   <!-- QUICK STATS -->
   <div class="grid g4" style="margin-bottom:14px">
-    <div class="card"><div class="label">Markets</div><div class="val" x-text="homeData.markets||0"></div></div>
-    <div class="card"><div class="label">Predictions</div><div class="val" x-text="homeData.predictions||0"></div></div>
-    <div class="card"><div class="label">Speeches</div><div class="val" x-text="homeData.speeches||0"></div></div>
-    <div class="card"><div class="label">Model</div><div class="val" style="font-size:16px;color:var(--accent)" x-text="modelVer?'v'+modelVer:'untrained'"></div></div>
+    <div class="card" style="border-top:3px solid #B31942"><div class="label">Markets</div><div class="val" x-text="homeData.markets||0"></div></div>
+    <div class="card" style="border-top:3px solid var(--white)"><div class="label">Predictions</div><div class="val" x-text="homeData.predictions||0"></div></div>
+    <div class="card" style="border-top:3px solid #002868"><div class="label">Speeches</div><div class="val" x-text="homeData.speeches||0"></div></div>
+    <div class="card" style="border-top:3px solid var(--gold)"><div class="label">Model</div><div class="val" style="font-size:16px;color:var(--gold)" x-text="modelVer?'v'+modelVer:'untrained'"></div></div>
   </div>
 
   <!-- TOP SUGGESTIONS -->
   <template x-if="suggestions.length>0">
     <div>
-      <h2>Top Trade Signals</h2>
+      <h2>&#128200; Top Trade Signals</h2>
       <table>
         <thead><tr><th>Term</th><th>Side</th><th>Edge</th><th>Our Prob</th><th>Market</th><th>Confidence</th></tr></thead>
         <tbody>
           <template x-for="s in suggestions.slice(0,8)" :key="s.market_ticker+s.term">
             <tr>
-              <td style="color:var(--accent)" x-text="s.term"></td>
+              <td style="color:var(--gold)" x-text="s.term"></td>
               <td><span class="badge" :class="s.suggested_side==='yes'?'yes':'no'" x-text="s.suggested_side.toUpperCase()"></span></td>
               <td :style="'color:'+(s.edge>0?'var(--green)':'var(--red)')" x-text="(s.edge*100).toFixed(1)+'%'"></td>
               <td x-text="(s.our_probability*100).toFixed(1)+'%'"></td>
@@ -166,44 +200,69 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       </table>
     </div>
   </template>
+
+  <div class="stars-divider" style="margin-top:20px">&#9733; &#9733; &#9733; MAKE PREDICTIONS GREAT AGAIN &#9733; &#9733; &#9733;</div>
 </div>
 
 <!-- ════════════════════════════════ PIPELINE ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='pipeline'}">
-  <h1>Pipeline Status</h1>
-  <div class="sub">TrumpGPT training and simulation engine</div>
+  <h1>&#9881; Pipeline Command Center</h1>
+  <div class="sub">TrumpGPT training, fine-tuning, and simulation engine</div>
+
+  <!-- COMMAND CENTER -->
+  <div class="command-center">
+    <h2>&#127482;&#127480; Mission Control</h2>
+    <div class="sub">Launch pipeline operations. Each button triggers a different level of the prediction engine.</div>
+    <div class="actions">
+      <div class="action-card">
+        <h3>&#9889; Quick Pipeline</h3>
+        <p>Markov chain training + 2,000 Monte Carlo simulations. Fast predictions in ~35 seconds.</p>
+        <div class="time">~35 seconds</div>
+        <button class="btn primary" @click="apiPost('/pipeline/run')" style="width:100%">Run Pipeline</button>
+      </div>
+      <div class="action-card">
+        <h3>&#129504; Fine-Tune Only</h3>
+        <p>Train Pythia-160M with LoRA on the Pi. Generates 200 LLM-based Monte Carlo sims.</p>
+        <div class="time">~75 minutes</div>
+        <button class="btn blue" @click="apiPost('/fine-tune/start')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">Start Fine-Tune</button>
+      </div>
+      <div class="action-card" style="border-color:var(--gold)">
+        <h3>&#128640; Full Pipeline</h3>
+        <p><strong style="color:var(--gold)">THE BIG ONE.</strong> Fine-tunes the model, THEN runs the full Markov pipeline with Pythia blending. Maximum prediction power.</p>
+        <div class="time">~80 minutes total</div>
+        <button class="btn gold" @click="apiPost('/pipeline/full')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">&#128640; Launch Full Pipeline</button>
+      </div>
+    </div>
+  </div>
 
   <!-- IDLE STATE -->
   <template x-if="!training || training.state==='idle'">
     <div>
       <div class="idle-art">
-        <div style="font-size:48px">&#9971;</div>
+        <div style="font-size:48px">&#127482;&#127480;</div>
         <div class="quip" x-text="idleQuips[Math.floor(Date.now()/60000)%idleQuips.length]"></div>
         <div style="margin-top:12px;font-size:12px;color:var(--dim)">Pipeline is idle. Next run is scheduled automatically.</div>
-      </div>
-      <div style="text-align:center;margin:16px 0">
-        <button class="btn primary" @click="apiPost('/pipeline/run')">Run Pipeline Now</button>
       </div>
     </div>
   </template>
 
   <!-- RUNNING STATE -->
   <template x-if="training && training.state==='running'">
-    <div class="card" style="border-color:var(--accent);margin-bottom:16px">
+    <div class="card" style="border-color:var(--gold);margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
           <span style="font-size:16px">&#9881;</span>
-          <strong style="color:var(--accent);margin-left:6px">TRAINING</strong>
+          <strong style="color:var(--gold);margin-left:6px">TRAINING IN PROGRESS</strong>
         </div>
         <span class="badge active" x-text="training.stage||'Starting...'"></span>
       </div>
       <div class="pbar" style="height:10px;margin:14px 0">
-        <div class="fill" :style="'width:'+((training.progress||0)*100)+'%;background:var(--accent)'"></div>
+        <div class="fill" :style="'width:'+((training.progress||0)*100)+'%;background:linear-gradient(90deg,#B31942,#FFD700)'"></div>
       </div>
       <div class="grid g3">
         <div class="card" style="text-align:center"><div class="label">Elapsed</div><div class="val" style="font-size:18px" x-text="fmtSec(training.elapsed_seconds)"></div></div>
         <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:18px" x-text="training.eta_seconds>0?fmtSec(training.eta_seconds):'...'"></div></div>
-        <div class="card" style="text-align:center"><div class="label">Progress</div><div class="val" style="font-size:18px;color:var(--accent)" x-text="Math.round((training.progress||0)*100)+'%'"></div></div>
+        <div class="card" style="text-align:center"><div class="label">Progress</div><div class="val" style="font-size:18px;color:var(--gold)" x-text="Math.round((training.progress||0)*100)+'%'"></div></div>
       </div>
       <template x-if="training.trainer && training.trainer.current_simulation">
         <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--dim)" x-text="'Simulation '+training.trainer.current_simulation+'/'+training.trainer.total_simulations"></div>
@@ -215,7 +274,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   <template x-if="training && training.state==='complete'">
     <div class="alert success" style="font-size:14px">
       <span style="font-size:18px">&#10003;</span>
-      <strong x-text="' TrumpGPT v'+(training.current_version||'?')+' trained successfully'"></strong>
+      <strong x-text="' TrumpGPT v'+(training.current_version||'?')+' trained successfully — WINNING!'"></strong>
       <span style="margin-left:8px" x-text="training.completed_at?(training.completed_at).substring(0,16):''"></span>
     </div>
   </template>
@@ -225,56 +284,57 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     <div class="alert error"><strong>Pipeline Error:</strong> <span x-text="training.error"></span></div>
   </template>
 
+  <div class="stars-divider">&#9733; &#9733; &#9733; &#9733; &#9733;</div>
+
   <!-- SCHEDULE -->
-  <h2>Scheduled Jobs</h2>
+  <h2>&#128197; Scheduled Jobs</h2>
   <div class="card" style="margin-bottom:14px">
     <table>
       <thead><tr><th>Job</th><th>Interval</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--accent)">Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (35s)</td></tr>
-        <tr><td style="color:var(--accent)">Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~75 min) + MC sims</td></tr>
-        <tr><td style="color:var(--accent)">Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
-        <tr><td style="color:var(--accent)">Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
-        <tr><td style="color:var(--accent)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
-        <tr><td style="color:var(--accent)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for new transcripts</td></tr>
-        <tr><td style="color:var(--accent)">Social Media</td><td>Every 30m</td><td>Scrape Truth Social + Twitter (primary source)</td></tr>
-        <tr><td style="color:var(--accent)">Social Analysis</td><td>Every 30m</td><td>TF-IDF trending term extraction</td></tr>
-        <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
-        <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
-        <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
-        <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM ET</td><td>Email P&L + system health summary</td></tr>
+        <tr><td style="color:var(--gold)">&#128640; Full Pipeline</td><td>On demand</td><td>Fine-tune + Markov + blend (the big one)</td></tr>
+        <tr><td style="color:var(--gold)">&#9881; Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (35s)</td></tr>
+        <tr><td style="color:var(--gold)">&#129504; Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~75 min)</td></tr>
+        <tr><td style="color:var(--gold)">&#128202; Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
+        <tr><td style="color:var(--gold)">&#127919; Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
+        <tr><td style="color:var(--gold)">&#128176; Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
+        <tr><td style="color:var(--gold)">&#127908; Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for transcripts</td></tr>
+        <tr><td style="color:var(--gold)">&#128242; Social Media</td><td>Every 30m</td><td>Scrape Truth Social + Twitter (primary source)</td></tr>
+        <tr><td style="color:var(--gold)">&#128200; Social Analysis</td><td>Every 30m</td><td>TF-IDF trending term extraction</td></tr>
+        <tr><td style="color:var(--gold)">&#128240; News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
+        <tr><td style="color:var(--gold)">&#128178; Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
+        <tr><td style="color:var(--gold)">&#128197; Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
+        <tr><td style="color:var(--gold)">&#128231; Daily Digest</td><td>8 AM ET</td><td>Email P&L + system health summary</td></tr>
       </tbody>
     </table>
   </div>
 
   <!-- SOCIAL MEDIA CORPUS -->
-  <h2>Social Media Corpus</h2>
+  <h2>&#128242; Social Media Corpus</h2>
   <div class="card" style="margin-bottom:14px">
     <div class="grid g4" style="margin-bottom:12px">
-      <div class="card" style="text-align:center"><div class="label">Tweets</div><div class="val" style="font-size:18px" x-text="socialStats?.tweets||0"></div></div>
-      <div class="card" style="text-align:center"><div class="label">Truth Social</div><div class="val" style="font-size:18px" x-text="socialStats?.truth_social||0"></div></div>
-      <div class="card" style="text-align:center"><div class="label">Daily Digests</div><div class="val" style="font-size:18px" x-text="socialStats?.daily_digests||0"></div></div>
-      <div class="card" style="text-align:center"><div class="label">Digest Words</div><div class="val" style="font-size:18px" x-text="(socialStats?.total_digest_words||0).toLocaleString()"></div></div>
+      <div class="card" style="text-align:center;border-top:3px solid var(--blue)"><div class="label">Tweets</div><div class="val" style="font-size:18px" x-text="socialStats?.tweets||0"></div></div>
+      <div class="card" style="text-align:center;border-top:3px solid #9b59b6"><div class="label">Truth Social</div><div class="val" style="font-size:18px" x-text="socialStats?.truth_social||0"></div></div>
+      <div class="card" style="text-align:center;border-top:3px solid var(--gold)"><div class="label">Daily Digests</div><div class="val" style="font-size:18px" x-text="socialStats?.daily_digests||0"></div></div>
+      <div class="card" style="text-align:center;border-top:3px solid var(--green)"><div class="label">Digest Words</div><div class="val" style="font-size:18px" x-text="(socialStats?.total_digest_words||0).toLocaleString()"></div></div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn primary" @click="importTwitter()" :disabled="importStatus?.state==='importing'||importStatus?.state==='downloading'">
         <template x-if="importStatus?.state==='importing'||importStatus?.state==='downloading'"><span class="spinner" style="vertical-align:middle;margin-right:4px"></span></template>
         Import Twitter Archive
       </button>
-      <button class="btn" @click="scrapeTruth()" style="border-color:var(--purple);color:var(--purple)">
-        Scrape Truth Social
-      </button>
-      <span style="font-size:11px;color:var(--dim)">Twitter: bulk archive | Truth Social: live scrape via API</span>
+      <button class="btn blue" @click="scrapeTruth()">Scrape Truth Social</button>
+      <span style="font-size:11px;color:var(--dim)">Twitter: bulk archive | Truth Social: live via API</span>
     </div>
     <template x-if="importStatus && (importStatus.state==='importing'||importStatus.state==='downloading')">
       <div style="margin-top:10px">
-        <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+(importStatus.progress*100)+'%;background:var(--accent)'"></div></div>
+        <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+(importStatus.progress*100)+'%;background:linear-gradient(90deg,#B31942,#FFD700)'"></div></div>
         <div style="font-size:11px;color:var(--dim);margin-top:4px" x-text="importStatus.state==='downloading'?'Downloading archive...':'Importing: '+importStatus.imported+' posts, '+importStatus.daily_digests_created+' digests ('+importStatus.skipped_dupes+' dupes skipped)'"></div>
       </div>
     </template>
     <template x-if="importStatus?.state==='complete'">
       <div class="alert success" style="margin-top:8px">
-        Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
+        &#10003; Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
       </div>
     </template>
 
@@ -283,9 +343,9 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       <div style="margin-top:14px">
         <h3 style="margin-bottom:8px">Recent Posts</h3>
         <template x-for="post in recentPosts" :key="post.date+post.text.substring(0,20)">
-          <div style="border-left:3px solid var(--border);padding:8px 12px;margin:6px 0;background:var(--bg3);border-radius:0 4px 4px 0">
+          <div style="border-left:3px solid var(--gold);padding:8px 12px;margin:6px 0;background:var(--bg3);border-radius:0 4px 4px 0">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-              <span style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:1px" :style="'color:'+(post.source==='truth_social'?'var(--purple)':'var(--blue)')" x-text="post.source==='truth_social'?'Truth Social':'Twitter'"></span>
+              <span style="font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:1px" :style="'color:'+(post.source==='truth_social'?'#9b59b6':'var(--blue)')" x-text="post.source==='truth_social'?'Truth Social':'Twitter'"></span>
               <span style="font-size:10px;color:var(--dim)" x-text="post.date?post.date.replace('T',' ').substring(0,16)+' ET':''"></span>
             </div>
             <div style="font-size:12px;line-height:1.5;color:var(--text)" x-text="post.text"></div>
@@ -296,25 +356,25 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </div>
 
   <!-- PI FINE-TUNING STATUS -->
-  <h2>Fine-Tuning (Pi-Native)</h2>
+  <h2>&#129504; Fine-Tuning Status (Pi-Native)</h2>
   <div class="card" style="margin-bottom:14px">
     <template x-if="piFtStatus">
       <div>
         <div class="grid g4" style="margin-bottom:10px">
-          <div class="card" style="text-align:center"><div class="label">Model</div><div class="val" style="font-size:12px;color:var(--accent)" x-text="piFtStatus.model||'N/A'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Model</div><div class="val" style="font-size:12px;color:var(--gold)" x-text="piFtStatus.model||'N/A'"></div></div>
           <div class="card" style="text-align:center"><div class="label">PyTorch</div><div class="val" style="font-size:14px" :style="'color:'+(piFtStatus.pytorch_available?'var(--green)':'var(--red)')" x-text="piFtStatus.pytorch_available?(piFtStatus.torch_version||'OK'):'Missing'"></div></div>
           <div class="card" style="text-align:center"><div class="label">Adapter</div><div class="val" style="font-size:14px" :style="'color:'+(piFtStatus.has_trained_model?'var(--green)':'var(--dim)')" x-text="piFtStatus.has_trained_model?'Ready':'None'"></div></div>
           <div class="card" style="text-align:center"><div class="label">Schedule</div><div class="val" style="font-size:14px" x-text="piFtStatus.enabled?(piFtStatus.schedule_hour+'AM ET'):'Disabled'"></div></div>
         </div>
 
-        <!-- Training progress (when active) -->
+        <!-- Training progress -->
         <template x-if="piFtStatus.training_status && piFtStatus.training_status.state==='training'">
-          <div style="border:1px solid var(--accent);border-radius:4px;padding:10px;margin-bottom:10px">
+          <div style="border:2px solid var(--gold);border-radius:8px;padding:12px;margin-bottom:10px;background:rgba(255,215,0,.05)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-              <strong style="color:var(--accent)"><span class="spinner" style="margin-right:6px;vertical-align:middle"></span>Training...</strong>
+              <strong style="color:var(--gold)"><span class="spinner" style="margin-right:6px;vertical-align:middle"></span>Training in Progress...</strong>
               <button class="btn" style="font-size:10px;border-color:var(--red);color:var(--red)" @click="apiPost('/fine-tune/stop')">Stop</button>
             </div>
-            <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+((piFtStatus.training_status.progress||0)*100)+'%;background:var(--accent)'"></div></div>
+            <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+((piFtStatus.training_status.progress||0)*100)+'%;background:linear-gradient(90deg,#B31942,#FFD700)'"></div></div>
             <div class="grid g4" style="margin-top:8px">
               <div style="text-align:center"><span class="label">Epoch</span><br><span x-text="(piFtStatus.training_status.current_epoch||0)+'/'+piFtStatus.training_status.total_epochs"></span></div>
               <div style="text-align:center"><span class="label">Loss</span><br><span x-text="piFtStatus.training_status.loss||'-'"></span></div>
@@ -324,19 +384,14 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           </div>
         </template>
 
-        <!-- Pythia predictions blend status -->
         <template x-if="pythiaStatus && pythiaStatus.available">
           <div class="alert success" style="font-size:12px">
-            Pythia predictions available: <span x-text="pythiaStatus.predictions"></span> terms, generated <span x-text="pythiaStatus.generated_at?.replace('T',' ').substring(0,16)||'?'"></span>. Auto-blended with Markov (60/40).
+            &#10003; Pythia predictions available: <span x-text="pythiaStatus.predictions"></span> terms, generated <span x-text="pythiaStatus.generated_at?.replace('T',' ').substring(0,16)||'?'"></span>. Auto-blended with Markov (60/40).
           </div>
         </template>
         <template x-if="!pythiaStatus || !pythiaStatus.available">
-          <div style="font-size:11px;color:var(--dim);padding:4px">No fine-tuned predictions yet. Next training run scheduled at <span x-text="(piFtStatus.schedule_hour||2)+'AM ET'"></span>.</div>
+          <div style="font-size:11px;color:var(--dim);padding:4px">No fine-tuned predictions yet. Next training at <span x-text="(piFtStatus.schedule_hour||2)+'AM ET'"></span> or launch manually above.</div>
         </template>
-
-        <div style="margin-top:8px;display:flex;gap:8px">
-          <button class="btn primary" @click="apiPost('/fine-tune/start')" :disabled="piFtStatus.training_status?.state==='training'">Start Fine-Tune Now</button>
-        </div>
       </div>
     </template>
     <template x-if="!piFtStatus">
@@ -347,7 +402,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   <!-- SOCIAL MEDIA TRENDS -->
   <template x-if="socialTrends && socialTrends.trends && socialTrends.trends.length>0">
     <div>
-      <h2>Trending Terms (Social Media)</h2>
+      <h2>&#128293; Trending Terms (Social Media)</h2>
       <div class="card" style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Terms surging on Twitter/Truth Social vs 60-day baseline. Updated every 30 min.</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -361,10 +416,10 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </template>
 
   <!-- LOG -->
-  <h2>Pipeline Log</h2>
+  <h2>&#128220; Pipeline Log</h2>
   <div class="card" style="max-height:300px;overflow-y:auto">
     <template x-if="pipelineLog.length===0">
-      <div style="color:var(--dim);text-align:center;padding:20px">No log entries yet. Train the model to see activity.</div>
+      <div style="color:var(--dim);text-align:center;padding:20px">No log entries yet. Launch a pipeline to see activity.</div>
     </template>
     <template x-for="entry in pipelineLog" :key="entry.timestamp+entry.message">
       <div class="log-entry">
@@ -377,14 +432,14 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ MARKETS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='markets'}">
-  <h1>Markets</h1>
+  <h1>&#128202; Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets (active first, resolved last)'"></div>
   <table>
     <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Status</th><th>Closes</th></tr></thead>
     <tbody>
       <template x-for="m in markets" :key="m.ticker">
         <tr :style="m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:0.5':''">
-          <td style="color:var(--accent);font-size:11px" x-text="m.ticker"></td>
+          <td style="color:var(--gold);font-size:11px" x-text="m.ticker"></td>
           <td x-text="(m.terms||[]).join(', ')"></td>
           <td :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--text)')" x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></td>
           <td x-text="m.volume||0"></td>
@@ -398,14 +453,14 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ PREDICTIONS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='predictions'}">
-  <h1>Predictions</h1>
+  <h1>&#127919; Predictions</h1>
   <div class="sub">Model probability vs market price — sorted by edge</div>
   <table>
     <thead><tr><th>Term</th><th>Market</th><th>Our Prob</th><th>Market</th><th>Edge</th><th>Side</th></tr></thead>
     <tbody>
       <template x-for="p in predictions" :key="p.market_ticker+p.term">
         <tr>
-          <td style="color:var(--accent)" x-text="p.term"></td>
+          <td style="color:var(--gold)" x-text="p.term"></td>
           <td style="font-size:10px" x-text="p.market_ticker"></td>
           <td x-text="(p.final_probability*100).toFixed(1)+'%'"></td>
           <td x-text="p.market_yes_price!=null?(p.market_yes_price*100).toFixed(0)+'c':'-'"></td>
@@ -419,11 +474,11 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ TRADING ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='trading'}">
-  <h1>Trading</h1>
+  <h1>&#128176; Trading</h1>
 
   <div class="grid g2" style="margin-bottom:14px">
     <div class="card">
-      <h3 style="margin-top:0;color:var(--text)">Bot Config</h3>
+      <h3 style="margin-top:0;color:var(--white)">Bot Config</h3>
       <template x-for="[k,v] in Object.entries(botCfg)" :key="k">
         <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bg3)">
           <span style="font-size:12px" x-text="k.replace(/_/g,' ')"></span>
@@ -436,7 +491,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       </div>
     </div>
     <div class="card">
-      <h3 style="margin-top:0;color:var(--text)">Portfolio</h3>
+      <h3 style="margin-top:0;color:var(--white)">Portfolio</h3>
       <template x-if="portfolio">
         <div>
           <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Balance</span><span style="font-weight:bold" x-text="'$'+(portfolio.balance||0).toFixed(2)"></span></div>
@@ -449,13 +504,13 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </div>
 
   <!-- TRADE HISTORY -->
-  <h2>Recent Trades</h2>
+  <h2>&#128200; Recent Trades</h2>
   <template x-if="tradeSummary.total_trades>0">
     <div class="grid g4" style="margin-bottom:10px">
-      <div class="card"><div class="label">Trades</div><div class="val" x-text="tradeSummary.total_trades"></div></div>
-      <div class="card"><div class="label">Win Rate</div><div class="val" x-text="(tradeSummary.win_rate*100).toFixed(0)+'%'"></div></div>
-      <div class="card"><div class="label">P&L</div><div class="val" :class="tradeSummary.total_pnl>=0?'':''" :style="'color:'+(tradeSummary.total_pnl>=0?'var(--green)':'var(--red)')" x-text="'$'+tradeSummary.total_pnl.toFixed(2)"></div></div>
-      <div class="card"><div class="label">Avg Size</div><div class="val" x-text="tradeSummary.avg_trade_size.toFixed(0)"></div></div>
+      <div class="card" style="border-top:3px solid var(--gold)"><div class="label">Trades</div><div class="val" x-text="tradeSummary.total_trades"></div></div>
+      <div class="card" style="border-top:3px solid var(--green)"><div class="label">Win Rate</div><div class="val" x-text="(tradeSummary.win_rate*100).toFixed(0)+'%'"></div></div>
+      <div class="card" style="border-top:3px solid #B31942"><div class="label">P&L</div><div class="val" :style="'color:'+(tradeSummary.total_pnl>=0?'var(--green)':'var(--red)')" x-text="'$'+tradeSummary.total_pnl.toFixed(2)"></div></div>
+      <div class="card" style="border-top:3px solid var(--blue)"><div class="label">Avg Size</div><div class="val" x-text="tradeSummary.avg_trade_size.toFixed(0)"></div></div>
     </div>
   </template>
   <table>
@@ -464,7 +519,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       <template x-for="t in trades" :key="t.id">
         <tr>
           <td style="font-size:10px" x-text="(t.created_at||'').substring(5,16)"></td>
-          <td style="color:var(--accent);font-size:10px" x-text="t.market_ticker"></td>
+          <td style="color:var(--gold);font-size:10px" x-text="t.market_ticker"></td>
           <td><span class="badge" :class="t.side" x-text="t.side.toUpperCase()"></span></td>
           <td x-text="t.quantity"></td>
           <td x-text="'$'+(t.price||0).toFixed(2)"></td>
@@ -481,23 +536,21 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ HEALTH ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='health'}">
-  <h1>Health Checks</h1>
+  <h1>&#128737; Health Checks</h1>
   <div class="sub">Autonomous system monitoring — all services and APIs</div>
 
   <template x-if="healthDetail">
     <div>
-      <!-- Overall status -->
       <div class="card" :style="'border-color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)');margin-bottom:14px'">
         <div style="text-align:center;padding:10px">
-          <span style="font-size:32px" x-text="healthDetail.status==='ok'?'&#10003;':'&#9888;'"></span>
+          <span style="font-size:32px" x-text="healthDetail.status==='ok'?'&#127482;&#127480;':'&#9888;'"></span>
           <div style="font-size:18px;font-weight:bold;margin-top:4px" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'All Systems Operational':'Degraded'"></div>
         </div>
       </div>
 
       <div class="grid g2" style="margin-bottom:14px">
-        <!-- Database -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Database</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128451; Database</h3>
           <template x-if="healthDetail.checks.database">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.database.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.checks.database.status"></span></div>
@@ -508,9 +561,8 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           </template>
         </div>
 
-        <!-- Fine-Tuning -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Fine-Tuning</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#129504; Fine-Tuning</h3>
           <template x-if="healthDetail.checks.fine_tuning">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Enabled</span><span :style="'color:'+(healthDetail.checks.fine_tuning.enabled?'var(--green)':'var(--dim)')" x-text="healthDetail.checks.fine_tuning.enabled?'Yes':'No'"></span></div>
@@ -520,9 +572,8 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           </template>
         </div>
 
-        <!-- Social Media -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Social Media Corpus</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128242; Social Media</h3>
           <template x-if="healthDetail.checks.social_media">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Tweets</span><span x-text="healthDetail.checks.social_media.tweets||0"></span></div>
@@ -532,42 +583,38 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           </template>
         </div>
 
-        <!-- Predictions -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Predictions</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#127919; Predictions</h3>
           <template x-if="healthDetail.checks.predictions">
             <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.predictions.status==='ok'?'var(--green)':healthDetail.checks.predictions.status==='stale'?'var(--accent)':'var(--red)')" x-text="healthDetail.checks.predictions.status"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.predictions.status==='ok'?'var(--green)':healthDetail.checks.predictions.status==='stale'?'var(--gold)':'var(--red)')" x-text="healthDetail.checks.predictions.status"></span></div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Age</span><span x-text="(healthDetail.checks.predictions.age_hours||0).toFixed(1)+'h'"></span></div>
             </div>
           </template>
         </div>
 
-        <!-- Disk -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Disk Space</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128190; Disk Space</h3>
           <template x-if="healthDetail.checks.disk">
             <div>
-              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.disk.percent+'%;background:'+(healthDetail.checks.disk.warning?'var(--red)':'var(--purple)')"></div></div>
+              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.disk.percent+'%;background:'+(healthDetail.checks.disk.warning?'var(--red)':'var(--blue)')"></div></div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.disk.used_gb+'/'+healthDetail.checks.disk.total_gb+' GB'"></span></div>
             </div>
           </template>
         </div>
 
-        <!-- Memory -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Memory</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128187; Memory</h3>
           <template x-if="healthDetail.checks.memory">
             <div>
-              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.memory.percent+'%;background:'+(healthDetail.checks.memory.warning?'var(--red)':'var(--blue)')"></div></div>
+              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.memory.percent+'%;background:'+(healthDetail.checks.memory.warning?'var(--red)':'#B31942')"></div></div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.memory.used_gb+'/'+healthDetail.checks.memory.total_gb+' GB'"></span></div>
             </div>
           </template>
         </div>
 
-        <!-- Social Trends -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Social Trends</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128293; Social Trends</h3>
           <template x-if="healthDetail.checks.social_trends">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms Tracked</span><span x-text="healthDetail.checks.social_trends.terms_tracked||0"></span></div>
@@ -576,9 +623,8 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
           </template>
         </div>
 
-        <!-- Email -->
         <div class="card">
-          <h3 style="margin-top:0;color:var(--text)">Email</h3>
+          <h3 style="margin-top:0;color:var(--white)">&#128231; Email</h3>
           <template x-if="healthDetail.checks.email">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Configured</span><span :style="'color:'+(healthDetail.checks.email.configured?'var(--green)':'var(--red)')" x-text="healthDetail.checks.email.configured?'Yes':'No'"></span></div>
@@ -595,30 +641,30 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ SYSTEM ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='system'}">
-  <h1>System</h1>
+  <h1>&#128187; System</h1>
   <div class="sub">Raspberry Pi hardware + model versions</div>
 
   <template x-if="hw">
     <div>
       <template x-if="hw.temperature_c!=null">
         <div style="text-align:center;margin-bottom:14px">
-          <span style="font-size:28px;font-weight:bold" :style="'color:'+(hw.temperature_c<60?'var(--green)':hw.temperature_c<70?'var(--accent)':'var(--red)')" x-text="hw.temperature_c.toFixed(1)+' C'"></span>
+          <span style="font-size:28px;font-weight:bold" :style="'color:'+(hw.temperature_c<60?'var(--green)':hw.temperature_c<70?'var(--gold)':'var(--red)')" x-text="hw.temperature_c.toFixed(1)+' C'"></span>
           <div style="color:var(--dim);font-size:11px">CPU Temperature</div>
         </div>
       </template>
       <div class="grid g3" style="margin-bottom:14px">
-        <div class="card">
+        <div class="card" style="border-top:3px solid #B31942">
           <div class="label">CPU</div><div class="val" x-text="hw.cpu_percent+'%'"></div>
           <div class="pbar"><div class="fill" :style="'width:'+hw.cpu_percent+'%;background:'+(hw.cpu_percent<70?'var(--green)':'var(--red)')"></div></div>
         </div>
-        <div class="card">
+        <div class="card" style="border-top:3px solid var(--white)">
           <div class="label">RAM</div><div class="val" x-text="hw.ram_percent+'%'"></div>
           <div class="pbar"><div class="fill" :style="'width:'+hw.ram_percent+'%;background:'+(hw.ram_percent<80?'var(--blue)':'var(--red)')"></div></div>
           <div style="font-size:10px;color:var(--dim)" x-text="hw.ram_used_gb+'/'+hw.ram_total_gb+' GB'"></div>
         </div>
-        <div class="card">
+        <div class="card" style="border-top:3px solid #002868">
           <div class="label">Disk</div><div class="val" x-text="hw.disk_percent+'%'"></div>
-          <div class="pbar"><div class="fill" :style="'width:'+hw.disk_percent+'%;background:'+(hw.disk_percent<85?'var(--purple)':'var(--red)')"></div></div>
+          <div class="pbar"><div class="fill" :style="'width:'+hw.disk_percent+'%;background:'+(hw.disk_percent<85?'var(--blue)':'var(--red)')"></div></div>
           <div style="font-size:10px;color:var(--dim)" x-text="hw.disk_used_gb+'/'+hw.disk_total_gb+' GB'"></div>
         </div>
       </div>
@@ -631,8 +677,8 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </div>
   </template>
 
-  <!-- MODEL ACCURACY (1C) -->
-  <h2>Model Accuracy</h2>
+  <!-- MODEL ACCURACY -->
+  <h2>&#127919; Model Accuracy</h2>
   <template x-if="accuracy && !accuracy.error">
     <div class="card" style="margin-bottom:14px" :style="accuracy.ready_for_live?'border-color:var(--green)':'border-color:var(--red)'">
       <div class="grid g4" style="margin-bottom:10px">
@@ -679,12 +725,12 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </template>
 
   <!-- MODEL VERSIONS -->
-  <h2>Model Versions</h2>
+  <h2>&#128218; Model Versions</h2>
   <template x-for="v in versions" :key="v.id">
-    <div class="card" :style="v.is_active?'border-color:var(--accent)':''" style="margin-bottom:6px">
+    <div class="card" :style="v.is_active?'border-color:var(--gold)':''" style="margin-bottom:6px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <strong style="color:var(--accent)" x-text="'TrumpGPT v'+v.version"></strong>
+          <strong style="color:var(--gold)" x-text="'TrumpGPT v'+v.version"></strong>
           <span x-show="v.is_active" class="badge active" style="margin-left:6px">ACTIVE</span>
         </div>
         <span style="font-size:10px;color:var(--dim)" x-text="(v.created_at||'').substring(0,16)"></span>
@@ -711,22 +757,27 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
 <!-- ════════════════════════════════ TRUMPGPT ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='trumpgpt'}">
-  <h1>TrumpGPT</h1>
-  <div class="sub">Demo: Markov chain text generator trained on Trump speeches, tweets, and Truth Social posts</div>
+  <div style="display:flex;align-items:flex-start;gap:20px;margin-bottom:14px">
+    <div style="flex:1">
+      <h1>&#128172; TrumpGPT</h1>
+      <div class="sub">Demo: Markov chain text generator trained on Trump speeches, tweets, and Truth Social posts</div>
+    </div>
+    <img src="images/trump-small.jpg" alt="" class="trump-img" style="width:80px;height:auto">
+  </div>
 
-  <div class="card" style="margin-bottom:14px;background:var(--bg2);border-color:var(--border)">
+  <div class="card" style="margin-bottom:14px;border-color:var(--gold);background:rgba(255,215,0,.03)">
     <div style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px">
-      <strong style="color:var(--accent)">How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
+      <strong style="color:var(--gold)">&#9733; How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
       Under the hood, the bot runs 2,000 simulated speeches per cycle and counts which terms appear — that's how it predicts what Trump will say.
-      This tab lets you see one of those simulations in action. The output captures Trump's vocabulary and phrase patterns but won't produce coherent arguments — it's a statistical model, not AI reasoning.
-      <strong style="color:var(--text)">The trading value comes from the aggregate statistics across thousands of simulations, not any single generation.</strong>
+      This tab lets you see one of those simulations in action.
+      <strong style="color:var(--white)">The trading value comes from the aggregate statistics across thousands of simulations, not any single generation.</strong>
     </div>
   </div>
 
   <div class="card" style="margin-bottom:14px">
     <div style="margin-bottom:10px">
       <label style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px">Prompt</label>
-      <textarea x-model="gptPrompt" :placeholder="gptQaMode?'Ask a question... e.g. \'What do you think about China?\' or \'Tell us about the wall\'':'Start typing... e.g. \'We are going to build\' or \'China has been\''" style="width:100%;min-height:60px;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px;resize:vertical;margin-top:4px"></textarea>
+      <textarea x-model="gptPrompt" :placeholder="gptQaMode?'Ask a question... e.g. \'What do you think about China?\' or \'Tell us about the wall\'':'Start typing... e.g. \'We are going to build\' or \'China has been\''" style="width:100%;min-height:60px;resize:vertical;margin-top:4px"></textarea>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <div>
@@ -744,29 +795,29 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
         <input type="number" x-model.number="gptWordCount" min="50" max="5000" step="50" style="width:80px">
       </div>
       <div>
-        <label style="font-size:10px;color:var(--dim)">Temperature <span x-text="gptTemperature.toFixed(1)" style="color:var(--accent)"></span></label><br>
+        <label style="font-size:10px;color:var(--dim)">Temperature <span x-text="gptTemperature.toFixed(1)" style="color:var(--gold)"></span></label><br>
         <input type="range" x-model.number="gptTemperature" min="0.3" max="2.0" step="0.1" style="width:120px;vertical-align:middle">
       </div>
       <div>
         <label style="font-size:10px;color:var(--dim)">Mode</label><br>
         <label style="cursor:pointer;font-size:12px;user-select:none">
           <input type="checkbox" x-model="gptQaMode" style="vertical-align:middle">
-          <span x-text="gptQaMode?'Q&A':'Continue'" :style="gptQaMode?'color:var(--accent)':''"></span>
+          <span x-text="gptQaMode?'Q&A':'Continue'" :style="gptQaMode?'color:var(--gold)':''"></span>
         </label>
       </div>
       <div style="margin-top:14px">
-        <button class="btn primary" @click="generateTrumpGPT()" :disabled="gptLoading">
+        <button class="btn gold" @click="generateTrumpGPT()" :disabled="gptLoading">
           <template x-if="gptLoading"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
-          <span x-text="gptLoading?'Generating...':'Generate'"></span>
+          <span x-text="gptLoading?'Generating...':'&#9733; Generate'"></span>
         </button>
       </div>
     </div>
   </div>
 
   <template x-if="gptOutput">
-    <div class="card" style="max-height:500px;overflow-y:auto">
+    <div class="card" style="max-height:500px;overflow-y:auto;border-color:var(--gold)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <h3 style="margin:0;color:var(--accent)">TrumpGPT Output</h3>
+        <h3 style="margin:0;color:var(--gold)">TrumpGPT Output</h3>
         <span style="font-size:11px;color:var(--dim)" x-text="gptOutput.split(' ').length+' words'"></span>
       </div>
       <div style="line-height:1.8;font-size:13px;white-space:pre-wrap;color:var(--text)" x-text="gptOutput"></div>
@@ -775,14 +826,21 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 
   <template x-if="!gptOutput && !gptLoading">
     <div class="idle-art">
-      <div style="font-size:48px">&#128172;</div>
-      <div class="quip">Give TrumpGPT a topic and watch it riff.</div>
+      <div style="font-size:48px">&#127482;&#127480;</div>
+      <div class="quip">Give TrumpGPT a topic and watch it riff. Tremendous words, believe me.</div>
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Leave the prompt blank to generate a full speech from the selected scenario.</div>
     </div>
   </template>
 </div>
 
 </div><!-- /container -->
+
+<!-- Footer -->
+<div style="text-align:center;padding:20px;color:var(--dim);font-size:10px;border-top:1px solid var(--border);margin-top:30px;position:relative;z-index:1">
+  <div style="margin-bottom:4px">&#127482;&#127480; &#9733; TrumpGPT Trading Bot &#9733; &#127482;&#127480;</div>
+  <div>Running autonomously on Raspberry Pi | <a href="https://trumpgpt.arinjaff.com">trumpgpt.arinjaff.com</a></div>
+  <div style="margin-top:4px;letter-spacing:4px;color:var(--gold);font-size:8px">&#9733; &#9733; &#9733; MAKING PREDICTIONS GREAT AGAIN &#9733; &#9733; &#9733;</div>
+</div>
 
 <script>
 function app(){return{
@@ -807,16 +865,16 @@ function app(){return{
   piFtStatus:null, socialTrends:null, healthDetail:null,
   pChart:null,
   idleQuips:[
-    "TrumpGPT is at Mar-a-Lago golfing right now.",
-    "TrumpGPT is eating a beautiful chocolate cake.",
+    "TrumpGPT is at Mar-a-Lago golfing right now. Tremendous course.",
+    "TrumpGPT is eating a beautiful chocolate cake. The most beautiful.",
     "TrumpGPT is watching Fox & Friends. Waiting for news.",
-    "TrumpGPT is making deals. Tremendous deals.",
+    "TrumpGPT is making deals. Tremendous deals. The best deals.",
     "TrumpGPT is writing the next chapter of the art of the deal.",
-    "TrumpGPT is on Truth Social. Many such posts.",
+    "TrumpGPT is on Truth Social. Many such posts!",
     "TrumpGPT is reviewing the polls. Looking very good!",
-    "TrumpGPT is having a Diet Coke. Maybe two.",
+    "TrumpGPT is having a Diet Coke. Maybe two. Nobody knows Diet Coke like me.",
     "TrumpGPT is on Marine One, heading to the rally.",
-    "TrumpGPT is winning. So much winning.",
+    "TrumpGPT is winning. So much winning you wouldn't believe it.",
   ],
 
   async init(){
@@ -867,14 +925,8 @@ function app(){return{
     this.socialTrends=st;
   },
 
-  async importTwitter(){
-    await this.apiPost('/social-media/import-twitter');
-  },
-
-  async scrapeTruth(){
-    await this.apiPost('/social-media/scrape-truth');
-    setTimeout(()=>this.loadPipeline(),3000);
-  },
+  async importTwitter(){await this.apiPost('/social-media/import-twitter')},
+  async scrapeTruth(){await this.apiPost('/social-media/scrape-truth');setTimeout(()=>this.loadPipeline(),3000)},
 
   async loadMarkets(){const d=await this.api('/markets');this.markets=Array.isArray(d)?d:[]},
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
@@ -885,9 +937,7 @@ function app(){return{
     this.trades=(th?.trades||[]);this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
   },
 
-  async loadHealth(){
-    this.healthDetail=await this.api('/system/health-detailed');
-  },
+  async loadHealth(){this.healthDetail=await this.api('/system/health-detailed')},
 
   async loadSystem(){
     const[h,v,a]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy')]);
@@ -919,11 +969,11 @@ function app(){return{
     if(this._accChart)this._accChart.destroy();
     this._accChart=new Chart(c,{type:'line',data:{labels,datasets:[
       {label:'Hit Rate %',data:hitData,borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y'},
-      {label:'Brier Score',data:brierData,borderColor:'#e74c3c',backgroundColor:'rgba(231,76,60,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1'},
-    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#888',font:{size:10}}}},scales:{
-      x:{ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}},
-      y:{position:'left',title:{display:true,text:'Hit Rate %',color:'#2ecc71'},ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'},min:0,max:100},
-      y1:{position:'right',title:{display:true,text:'Brier',color:'#e74c3c'},ticks:{color:'#555',font:{size:9}},grid:{display:false},min:0,max:0.5},
+      {label:'Brier Score',data:brierData,borderColor:'#FF3B3B',backgroundColor:'rgba(255,59,59,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1'},
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8899BB',font:{size:10}}}},scales:{
+      x:{ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'}},
+      y:{position:'left',title:{display:true,text:'Hit Rate %',color:'#2ecc71'},ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'},min:0,max:100},
+      y1:{position:'right',title:{display:true,text:'Brier',color:'#FF3B3B'},ticks:{color:'#556',font:{size:9}},grid:{display:false},min:0,max:0.5},
     }}});
   },
 
@@ -934,8 +984,8 @@ function app(){return{
     let cum=0;const labels=pts.map(t=>(t.created_at||'').substring(5,10));
     const data=pts.map(t=>{cum+=t.pnl;return+cum.toFixed(2)});
     if(this.pChart)this.pChart.destroy();
-    this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#d4af37',backgroundColor:'rgba(212,175,55,.08)',fill:true,tension:.3,pointRadius:1,borderWidth:2}]},
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#555',font:{size:9}},grid:{color:'#1a1d24'}},y:{ticks:{color:'#555',font:{size:9},callback:v=>'$'+v},grid:{color:'#1a1d24'}}}}});
+    this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:1,borderWidth:2}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'}},y:{ticks:{color:'#556',font:{size:9},callback:v=>'$'+v},grid:{color:'#1E3A6E'}}}}});
   },
 }}
 </script>

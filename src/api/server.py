@@ -1209,6 +1209,28 @@ def stop_pi_fine_tuning():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/pipeline/full")
+def run_full_pipeline(background_tasks: BackgroundTasks):
+    """Run fine-tuning then predictions pipeline back-to-back."""
+    if not app_config.fine_tune_enabled:
+        raise HTTPException(status_code=400, detail="Fine-tuning disabled")
+
+    def _run_full():
+        from ..ml.local_pipeline import LocalPipeline
+        pipeline = LocalPipeline()
+        try:
+            logger.info("Full pipeline: starting fine-tuning...")
+            pipeline.run_fine_tuning()
+            logger.info("Full pipeline: fine-tuning done, starting Markov pipeline...")
+            pipeline.run_full_pipeline()
+            logger.info("Full pipeline: complete")
+        except Exception as e:
+            logger.error(f"Full pipeline failed: {e}")
+
+    background_tasks.add_task(_run_full)
+    return {"status": "Full pipeline started (fine-tune → predictions)"}
+
+
 @app.post("/api/fine-tune/upload-predictions")
 async def upload_pythia_predictions(request: Request):
     """Receive Pythia predictions JSON from Mac after fine-tuning.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TrumpGPT — Making Predictions Great Again</title>
+<title>TrumpGPT - Making Predictions Great Again</title>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
@@ -120,7 +120,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <nav>
   <div class="stripe-bar">
-    <div class="logo"><span class="flag">&#127482;&#127480;</span> TRUMPGPT</div>
+    <div class="logo">TRUMPGPT</div>
     <template x-for="t in tabs" :key="t.id">
       <div class="tab" :class="{active:tab===t.id}" @click="tab=t.id;loadTab()" x-text="t.label"></div>
     </template>
@@ -139,17 +139,17 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 <div class="section" :class="{active:tab==='home'}">
   <div style="display:flex;align-items:flex-start;gap:24px;margin-bottom:14px">
     <div style="flex:1">
-      <h1>&#127482;&#127480; TrumpGPT Trading Bot &#127482;&#127480;</h1>
+      <h1>TrumpGPT Trading Bot</h1>
       <div class="sub" x-text="modelMethod+(modelVer?' | v'+modelVer:'')"></div>
       <p style="color:var(--dim);font-size:12px;line-height:1.8;margin-bottom:12px">
         <strong style="color:var(--gold)">The most tremendous prediction bot ever built.</strong> Fully autonomous on Raspberry Pi.
         Scrapes Trump speeches, tweets, and Truth Social posts. Trains a Markov chain + fine-tunes Pythia-160M with LoRA nightly.
         Runs Monte Carlo simulations to predict which words he'll say, then trades on
         <a href="https://kalshi.com" target="_blank">Kalshi</a> when it finds an edge.
-        <strong style="color:var(--white)">Zero intervention — completely self-managing. Believe me.</strong>
+        <strong style="color:var(--white)">Completely self-managing. Believe me, it's huge.</strong>
       </p>
       <div style="font-size:11px;color:var(--dim);line-height:1.8">
-        <strong style="color:var(--white)">&#9733; Navigate:</strong>
+        <strong style="color:var(--white)">Navigate:</strong>
         <strong style="color:var(--gold)">Pipeline</strong> to watch training + fine-tuning live &bull;
         <strong style="color:var(--gold)">Markets</strong> for Kalshi data &bull;
         <strong style="color:var(--gold)">Predictions</strong> for model output &bull;
@@ -160,12 +160,12 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     <img src="images/trump-portrait.jpg" alt="Donald J. Trump" class="trump-img" style="width:140px;height:auto">
   </div>
 
-  <div class="stars-divider">&#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733; &#9733;</div>
+  <div class="stars-divider">* * * * * * * * * * * * *</div>
 
   <!-- PORTFOLIO CHART -->
   <div class="card" style="margin-bottom:14px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0;color:var(--white)">&#128176; Portfolio Value</h3>
+      <h3 style="margin:0;color:var(--white)">Portfolio Value</h3>
       <span :style="'font-size:18px;font-weight:bold;color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span>
     </div>
     <canvas id="portfolioChart" height="140"></canvas>
@@ -182,7 +182,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   <!-- TOP SUGGESTIONS -->
   <template x-if="suggestions.length>0">
     <div>
-      <h2>&#128200; Top Trade Signals</h2>
+      <h2>Top Trade Signals</h2>
       <table>
         <thead><tr><th>Term</th><th>Side</th><th>Edge</th><th>Our Prob</th><th>Market</th><th>Confidence</th></tr></thead>
         <tbody>
@@ -202,42 +202,42 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </template>
 
   <!-- SYSTEM FLOWCHART -->
-  <div class="stars-divider" style="margin-top:20px">&#9733; &#9733; &#9733; &#9733; &#9733;</div>
+  <div class="stars-divider" style="margin-top:20px">* * * * *</div>
   <div class="card" style="margin-bottom:14px;text-align:center">
-    <h3 style="margin:0 0 12px;color:var(--gold)">&#127482;&#127480; System Architecture</h3>
+    <h3 style="margin:0 0 12px;color:var(--gold)">System Architecture</h3>
     <img src="/static/images/pipeline-flowchart.svg" alt="Pipeline Flowchart" style="width:100%;max-width:1100px;border-radius:8px;border:1px solid var(--border)">
   </div>
 
-  <div class="stars-divider" style="margin-top:20px">&#9733; &#9733; &#9733; MAKE PREDICTIONS GREAT AGAIN &#9733; &#9733; &#9733;</div>
+  <div class="stars-divider" style="margin-top:20px">* * * MAKE PREDICTIONS GREAT AGAIN * * *</div>
 </div>
 
 <!-- ════════════════════════════════ PIPELINE ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='pipeline'}">
-  <h1>&#9881; Pipeline Command Center</h1>
+  <h1>Pipeline Command Center</h1>
   <div class="sub">TrumpGPT training, fine-tuning, and simulation engine</div>
 
   <!-- COMMAND CENTER -->
   <div class="command-center">
-    <h2>&#127482;&#127480; Mission Control</h2>
+    <h2>Mission Control</h2>
     <div class="sub">Launch pipeline operations. Each button triggers a different level of the prediction engine.</div>
     <div class="actions">
       <div class="action-card">
-        <h3>&#9889; Quick Pipeline</h3>
+        <h3>Quick Pipeline</h3>
         <p>Markov chain training + 2,000 Monte Carlo simulations. Fast predictions in ~35 seconds.</p>
         <div class="time">~35 seconds</div>
         <button class="btn primary" @click="apiPost('/pipeline/run')" style="width:100%">Run Pipeline</button>
       </div>
       <div class="action-card">
-        <h3>&#129504; Fine-Tune Only</h3>
+        <h3>Fine-Tune Only</h3>
         <p>Train Pythia-160M with LoRA on the Pi. Generates 200 LLM-based Monte Carlo sims.</p>
         <div class="time">~75 minutes</div>
         <button class="btn blue" @click="apiPost('/fine-tune/start')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">Start Fine-Tune</button>
       </div>
       <div class="action-card" style="border-color:var(--gold)">
-        <h3>&#128640; Full Pipeline</h3>
+        <h3>Full Pipeline</h3>
         <p><strong style="color:var(--gold)">THE BIG ONE.</strong> Fine-tunes the model, THEN runs the full Markov pipeline with Pythia blending. Maximum prediction power.</p>
         <div class="time">~80 minutes total</div>
-        <button class="btn gold" @click="apiPost('/pipeline/full')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">&#128640; Launch Full Pipeline</button>
+        <button class="btn gold" @click="apiPost('/pipeline/full')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">Launch Full Pipeline</button>
       </div>
     </div>
   </div>
@@ -246,7 +246,6 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   <template x-if="!training || training.state==='idle'">
     <div>
       <div class="idle-art">
-        <div style="font-size:48px">&#127482;&#127480;</div>
         <div class="quip" x-text="idleQuips[Math.floor(Date.now()/60000)%idleQuips.length]"></div>
         <div style="margin-top:12px;font-size:12px;color:var(--dim)">Pipeline is idle. Next run is scheduled automatically.</div>
       </div>
@@ -258,8 +257,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     <div class="card" style="border-color:var(--gold);margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <span style="font-size:16px">&#9881;</span>
-          <strong style="color:var(--gold);margin-left:6px">TRAINING IN PROGRESS</strong>
+          <strong style="color:var(--gold)">TRAINING IN PROGRESS</strong>
         </div>
         <span class="badge active" x-text="training.stage||'Starting...'"></span>
       </div>
@@ -280,8 +278,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   <!-- COMPLETE STATE -->
   <template x-if="training && training.state==='complete'">
     <div class="alert success" style="font-size:14px">
-      <span style="font-size:18px">&#10003;</span>
-      <strong x-text="' TrumpGPT v'+(training.current_version||'?')+' trained successfully — WINNING!'"></strong>
+      <strong x-text="'TrumpGPT v'+(training.current_version||'?')+' trained successfully - WINNING!'"></strong>
       <span style="margin-left:8px" x-text="training.completed_at?(training.completed_at).substring(0,16):''"></span>
     </div>
   </template>
@@ -291,33 +288,33 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     <div class="alert error"><strong>Pipeline Error:</strong> <span x-text="training.error"></span></div>
   </template>
 
-  <div class="stars-divider">&#9733; &#9733; &#9733; &#9733; &#9733;</div>
+  <div class="stars-divider">* * * * *</div>
 
   <!-- SCHEDULE -->
-  <h2>&#128197; Scheduled Jobs</h2>
+  <h2>Scheduled Jobs</h2>
   <div class="card" style="margin-bottom:14px">
     <table>
       <thead><tr><th>Job</th><th>Interval</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--gold)">&#128640; Full Pipeline</td><td>On demand</td><td>Fine-tune + Markov + blend (the big one)</td></tr>
-        <tr><td style="color:var(--gold)">&#9881; Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (35s)</td></tr>
-        <tr><td style="color:var(--gold)">&#129504; Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~75 min)</td></tr>
-        <tr><td style="color:var(--gold)">&#128202; Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
-        <tr><td style="color:var(--gold)">&#127919; Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
-        <tr><td style="color:var(--gold)">&#128176; Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
-        <tr><td style="color:var(--gold)">&#127908; Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for transcripts</td></tr>
-        <tr><td style="color:var(--gold)">&#128242; Social Media</td><td>Every 30m</td><td>Scrape Truth Social + Twitter (primary source)</td></tr>
-        <tr><td style="color:var(--gold)">&#128200; Social Analysis</td><td>Every 30m</td><td>TF-IDF trending term extraction</td></tr>
-        <tr><td style="color:var(--gold)">&#128240; News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
-        <tr><td style="color:var(--gold)">&#128178; Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
-        <tr><td style="color:var(--gold)">&#128197; Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
-        <tr><td style="color:var(--gold)">&#128231; Daily Digest</td><td>8 AM ET</td><td>Email P&L + system health summary</td></tr>
+        <tr><td style="color:var(--gold)">Full Pipeline</td><td>On demand</td><td>Fine-tune + Markov + blend (the big one)</td></tr>
+        <tr><td style="color:var(--gold)">Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (35s)</td></tr>
+        <tr><td style="color:var(--gold)">Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~75 min)</td></tr>
+        <tr><td style="color:var(--gold)">Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
+        <tr><td style="color:var(--gold)">Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
+        <tr><td style="color:var(--gold)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
+        <tr><td style="color:var(--gold)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for transcripts</td></tr>
+        <tr><td style="color:var(--gold)">Social Media</td><td>Every 30m</td><td>Scrape Truth Social + Twitter (primary source)</td></tr>
+        <tr><td style="color:var(--gold)">Social Analysis</td><td>Every 30m</td><td>TF-IDF trending term extraction</td></tr>
+        <tr><td style="color:var(--gold)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
+        <tr><td style="color:var(--gold)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
+        <tr><td style="color:var(--gold)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
+        <tr><td style="color:var(--gold)">Daily Digest</td><td>8 AM ET</td><td>Email P&L + system health summary</td></tr>
       </tbody>
     </table>
   </div>
 
   <!-- SOCIAL MEDIA CORPUS -->
-  <h2>&#128242; Social Media Corpus</h2>
+  <h2>Social Media Corpus</h2>
   <div class="card" style="margin-bottom:14px">
     <div class="grid g4" style="margin-bottom:12px">
       <div class="card" style="text-align:center;border-top:3px solid var(--blue)"><div class="label">Tweets</div><div class="val" style="font-size:18px" x-text="socialStats?.tweets||0"></div></div>
@@ -341,7 +338,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     </template>
     <template x-if="importStatus?.state==='complete'">
       <div class="alert success" style="margin-top:8px">
-        &#10003; Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
+        Import complete: <span x-text="importStatus.imported"></span> posts, <span x-text="importStatus.daily_digests_created"></span> daily digests created.
       </div>
     </template>
 
@@ -363,7 +360,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </div>
 
   <!-- PI FINE-TUNING STATUS -->
-  <h2>&#129504; Fine-Tuning Status (Pi-Native)</h2>
+  <h2>Fine-Tuning Status (Pi-Native)</h2>
   <div class="card" style="margin-bottom:14px">
     <template x-if="piFtStatus">
       <div>
@@ -393,7 +390,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
         <template x-if="pythiaStatus && pythiaStatus.available">
           <div class="alert success" style="font-size:12px">
-            &#10003; Pythia predictions available: <span x-text="pythiaStatus.predictions"></span> terms, generated <span x-text="pythiaStatus.generated_at?.replace('T',' ').substring(0,16)||'?'"></span>. Auto-blended with Markov (60/40).
+            Pythia predictions available: <span x-text="pythiaStatus.predictions"></span> terms, generated <span x-text="pythiaStatus.generated_at?.replace('T',' ').substring(0,16)||'?'"></span>. Auto-blended with Markov (60/40).
           </div>
         </template>
         <template x-if="!pythiaStatus || !pythiaStatus.available">
@@ -409,7 +406,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   <!-- SOCIAL MEDIA TRENDS -->
   <template x-if="socialTrends && socialTrends.trends && socialTrends.trends.length>0">
     <div>
-      <h2>&#128293; Trending Terms (Social Media)</h2>
+      <h2>Trending Terms (Social Media)</h2>
       <div class="card" style="margin-bottom:14px">
         <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Terms surging on Twitter/Truth Social vs 60-day baseline. Updated every 30 min.</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px">
@@ -423,7 +420,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </template>
 
   <!-- LOG -->
-  <h2>&#128220; Pipeline Log</h2>
+  <h2>Pipeline Log</h2>
   <div class="card" style="max-height:300px;overflow-y:auto">
     <template x-if="pipelineLog.length===0">
       <div style="color:var(--dim);text-align:center;padding:20px">No log entries yet. Launch a pipeline to see activity.</div>
@@ -439,7 +436,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ MARKETS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='markets'}">
-  <h1>&#128202; Markets</h1>
+  <h1>Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets (active first, resolved last)'"></div>
   <table>
     <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Status</th><th>Closes</th></tr></thead>
@@ -460,8 +457,8 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ PREDICTIONS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='predictions'}">
-  <h1>&#127919; Predictions</h1>
-  <div class="sub">Model probability vs market price — sorted by edge</div>
+  <h1>Predictions</h1>
+  <div class="sub">Model probability vs market price - sorted by edge</div>
   <table>
     <thead><tr><th>Term</th><th>Market</th><th>Our Prob</th><th>Market</th><th>Edge</th><th>Side</th></tr></thead>
     <tbody>
@@ -481,7 +478,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ TRADING ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='trading'}">
-  <h1>&#128176; Trading</h1>
+  <h1>Trading</h1>
 
   <div class="grid g2" style="margin-bottom:14px">
     <div class="card">
@@ -511,7 +508,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </div>
 
   <!-- TRADE HISTORY -->
-  <h2>&#128200; Recent Trades</h2>
+  <h2>Recent Trades</h2>
   <template x-if="tradeSummary.total_trades>0">
     <div class="grid g4" style="margin-bottom:10px">
       <div class="card" style="border-top:3px solid var(--gold)"><div class="label">Trades</div><div class="val" x-text="tradeSummary.total_trades"></div></div>
@@ -543,21 +540,21 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ HEALTH ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='health'}">
-  <h1>&#128737; Health Checks</h1>
-  <div class="sub">Autonomous system monitoring — all services and APIs</div>
+  <h1>Health Checks</h1>
+  <div class="sub">Autonomous system monitoring - all services and APIs</div>
 
   <template x-if="healthDetail">
     <div>
       <div class="card" :style="'border-color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)');margin-bottom:14px'">
         <div style="text-align:center;padding:10px">
-          <span style="font-size:32px" x-text="healthDetail.status==='ok'?'&#127482;&#127480;':'&#9888;'"></span>
+          <span style="font-size:24px;font-weight:bold" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'OK':'!'"></span>
           <div style="font-size:18px;font-weight:bold;margin-top:4px" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'All Systems Operational':'Degraded'"></div>
         </div>
       </div>
 
       <div class="grid g2" style="margin-bottom:14px">
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128451; Database</h3>
+          <h3 style="margin-top:0;color:var(--white)">Database</h3>
           <template x-if="healthDetail.checks.database">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.database.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.checks.database.status"></span></div>
@@ -569,7 +566,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#129504; Fine-Tuning</h3>
+          <h3 style="margin-top:0;color:var(--white)">Fine-Tuning</h3>
           <template x-if="healthDetail.checks.fine_tuning">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Enabled</span><span :style="'color:'+(healthDetail.checks.fine_tuning.enabled?'var(--green)':'var(--dim)')" x-text="healthDetail.checks.fine_tuning.enabled?'Yes':'No'"></span></div>
@@ -580,7 +577,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128242; Social Media</h3>
+          <h3 style="margin-top:0;color:var(--white)">Social Media</h3>
           <template x-if="healthDetail.checks.social_media">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Tweets</span><span x-text="healthDetail.checks.social_media.tweets||0"></span></div>
@@ -591,7 +588,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#127919; Predictions</h3>
+          <h3 style="margin-top:0;color:var(--white)">Predictions</h3>
           <template x-if="healthDetail.checks.predictions">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.predictions.status==='ok'?'var(--green)':healthDetail.checks.predictions.status==='stale'?'var(--gold)':'var(--red)')" x-text="healthDetail.checks.predictions.status"></span></div>

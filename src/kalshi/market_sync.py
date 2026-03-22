@@ -202,17 +202,6 @@ class MarketSync:
                 market.yes_price = yes_price
                 market.no_price = no_price
 
-                # Record price snapshot for history
-                if yes_price is not None:
-                    snapshot = PriceSnapshot(
-                        market_id=market.id,
-                        yes_price=yes_price,
-                        no_price=no_price,
-                        volume=market.volume,
-                        open_interest=market.open_interest,
-                    )
-                    session.add(snapshot)
-
                 # Volume: v2 uses volume_fp (fixed-point string), fallback to volume
                 market.volume = self._parse_fp_field(
                     market_data, 'volume_fp', 'volume'
@@ -237,6 +226,20 @@ class MarketSync:
 
                 market.result = market_data.get('result', '')
                 market.raw_data = market_data
+
+                # Flush so new markets get an ID before we create price snapshots
+                session.flush()
+
+                # Record price snapshot for history (must be after flush for new markets)
+                if yes_price is not None:
+                    snapshot = PriceSnapshot(
+                        market_id=market.id,
+                        yes_price=yes_price,
+                        no_price=no_price,
+                        volume=market.volume,
+                        open_interest=market.open_interest,
+                    )
+                    session.add(snapshot)
 
                 # Extract and link terms
                 extracted_terms = self.extract_terms_from_market(market_data)

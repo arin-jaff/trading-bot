@@ -20,11 +20,13 @@ class NewsEnricher:
     """
 
     CACHE_TTL_SECONDS = 3600  # 1 hour
+    BACKOFF_SECONDS = 3600  # 1 hour backoff after quota/rate limit failure
 
     def __init__(self):
         self._cache: Dict[str, float] = {}
         self._cache_timestamp: float = 0.0
         self._api_key: str = os.getenv('GEMINI_API_KEY', '')
+        self._backoff_until: float = 0.0  # skip calls until this timestamp
 
     def _is_cache_valid(self) -> bool:
         """Check if cached results are still fresh."""
@@ -40,14 +42,19 @@ class NewsEnricher:
             Empty dict on failure.
         """
         if not self._api_key:
-            logger.warning("GEMINI_API_KEY not set — news enrichment disabled")
+            logger.warning("GEMINI_API_KEY not set - news enrichment disabled")
             return {}
+
+        if time.time() < self._backoff_until:
+            remaining = int(self._backoff_until - time.time())
+            logger.debug(f"News enrichment in backoff, skipping ({remaining}s remaining)")
+            return self._cache
 
         try:
             import google.generativeai as genai
 
             genai.configure(api_key=self._api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash-lite')
+            model = genai.GenerativeModel('gemini-2.0-flash')
 
             prompt = (
                 "Based on the news from the last 48 hours, what are the top 15 words or "
@@ -86,11 +93,16 @@ class NewsEnricher:
             return result
 
         except ImportError:
-            logger.warning("google-generativeai package not installed — news enrichment disabled")
+            logger.warning("google-generativeai package not installed - news enrichment disabled")
             return {}
         except Exception as e:
-            logger.warning(f"Gemini API call failed: {e}")
-            return {}
+            error_str = str(e)
+            if '429' in error_str or 'quota' in error_str.lower() or 'rate' in error_str.lower():
+                self._backoff_until = time.time() + self.BACKOFF_SECONDS
+                logger.warning(f"Gemini quota/rate limit hit - backing off for 1 hour. Skipping news enrichment.")
+            else:
+                logger.warning(f"Gemini API call failed: {e}")
+            return self._cache
 
     def get_talking_points(self) -> Dict[str, float]:
         """Get cached talking points, refreshing if stale.

@@ -1,0 +1,31 @@
+{
+  "talking_points": {
+    "iran": 0.95,
+    "strait of hormuz": 0.90,
+    "hormuz": 0.88,
+    "war": 0.85,
+    "military": 0.82,
+    "navy": 0.78,
+    "middle east": 0.80,
+    "dhs": 0.85,
+    "homeland security": 0.83,
+    "shutdown": 0.80,
+    "government": 0.75,
+    "gas prices": 0.88,
+    "oil": 0.85,
+    "energy": 0.80,
+    "gasoline": 0.78,
+    "drill": 0.75,
+    "sanctions": 0.82,
+    "nuclear": 0.78,
+    "border": 0.72,
+    "economy": 0.70,
+    "inflation": 0.68,
+    "china": 0.65,
+    "tariffs": 0.70,
+    "biden": 0.60,
+    "democrats": 0.58
+  },
+  "timestamp": 1742673600.0,
+  "refreshed_at": "2026-03-22 20:00:00 UTC"
+}

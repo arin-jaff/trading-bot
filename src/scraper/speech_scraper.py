@@ -201,11 +201,23 @@ class SpeechScraper:
             return None
 
     def _get_youtube_transcript(self, video_id: str) -> Optional[str]:
-        """Attempt to get a YouTube video transcript."""
+        """Attempt to get a YouTube video transcript.
+
+        Supports both the new youtube-transcript-api (>=1.0, .fetch())
+        and the legacy API (.get_transcript()) for backwards compat.
+        """
         try:
             from youtube_transcript_api import YouTubeTranscriptApi
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            return ' '.join(item['text'] for item in transcript_list)
+            api = YouTubeTranscriptApi()
+            transcript = api.fetch(video_id)
+            return ' '.join(snippet.text for snippet in transcript)
+        except AttributeError:
+            # Legacy API (<1.0)
+            try:
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+                return ' '.join(item['text'] for item in transcript_list)
+            except Exception:
+                return None
         except Exception:
             return None
 
@@ -423,22 +435,24 @@ class SpeechScraper:
     # ==================================================================
 
     def scrape_whitehouse_remarks(self) -> int:
-        """Scrape remarks from whitehouse.gov briefing room.
+        """Scrape remarks from whitehouse.gov.
 
-        Official speeches and remarks:
-          - Main page: /briefing-room/speeches-remarks/
-          - Pagination: /page/N/
-          - Content in <section class="body-content"> or <div class="entry-content">
+        The WH site now uses:
+          - Listing page: /remarks/  (not /briefing-room/speeches-remarks/)
+          - Pagination: ?query-10-page=N
+          - Remark detail pages: /remarks/YYYY/MM/slug/
+          - Video pages: /videos/slug/  (most content lives here)
+          - Title links via h2 a, h3 a, .wp-block-post-title a
         """
         count = 0
-        base_url = 'https://www.whitehouse.gov/briefing-room/speeches-remarks/'
+        base_url = 'https://www.whitehouse.gov/remarks/'
 
-        for page in range(1, 50):
+        for page in range(1, 90):
             try:
                 if page == 1:
                     url = base_url
                 else:
-                    url = f'{base_url}page/{page}/'
+                    url = f'{base_url}?query-10-page={page}'
 
                 resp = self.session.get(url, timeout=30)
                 if resp.status_code != 200:
@@ -447,40 +461,28 @@ class SpeechScraper:
 
                 soup = BeautifulSoup(resp.text, 'html.parser')
 
-                # Find all internal links to /remarks/ or /videos/ paths
-                links = soup.find_all('a', href=True)
+                # Collect links from title elements (h2 a, h3 a, .wp-block-post-title a)
                 page_links = []
-                for link in links:
-                    href = link['href']
-                    # Match remark detail pages like /remarks/2025/06/...
-                    # or video pages like /videos/...
-                    if re.search(r'/(remarks|speeches-remarks|briefing-room)/\d{4}/', href) or re.search(r'/videos/', href):
+                for el in soup.select('h2 a[href], h3 a[href], .wp-block-post-title a[href]'):
+                    href = el['href']
+                    title = el.get_text(strip=True)
+                    if not title or len(title) < 5:
+                        continue
+                    # Accept /remarks/YYYY/... and /videos/... links
+                    if '/remarks/' in href or '/videos/' in href:
                         full_url = href if href.startswith('http') else f'https://www.whitehouse.gov{href}'
-                        title = link.get_text(strip=True)
-                        if title and len(title) > 5:
-                            page_links.append((title, full_url))
-
-                # Also try card-style elements
-                for card in soup.select('.wp-block-post, .briefing-statement, article, .news-item'):
-                    link_tag = card.select_one('a[href]')
-                    if link_tag:
-                        href = link_tag['href']
-                        if '/remarks/' in href or '/videos/' in href:
-                            full_url = href if href.startswith('http') else f'https://www.whitehouse.gov{href}'
-                            title = link_tag.get_text(strip=True)
-                            if title and len(title) > 5:
-                                page_links.append((title, full_url))
+                        page_links.append((title, full_url))
 
                 # Deduplicate
                 seen = set()
                 unique_links = []
-                for title, url in page_links:
-                    if url not in seen:
-                        seen.add(url)
-                        unique_links.append((title, url))
+                for title, link_url in page_links:
+                    if link_url not in seen:
+                        seen.add(link_url)
+                        unique_links.append((title, link_url))
 
                 if not unique_links:
-                    logger.debug(f"WH page {page}: no remark links found")
+                    logger.debug(f"WH page {page}: no remark links found, stopping")
                     break
 
                 for title, href in unique_links:
@@ -489,18 +491,21 @@ class SpeechScraper:
                         if not source_id:
                             source_id = '-'.join(href.rstrip('/').split('/')[-3:])
 
-                        date = self._extract_date_from_text(title)
-                        # Also try extracting from URL  /remarks/2025/06/12/...
-                        date_match = re.search(r'/(\d{4})/(\d{2})/(\d{2})/', href)
+                        # Try date from URL first (/remarks/2025/01/slug/)
+                        date = None
+                        date_match = re.search(r'/(\d{4})/(\d{2})(?:/(\d{2}))?/', href)
                         if date_match:
                             try:
+                                day = int(date_match.group(3)) if date_match.group(3) else 1
                                 date = datetime(
                                     int(date_match.group(1)),
                                     int(date_match.group(2)),
-                                    int(date_match.group(3)),
+                                    day,
                                 )
                             except ValueError:
                                 pass
+                        if date is None:
+                            date = self._extract_date_from_text(title)
 
                         transcript = self._fetch_article_text(href)
 
@@ -531,123 +536,30 @@ class SpeechScraper:
     def scrape_rollcall_factbase(self) -> int:
         """Scrape from rollcall.com/factbase (replaces dead factba.se).
 
-        Factba.se was acquired by Roll Call and now redirects to
-        rollcall.com/factbase/. We scrape that plus search for transcripts.
+        NOTE: Roll Call/Factbase does not host actual transcripts — the
+        search returns news articles *about* Trump, which pollute the
+        training corpus.  The original factba.se transcript database was
+        not migrated to rollcall.com.  Disabled to prevent corpus
+        contamination.  Transcript coverage comes from Rev.com, White
+        House, Presidency Project, and Google News RSS instead.
         """
-        count = 0
-
-        urls_to_try = [
-            'https://rollcall.com/factbase/',
-            'https://rollcall.com/section/factbase/',
-            'https://rollcall.com/?s=trump+transcript',
-        ]
-
-        for base_url in urls_to_try:
-            try:
-                resp = self.session.get(base_url, timeout=30)
-                if resp.status_code != 200:
-                    continue
-
-                soup = BeautifulSoup(resp.text, 'html.parser')
-
-                for link in soup.find_all('a', href=True):
-                    href = link['href']
-                    title = link.get_text(strip=True)
-
-                    if not title or len(title) < 10:
-                        continue
-
-                    # Look for transcript-related articles
-                    combined = (title + ' ' + href).lower()
-                    if not any(kw in combined for kw in [
-                        'transcript', 'trump', 'remarks', 'speech', 'address',
-                    ]):
-                        continue
-
-                    full_url = href if href.startswith('http') else urljoin(base_url, href)
-                    source_id = urlparse(full_url).path.rstrip('/').split('/')[-1]
-
-                    if not source_id or len(source_id) < 3:
-                        continue
-
-                    date = self._extract_date_from_text(title)
-                    transcript = self._fetch_article_text(full_url)
-
-                    if self._save_speech(
-                        source='rollcall_factbase',
-                        source_id=source_id,
-                        title=title,
-                        date=date,
-                        transcript=transcript,
-                        source_url=full_url,
-                    ):
-                        count += 1
-                        logger.debug(f"RollCall: saved '{title[:60]}'")
-
-            except Exception as e:
-                logger.warning(f"Roll Call scraper error for {base_url}: {e}")
-
-        return count
+        logger.debug("Roll Call/Factbase disabled — returns news articles, not transcripts")
+        return 0
 
     # ==================================================================
     # SOURCE 5: C-SPAN
     # ==================================================================
 
     def scrape_cspan(self) -> int:
-        """Scrape Trump appearances from C-SPAN search."""
-        count = 0
+        """Scrape Trump appearances from C-SPAN search.
 
-        try:
-            search_url = 'https://www.c-span.org/search/'
-            params = {
-                'query': 'trump',
-                'sort': 'Most+Recent',
-                'type': 'videos',
-            }
-
-            resp = self.session.get(search_url, params=params, timeout=30)
-            if resp.status_code != 200:
-                logger.debug(f"C-SPAN returned {resp.status_code}")
-                return 0
-
-            soup = BeautifulSoup(resp.text, 'html.parser')
-
-            # C-SPAN uses /video/ links for their content
-            for link in soup.find_all('a', href=True):
-                href = link['href']
-                if '/video/' not in href:
-                    continue
-
-                title = link.get_text(strip=True)
-                if not title or len(title) < 10:
-                    continue
-
-                full_url = href if href.startswith('http') else f'https://www.c-span.org{href}'
-                source_id = href.rstrip('/').split('/')[-1]
-                # Remove query params from source_id
-                source_id = source_id.split('?')[0]
-
-                if not source_id:
-                    continue
-
-                date = self._extract_date_from_text(
-                    link.parent.get_text(' ', strip=True) if link.parent else title
-                )
-
-                if self._save_speech(
-                    source='cspan',
-                    source_id=source_id,
-                    title=title,
-                    date=date,
-                    source_url=full_url,
-                    speech_type='cspan_appearance',
-                ):
-                    count += 1
-
-        except Exception as e:
-            logger.warning(f"C-SPAN scraper error: {e}")
-
-        return count
+        NOTE: C-SPAN search results are now fully JS-rendered — no video
+        links appear in the raw HTML.  C-SPAN content is still picked up
+        by the Google News RSS scraper (source #2), so this is not a gap.
+        Keeping the method as a stub to avoid breaking scrape_all_sources().
+        """
+        logger.debug("C-SPAN search is JS-rendered; coverage via Google News RSS")
+        return 0
 
     # ==================================================================
     # SOURCE 6: YouTube Channels
@@ -734,6 +646,10 @@ class SpeechScraper:
         The gold standard for official presidential documents including
         speeches, press conferences, and official statements.
         Uses person2=200301 (Trump's ID) for filtering.
+
+        The results page uses a table with columns:
+          Date | Related | Document Title
+        Title links are in the 3rd <td> cell.
         """
         count = 0
         base_url = 'https://www.presidency.ucsb.edu/advanced-search'
@@ -750,27 +666,38 @@ class SpeechScraper:
                     'page': page,
                 }
 
-                resp = self.session.get(base_url, params=params, timeout=30)
+                resp = self.session.get(base_url, params=params, timeout=60)
                 if resp.status_code != 200:
                     logger.debug(f"UCSB page {page} returned {resp.status_code}")
                     break
 
                 soup = BeautifulSoup(resp.text, 'html.parser')
-                rows = soup.select('.views-row')
 
-                if not rows:
+                # Results are in table rows (skip header row)
+                rows = soup.select('.view-content table tr')
+                data_rows = [r for r in rows if r.find('td')]
+
+                if not data_rows:
                     logger.debug(f"UCSB page {page}: no results, stopping")
                     break
 
-                for row in rows:
+                for row in data_rows:
                     try:
-                        title_el = row.select_one('.field-title a, h3 a, a')
-                        if not title_el:
+                        cells = row.find_all('td')
+                        if len(cells) < 3:
                             continue
 
-                        title = title_el.get_text(strip=True)
-                        href = title_el.get('href', '')
-                        if not href:
+                        # Column 0: Date, Column 1: Related, Column 2: Title
+                        date_text = cells[0].get_text(strip=True)
+                        title_cell = cells[2]
+                        title_link = title_cell.select_one('a[href]')
+
+                        if not title_link:
+                            continue
+
+                        title = title_link.get_text(strip=True)
+                        href = title_link.get('href', '')
+                        if not href or not title:
                             continue
 
                         full_url = (
@@ -779,15 +706,12 @@ class SpeechScraper:
                         )
                         source_id = href.rstrip('/').split('/')[-1]
 
-                        # Extract date
-                        date_el = row.select_one('.date-display-single')
+                        # Parse date from the first column
                         date = datetime.now()
-                        if date_el:
+                        if date_text:
                             try:
                                 from dateutil import parser as dateparser
-                                date = dateparser.parse(
-                                    date_el.get_text(strip=True),
-                                )
+                                date = dateparser.parse(date_text)
                             except (ValueError, TypeError):
                                 pass
 
@@ -795,7 +719,7 @@ class SpeechScraper:
                         transcript = None
                         try:
                             detail_resp = self.session.get(
-                                full_url, timeout=30,
+                                full_url, timeout=60,
                             )
                             if detail_resp.status_code == 200:
                                 detail_soup = BeautifulSoup(
@@ -844,116 +768,14 @@ class SpeechScraper:
     def scrape_trump_twitter_archive(self) -> int:
         """Scrape from The Trump Archive (historical tweets/posts).
 
-        The archive typically serves its data as JSON—either via a
-        direct API endpoint or embedded in the page source.  Useful for
-        short-form language patterns and vocabulary mapping.
+        NOTE: thetrumparchive.com is now a JS-only shell — all data is
+        loaded client-side with no server-rendered content.  Tweet data
+        is covered by the SocialMediaImporter bulk import (~56K tweets)
+        which runs automatically in pipeline Phase 0.
+        Keeping as a stub to avoid breaking scrape_all_sources().
         """
-        count = 0
-
-        endpoints = [
-            'https://www.thetrumparchive.com/latest-tweets',
-            'https://www.thetrumparchive.com/',
-        ]
-
-        for endpoint in endpoints:
-            try:
-                resp = self.session.get(endpoint, timeout=30)
-                if resp.status_code != 200:
-                    continue
-
-                # Attempt 1: response is raw JSON
-                try:
-                    data = resp.json()
-                    tweets = (
-                        data if isinstance(data, list)
-                        else data.get('tweets', data.get('data', []))
-                    )
-
-                    for tweet in tweets:
-                        text = tweet.get('text', tweet.get('content', ''))
-                        if not text or len(text) < 20:
-                            continue
-
-                        tweet_id = str(
-                            tweet.get('id', tweet.get('tweetId', '')),
-                        )
-                        date_str = tweet.get(
-                            'date', tweet.get('created_at', ''),
-                        )
-                        date = datetime.now()
-                        if date_str:
-                            try:
-                                from dateutil import parser as dateparser
-                                date = dateparser.parse(date_str)
-                            except (ValueError, TypeError):
-                                pass
-
-                        short_title = (
-                            f'Tweet: {text[:80]}...'
-                            if len(text) > 80
-                            else f'Tweet: {text}'
-                        )
-                        if self._save_speech(
-                            source='twitter_archive',
-                            source_id=(
-                                tweet_id
-                                or f'tweet_{hash(text) % 10**8}'
-                            ),
-                            title=short_title,
-                            date=date,
-                            transcript=text,
-                            speech_type='social_media',
-                        ):
-                            count += 1
-
-                    if count > 0:
-                        logger.info(
-                            f"Twitter Archive: loaded {count} posts "
-                            f"from JSON endpoint",
-                        )
-                        return count
-
-                except (json.JSONDecodeError, ValueError):
-                    pass
-
-                # Attempt 2: JSON data embedded in HTML <script> tags
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                for script in soup.find_all('script'):
-                    script_text = script.string or ''
-                    if 'tweet' not in script_text.lower() or '{' not in script_text:
-                        continue
-
-                    json_match = re.search(
-                        r'(\[.*?\])', script_text, re.DOTALL,
-                    )
-                    if not json_match:
-                        continue
-
-                    try:
-                        tweets = json.loads(json_match.group(1))
-                        for tweet in tweets[:5000]:
-                            tweet_text = tweet.get('text', '')
-                            if tweet_text and len(tweet_text) > 20:
-                                tweet_id = str(tweet.get('id', ''))
-                                if self._save_speech(
-                                    source='twitter_archive',
-                                    source_id=(
-                                        tweet_id
-                                        or f'tweet_{hash(tweet_text) % 10**8}'
-                                    ),
-                                    title=f'Tweet: {tweet_text[:80]}',
-                                    date=datetime.now(),
-                                    transcript=tweet_text,
-                                    speech_type='social_media',
-                                ):
-                                    count += 1
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-
-            except Exception as e:
-                logger.debug(f"Twitter Archive error for {endpoint}: {e}")
-
-        return count
+        logger.debug("Trump Twitter Archive is JS-only; tweets covered by SocialMediaImporter")
+        return 0
 
     # ==================================================================
     # SOURCE 9: C-SPAN Video Library (with transcripts)
@@ -962,168 +784,31 @@ class SpeechScraper:
     def scrape_cspan_transcripts(self) -> int:
         """Scrape C-SPAN video library with interactive transcripts.
 
-        Uses Trump's person ID (92774) to search the C-SPAN archive.
-        Attempts to extract transcript data from video detail pages
-        where it is often embedded as JSON or rendered in a transcript div.
+        NOTE: C-SPAN search is fully JS-rendered — no video links appear
+        in raw HTML.  C-SPAN content is picked up by Google News RSS
+        (source #2) and YouTube yt-dlp (source #8).
+        Keeping as a stub to avoid breaking scrape_all_sources().
         """
-        count = 0
-        base_url = 'https://www.c-span.org/search/'
-
-        for page in range(1, 20):
-            try:
-                params = {
-                    'sdate': '',
-                    'edate': '',
-                    'searchtype': 'Videos',
-                    'sort': 'Most+Recent',
-                    'text': '0',
-                    'personid[]': '92774',
-                    'page': page,
-                }
-
-                resp = self.session.get(
-                    base_url, params=params, timeout=30,
-                )
-                if resp.status_code != 200:
-                    logger.debug(
-                        f"C-SPAN search page {page} returned "
-                        f"{resp.status_code}",
-                    )
-                    break
-
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                video_items = soup.select(
-                    '.video-result, .search-result, li',
-                )
-
-                found_any = False
-                for item in video_items:
-                    try:
-                        link = item.select_one('a[href*="/video/"]')
-                        if not link:
-                            continue
-
-                        found_any = True
-                        href = link['href']
-                        title = link.get_text(strip=True)
-                        if not title or len(title) < 5:
-                            continue
-
-                        full_url = (
-                            href if href.startswith('http')
-                            else f'https://www.c-span.org{href}'
-                        )
-                        source_id = re.sub(
-                            r'[?#].*', '',
-                            href.rstrip('/').split('/')[-1],
-                        )
-                        if not source_id or len(source_id) < 2:
-                            continue
-
-                        # Date extraction
-                        date_el = item.select_one('.date, time, .air-date')
-                        date = datetime.now()
-                        if date_el:
-                            try:
-                                from dateutil import parser as dateparser
-                                date_text = (
-                                    date_el.get('datetime')
-                                    or date_el.get_text(strip=True)
-                                )
-                                date = dateparser.parse(date_text)
-                            except (ValueError, TypeError):
-                                pass
-
-                        # Fetch detail page and extract transcript
-                        transcript = None
-                        try:
-                            detail_resp = self.session.get(
-                                full_url, timeout=30,
-                            )
-                            if detail_resp.status_code == 200:
-                                detail_text = detail_resp.text
-
-                                # Try JSON transcript embedded in page
-                                t_match = re.search(
-                                    r'transcript["\']?\s*:\s*(\[.*?\])',
-                                    detail_text,
-                                    re.DOTALL,
-                                )
-                                if t_match:
-                                    try:
-                                        segments = json.loads(
-                                            t_match.group(1),
-                                        )
-                                        transcript = ' '.join(
-                                            s.get('text', '')
-                                            for s in segments
-                                            if isinstance(s, dict)
-                                        )
-                                    except (json.JSONDecodeError, ValueError):
-                                        pass
-
-                                # Fallback: HTML transcript div
-                                if not transcript:
-                                    detail_soup = BeautifulSoup(
-                                        detail_text, 'html.parser',
-                                    )
-                                    t_div = detail_soup.select_one(
-                                        '.transcript-text, '
-                                        '#annotator-source-text, '
-                                        '.text-body',
-                                    )
-                                    if t_div:
-                                        transcript = t_div.get_text(
-                                            separator=' ', strip=True,
-                                        )
-                        except Exception as e:
-                            logger.debug(
-                                f"Error fetching C-SPAN detail: {e}",
-                            )
-
-                        if self._save_speech(
-                            source='cspan_transcripts',
-                            source_id=source_id,
-                            title=title,
-                            date=date,
-                            transcript=transcript,
-                            source_url=full_url,
-                            speech_type='cspan_appearance',
-                        ):
-                            count += 1
-                            logger.debug(
-                                f"C-SPAN transcript: saved '{title[:60]}'",
-                            )
-
-                        time.sleep(1.5)
-
-                    except Exception as e:
-                        logger.debug(f"Error parsing C-SPAN result: {e}")
-
-                if not found_any:
-                    break
-
-                time.sleep(2)
-
-            except Exception as e:
-                logger.warning(
-                    f"C-SPAN transcript search error on page {page}: {e}",
-                )
-                break
-
-        return count
+        logger.debug("C-SPAN transcripts search is JS-rendered; coverage via Google News RSS + yt-dlp")
+        return 0
 
     # ==================================================================
     # SOURCE 10: YouTube via yt-dlp (auto-subtitles)
     # ==================================================================
 
     def scrape_youtube_yt_dlp(self) -> int:
-        """Scrape YouTube transcripts using yt-dlp auto-generated subtitles.
+        """Scrape YouTube transcripts from the White House channel and
+        Trump-related channels using yt-dlp for video listing and
+        youtube-transcript-api for transcript extraction.
 
-        Downloads auto-subtitles from RSBN, C-SPAN, White House, and
-        news channels.  Falls back to youtube-transcript-api when
-        yt-dlp is unavailable.  More reliable than the YouTube Data API
-        for transcript extraction and does not require an API key.
+        Channels scraped:
+          - @WhiteHouse — official White House uploads
+          - @RSBNetwork — Right Side Broadcasting (rallies, events)
+
+        No API key required.  yt-dlp lists videos from each channel's
+        /videos tab; youtube-transcript-api pulls the transcript for
+        each video.  Falls back to yt-dlp subtitle extraction when the
+        transcript API fails.
         """
         try:
             import yt_dlp
@@ -1135,14 +820,51 @@ class SpeechScraper:
 
         count = 0
 
-        search_queries = [
-            'ytsearch20:trump full speech 2026',
-            'ytsearch20:trump remarks 2026',
-            'ytsearch20:trump press conference 2026',
-            'ytsearch10:trump rally full 2025',
+        # Channel URLs → scrape the /videos tab for each
+        channels = [
+            ('https://www.youtube.com/@WhiteHouse/videos', 100),
+            ('https://www.youtube.com/@RSBNetwork/videos', 50),
         ]
 
         ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,        # fast: just list video IDs
+            'skip_download': True,
+        }
+
+        video_ids: list[tuple[str, str, str]] = []  # (id, title, channel_url)
+
+        # Phase 1: list video IDs from each channel
+        for channel_url, limit in channels:
+            try:
+                opts = {**ydl_opts, 'playlistend': limit}
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    result = ydl.extract_info(channel_url, download=False)
+                    if not result:
+                        continue
+                    entries = result.get('entries') or []
+                    for entry in entries:
+                        if not entry:
+                            continue
+                        vid = entry.get('id', '')
+                        title = entry.get('title', '')
+                        if vid and title:
+                            video_ids.append((vid, title, channel_url))
+                logger.info(
+                    f"yt-dlp: listed {len(entries)} videos from {channel_url}",
+                )
+            except Exception as e:
+                logger.warning(f"yt-dlp channel listing error for {channel_url}: {e}")
+
+        if not video_ids:
+            logger.debug("yt-dlp: no videos found from any channel")
+            return 0
+
+        logger.info(f"yt-dlp: processing {len(video_ids)} videos for transcripts")
+
+        # Phase 2: fetch metadata + transcript for each video
+        detail_opts = {
             'quiet': True,
             'no_warnings': True,
             'writeautomaticsub': True,
@@ -1151,106 +873,91 @@ class SpeechScraper:
             'extract_flat': False,
         }
 
-        for query in search_queries:
+        for video_id, flat_title, channel_url in video_ids:
             try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    results = ydl.extract_info(query, download=False)
-                    if not results or 'entries' not in results:
-                        continue
+                # Get full metadata via yt-dlp
+                with yt_dlp.YoutubeDL(detail_opts) as ydl:
+                    entry = ydl.extract_info(
+                        f'https://www.youtube.com/watch?v={video_id}',
+                        download=False,
+                    )
+                if not entry:
+                    continue
 
-                    for entry in (results.get('entries') or []):
-                        if not entry:
-                            continue
+                title = entry.get('title', flat_title)
+                upload_date = entry.get('upload_date', '')
+                duration = entry.get('duration', 0)
+                description = entry.get('description', '')
+                channel_name = entry.get('channel', '')
+                view_count = entry.get('view_count')
 
-                        try:
-                            video_id = entry.get('id', '')
-                            title = entry.get('title', '')
-                            upload_date = entry.get('upload_date', '')
-                            duration = entry.get('duration', 0)
+                # Skip very short clips (< 1 min)
+                if duration and duration < 60:
+                    continue
 
-                            if not video_id or not title:
-                                continue
+                # Parse upload date (YYYYMMDD)
+                date = datetime.now()
+                if upload_date and len(upload_date) == 8:
+                    try:
+                        date = datetime.strptime(upload_date, '%Y%m%d')
+                    except ValueError:
+                        pass
 
-                            # Skip short clips (< 5 min)
-                            if duration and duration < 300:
-                                continue
+                # Transcript: try youtube-transcript-api first (cleanest)
+                transcript = self._get_youtube_transcript(video_id)
 
-                            # Parse upload date (YYYYMMDD)
-                            date = datetime.now()
-                            if upload_date and len(upload_date) == 8:
-                                try:
-                                    date = datetime.strptime(
-                                        upload_date, '%Y%m%d',
-                                    )
-                                except ValueError:
-                                    pass
+                # Fallback: yt-dlp subtitle extraction
+                if not transcript:
+                    try:
+                        subs = (
+                            entry.get('automatic_captions', {}).get('en', [])
+                        )
+                        if not subs:
+                            subs = entry.get('subtitles', {}).get('en', [])
 
-                            # Try youtube-transcript-api first
-                            transcript = self._get_youtube_transcript(
-                                video_id,
-                            )
-
-                            # Fall back to yt-dlp subtitle extraction
-                            if not transcript:
-                                try:
-                                    subs = (
-                                        entry.get(
-                                            'automatic_captions', {},
-                                        ).get('en', [])
-                                    )
-                                    if not subs:
-                                        subs = (
-                                            entry.get(
-                                                'subtitles', {},
-                                            ).get('en', [])
-                                        )
-
-                                    for sub in subs:
-                                        ext = sub.get('ext', '')
-                                        if ext in (
-                                            'json3', 'srv3', 'vtt', 'srt',
-                                        ):
-                                            sub_resp = self.session.get(
-                                                sub['url'], timeout=30,
-                                            )
-                                            if sub_resp.status_code == 200:
-                                                transcript = (
-                                                    self._parse_subtitle_text(
-                                                        sub_resp.text, ext,
-                                                    )
-                                                )
-                                                if transcript:
-                                                    break
-                                except Exception as e:
-                                    logger.debug(
-                                        f"yt-dlp subtitle extraction "
-                                        f"error: {e}",
-                                    )
-
-                            if self._save_speech(
-                                source='youtube_yt_dlp',
-                                source_id=video_id,
-                                title=title,
-                                date=date,
-                                transcript=transcript,
-                                source_url=(
-                                    'https://www.youtube.com'
-                                    f'/watch?v={video_id}'
-                                ),
-                                duration=duration,
-                            ):
-                                count += 1
-                                logger.debug(
-                                    f"yt-dlp: saved '{title[:60]}'",
+                        for sub in subs:
+                            ext = sub.get('ext', '')
+                            if ext in ('json3', 'srv3', 'vtt', 'srt'):
+                                sub_resp = self.session.get(
+                                    sub['url'], timeout=30,
                                 )
+                                if sub_resp.status_code == 200:
+                                    transcript = self._parse_subtitle_text(
+                                        sub_resp.text, ext,
+                                    )
+                                    if transcript:
+                                        break
+                    except Exception as e:
+                        logger.debug(
+                            f"yt-dlp subtitle extraction error for "
+                            f"{video_id}: {e}",
+                        )
 
-                        except Exception as e:
-                            logger.debug(
-                                f"Error processing yt-dlp entry: {e}",
-                            )
+                video_url = f'https://www.youtube.com/watch?v={video_id}'
+
+                if self._save_speech(
+                    source='youtube_yt_dlp',
+                    source_id=video_id,
+                    title=title,
+                    date=date,
+                    transcript=transcript,
+                    source_url=video_url,
+                    duration=duration,
+                    metadata={
+                        'channel': channel_name,
+                        'view_count': view_count,
+                        'description': (description or '')[:500],
+                    },
+                ):
+                    count += 1
+                    word_count = len(transcript.split()) if transcript else 0
+                    logger.debug(
+                        f"yt-dlp: saved '{title[:50]}' "
+                        f"({word_count} words, {duration or '?'}s)",
+                    )
 
             except Exception as e:
-                logger.debug(f"yt-dlp search error for '{query}': {e}")
+                logger.debug(f"Error processing video {video_id}: {e}")
 
         return count
 

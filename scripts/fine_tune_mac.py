@@ -29,7 +29,7 @@ from src.database.models import Speech, Term, ModelVersion
 
 # ── Configuration (edit these if needed) ──
 
-MODEL_NAME = os.getenv('FINE_TUNE_MODEL', 'meta-llama/Llama-3.2-1B')
+MODEL_NAME = os.getenv('FINE_TUNE_MODEL', 'EleutherAI/pythia-410m')
 LORA_RANK = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
 EPOCHS = int(os.getenv('FINE_TUNE_EPOCHS', '3'))
 MAX_LENGTH = int(os.getenv('FINE_TUNE_MAX_LENGTH', '512'))

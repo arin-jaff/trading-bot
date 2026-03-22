@@ -14,7 +14,7 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/trading_bot.db')
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    connect_args={'timeout': 30, 'check_same_thread': False},
+    connect_args={'timeout': 120, 'check_same_thread': False},
     poolclass=NullPool,
 )
 SessionLocal = sessionmaker(bind=engine)

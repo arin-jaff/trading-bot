@@ -6,6 +6,7 @@ install:
 
 install-pi:
 	pip install -r requirements-pi.txt
+	pip install torch --index-url https://download.pytorch.org/whl/cpu || pip install torch
 
 init:
 	python -c "from src.database.db import init_db; init_db()"

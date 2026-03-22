@@ -32,15 +32,17 @@ class TermPredictor:
 
     def __init__(self):
         self.model_weights = {
-            'frequency': 0.20,
+            'frequency': 0.15,
             'temporal': 0.05,       # reduced — often poisoned by bad dates
-            'trend': 0.15,
-            'event_correlation': 0.10,
-            'monte_carlo': 0.40,
+            'trend': 0.10,
+            'event_correlation': 0.05,
+            'monte_carlo': 0.35,
             'news_relevance': 0.10,  # 2A: Gemini current events signal
+            'social_velocity': 0.20,  # Social media trending terms (primary signal)
         }
         self._monte_carlo_predictions = None
         self._news_enricher = None
+        self._social_analyzer = None
         self._correlation_matrix = None
 
     def predict_all_terms(self, event: Optional[dict] = None) -> list[dict]:
@@ -50,6 +52,9 @@ class TermPredictor:
 
         # 2A: Load news enrichment
         self._load_news_enrichment()
+
+        # Load social media analyzer
+        self._load_social_analyzer()
 
         # 2D: Build correlation matrix
         self._build_correlation_matrix()
@@ -119,6 +124,9 @@ class TermPredictor:
 
         # 6. News relevance (2A: Gemini current events enrichment)
         scores['news_relevance'] = self._news_relevance_score(term)
+
+        # 7. Social media velocity — trending terms from Twitter/Truth Social
+        scores['social_velocity'] = self._social_velocity_score(term)
 
         # Combined weighted score — None scores redistribute weight
         active_scores = {k: v for k, v in scores.items() if v is not None}
@@ -594,6 +602,45 @@ Respond in JSON format:
                         boosts.append(b)
                 if boosts:
                     return max(boosts)
+        except Exception:
+            pass
+        return None
+
+    # ─── Social Media Velocity ─────────────────────────────────────────
+
+    def _load_social_analyzer(self):
+        """Load the social media analyzer singleton."""
+        if self._social_analyzer is not None:
+            return
+        try:
+            from .social_media_analyzer import social_media_analyzer
+            self._social_analyzer = social_media_analyzer
+        except Exception as e:
+            logger.debug(f"Social media analyzer not available: {e}")
+            self._social_analyzer = None
+
+    def _social_velocity_score(self, term: Term) -> Optional[float]:
+        """Get social media velocity score for a term.
+
+        Returns a 0-1 score based on how much the term is trending
+        on Twitter/Truth Social relative to its baseline.
+        """
+        if not self._social_analyzer:
+            return None
+
+        try:
+            score = self._social_analyzer.get_trend_score(term.normalized_term)
+            if score is not None:
+                return score
+            # Check sub-terms for compound terms
+            if term.is_compound and term.sub_terms:
+                sub_scores = []
+                for st in term.sub_terms:
+                    s = self._social_analyzer.get_trend_score(st.lower().strip())
+                    if s is not None:
+                        sub_scores.append(s)
+                if sub_scores:
+                    return max(sub_scores)
         except Exception:
             pass
         return None

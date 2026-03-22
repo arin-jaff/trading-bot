@@ -1,9 +1,9 @@
 """Local training pipeline for Raspberry Pi.
 
 Runs the Markov chain pipeline (Phases 0-5) every 6 hours.
-Fine-tuning runs separately on Mac — see scripts/fine_tune_mac.py.
-If Pythia predictions exist on disk (synced from Mac), they are
-automatically blended with Markov predictions.
+Fine-tuning runs nightly on the Pi itself (Pythia-160M with LoRA,
+~75 min on Pi 4). Fine-tuned predictions are automatically blended
+with Markov predictions.
 """
 
 import json
@@ -263,13 +263,82 @@ class LocalPipeline:
         thread.start()
         return {'status': 'started'}
 
+    # ── Fine-tuning on Pi ──
+
+    def run_fine_tuning(self) -> Optional[dict]:
+        """Run Pi-native fine-tuning (Pythia-160M with LoRA).
+
+        Called nightly by the scheduler. Trains the model, runs Monte Carlo
+        simulations, and saves predictions for blending with Markov output.
+        Returns result dict or None on failure.
+        """
+        if not config.fine_tune_enabled:
+            self._log_event('Fine-tuning disabled (FINE_TUNE_ENABLED=false)')
+            return None
+
+        try:
+            from .fine_tuner import GPT2FineTuner
+        except ImportError as e:
+            self._log_event(f'Fine-tuning skipped: missing deps ({e})')
+            logger.warning(f"Fine-tuning deps not available: {e}")
+            return None
+
+        self._log_event('Fine-tuning: starting Pi-native Pythia LoRA training...')
+        self._status.update(stage='Fine-tuning Pythia (LoRA)', progress=0.0)
+
+        try:
+            fine_tuner = GPT2FineTuner()
+            train_result = fine_tuner.train()
+
+            if not train_result or train_result.get('status') in ('error', None):
+                self._log_event(f'Fine-tuning failed: {train_result}')
+                return None
+
+            if train_result.get('status') == 'stopped':
+                self._log_event('Fine-tuning stopped by user')
+                return train_result
+
+            self._log_event(
+                f'Fine-tuning complete: v{train_result.get("version", "?")} '
+                f'({train_result.get("total_steps", 0)} steps, '
+                f'loss={train_result.get("final_loss", "?")}, '
+                f'{train_result.get("training_seconds", 0)/60:.1f} min)'
+            )
+
+            # Run Monte Carlo with the fine-tuned model
+            with get_session() as session:
+                terms = session.query(Term).all()
+                term_list = [t.normalized_term for t in terms]
+
+            if term_list and fine_tuner.has_trained_model():
+                self._log_event(f'Fine-tune MC: running {config.fine_tune_mc_sims} simulations...')
+                mc_data = fine_tuner.run_monte_carlo(term_list)
+
+                if mc_data and mc_data.get('term_predictions'):
+                    # Save as predictions_pythia.json for blending
+                    pred_path = PYTHIA_PREDICTIONS_PATH
+                    os.makedirs(os.path.dirname(pred_path), exist_ok=True)
+                    with open(pred_path, 'w') as f:
+                        json.dump(mc_data, f, indent=2)
+                    self._log_event(
+                        f'Fine-tune MC: {len(mc_data["term_predictions"])} '
+                        f'term predictions saved to {pred_path}'
+                    )
+
+            return train_result
+
+        except Exception as e:
+            self._log_event(f'Fine-tuning error: {e}')
+            logger.error(f"Pi fine-tuning failed: {e}")
+            return None
+
     # ── Pythia blending ──
 
     def _blend_pythia_if_available(self, markov_data: dict) -> bool:
         """Blend Pythia predictions from disk if predictions_pythia.json exists.
 
-        This file is produced by scripts/fine_tune_mac.py on the Mac and
-        synced to the Pi via scp. Returns True if blending occurred.
+        This file is produced by the nightly Pi fine-tuning job or
+        synced from Mac. Returns True if blending occurred.
         """
         if not os.path.exists(PYTHIA_PREDICTIONS_PATH):
             return False

@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
@@ -1124,7 +1125,7 @@ def get_recent_social_posts(limit: int = 5):
         ]
 
 
-# --- Pythia predictions (fine-tuning runs on Mac, pushed to Pi via API) ---
+# --- Fine-tuning + Pythia predictions ---
 
 @app.get("/api/fine-tune/pythia-status")
 def get_pythia_status():
@@ -1142,6 +1143,70 @@ def get_pythia_status():
             "model": data.get('simulation_params', {}).get('model_name', 'pythia'),
         }
     return {"available": False}
+
+
+@app.get("/api/fine-tune/pi-status")
+def get_pi_fine_tune_status():
+    """Get Pi-native fine-tuning status and configuration."""
+    result = {
+        "enabled": app_config.fine_tune_enabled,
+        "model": app_config.fine_tune_model,
+        "lora_rank": app_config.fine_tune_lora_rank,
+        "epochs": app_config.fine_tune_epochs,
+        "gradient_checkpointing": app_config.fine_tune_gradient_checkpointing,
+        "schedule_hour": app_config.fine_tune_hour,
+        "pytorch_available": False,
+        "torch_version": None,
+        "training_status": None,
+        "loss_history": [],
+    }
+
+    # Check PyTorch availability
+    try:
+        import torch
+        result["pytorch_available"] = True
+        result["torch_version"] = torch.__version__
+    except ImportError:
+        pass
+
+    # Check fine-tuner status if available
+    try:
+        from ..ml.fine_tuner import GPT2FineTuner
+        fine_tuner = GPT2FineTuner()
+        result["training_status"] = fine_tuner.get_status()
+        result["loss_history"] = fine_tuner.get_loss_history()[-100:]
+        result["has_trained_model"] = fine_tuner.has_trained_model()
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
+@app.post("/api/fine-tune/start")
+def start_pi_fine_tuning(background_tasks: BackgroundTasks):
+    """Manually trigger Pi fine-tuning."""
+    if not app_config.fine_tune_enabled:
+        raise HTTPException(status_code=400, detail="Fine-tuning disabled")
+
+    try:
+        from ..ml.local_pipeline import LocalPipeline
+        pipeline = LocalPipeline()
+        background_tasks.add_task(pipeline.run_fine_tuning)
+        return {"status": "Fine-tuning started"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fine-tune/stop")
+def stop_pi_fine_tuning():
+    """Stop running Pi fine-tuning."""
+    try:
+        from ..ml.fine_tuner import GPT2FineTuner
+        fine_tuner = GPT2FineTuner()
+        fine_tuner.stop_training()
+        return {"status": "Stop requested"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/fine-tune/upload-predictions")
@@ -1259,6 +1324,134 @@ def health_check():
         "live_monitoring": live_monitor.is_monitoring,
         "config": app_config.get_status(),
     }
+
+
+@app.get("/api/system/health-detailed")
+def detailed_health_check():
+    """Comprehensive health check for autonomous monitoring."""
+    import psutil
+
+    checks = {}
+
+    # Database
+    try:
+        with get_session() as session:
+            from ..database.models import Speech, Market, Term
+            checks['database'] = {
+                'status': 'ok',
+                'speeches': session.query(Speech).count(),
+                'markets': session.query(Market).count(),
+                'terms': session.query(Term).count(),
+            }
+    except Exception as e:
+        checks['database'] = {'status': 'error', 'error': str(e)}
+
+    # Kalshi API
+    checks['kalshi'] = {
+        'configured': bool(app_config.kalshi_api_key),
+    }
+
+    # Fine-tuning
+    ft_check = {
+        'enabled': app_config.fine_tune_enabled,
+        'model': app_config.fine_tune_model,
+        'pytorch_available': False,
+    }
+    try:
+        import torch
+        ft_check['pytorch_available'] = True
+        ft_check['torch_version'] = torch.__version__
+    except ImportError:
+        pass
+    checks['fine_tuning'] = ft_check
+
+    # Social media
+    try:
+        from ..scraper.social_media_importer import SocialMediaImporter
+        importer = SocialMediaImporter()
+        checks['social_media'] = importer.get_stats()
+    except Exception as e:
+        checks['social_media'] = {'error': str(e)}
+
+    # Social trends
+    try:
+        from ..ml.social_media_analyzer import social_media_analyzer
+        trends = social_media_analyzer.get_all_trends()
+        checks['social_trends'] = {
+            'terms_tracked': trends['total_terms'],
+            'last_refresh': trends['last_refresh'],
+        }
+    except Exception as e:
+        checks['social_trends'] = {'error': str(e)}
+
+    # Email
+    checks['email'] = {
+        'configured': app_config.validate_email(),
+    }
+
+    # Disk space
+    disk = psutil.disk_usage('/')
+    checks['disk'] = {
+        'used_gb': round(disk.used / (1024**3), 2),
+        'total_gb': round(disk.total / (1024**3), 2),
+        'percent': disk.percent,
+        'warning': disk.percent > 85,
+    }
+
+    # RAM
+    ram = psutil.virtual_memory()
+    checks['memory'] = {
+        'used_gb': round(ram.used / (1024**3), 2),
+        'total_gb': round(ram.total / (1024**3), 2),
+        'percent': ram.percent,
+        'warning': ram.percent > 85,
+    }
+
+    # Predictions freshness
+    pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
+    if os.path.exists(pred_path):
+        age_hours = (time.time() - os.path.getmtime(pred_path)) / 3600
+        checks['predictions'] = {
+            'status': 'ok' if age_hours < 12 else 'stale',
+            'age_hours': round(age_hours, 1),
+        }
+    else:
+        checks['predictions'] = {'status': 'missing'}
+
+    overall = all(
+        c.get('status') != 'error'
+        for c in checks.values()
+        if isinstance(c, dict) and 'status' in c
+    )
+
+    return {
+        'status': 'ok' if overall else 'degraded',
+        'timestamp': datetime.utcnow().isoformat(),
+        'checks': checks,
+    }
+
+
+@app.get("/api/social-media/trends")
+def get_social_trends():
+    """Get social media trending term scores."""
+    try:
+        from ..ml.social_media_analyzer import social_media_analyzer
+        trends = social_media_analyzer.get_all_trends()
+        # Sort by score descending
+        sorted_scores = sorted(
+            trends['scores'].items(),
+            key=lambda x: x[1], reverse=True
+        )
+        return {
+            'trends': [
+                {'term': t, 'score': s, 'trending': s > 0.6}
+                for t, s in sorted_scores[:50]
+            ],
+            'last_refresh': trends['last_refresh'],
+            'total_terms': trends['total_terms'],
+        }
+    except Exception as e:
+        return {'error': str(e), 'trends': []}
 
 
 # --- Static frontend ---

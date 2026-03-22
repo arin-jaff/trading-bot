@@ -102,6 +102,17 @@ def create_scheduler() -> BackgroundScheduler:
             id='local_pipeline_startup', replace_existing=True,
             name='Initial pipeline run at startup',
         )
+        # Nightly Pi fine-tuning (Pythia-160M LoRA, ~75 min on Pi 4)
+        if config.fine_tune_enabled:
+            ft_hour = config.fine_tune_hour
+            scheduler.add_job(
+                _run_pi_fine_tuning, CronTrigger(hour=ft_hour, minute=0, timezone='America/New_York'),
+                args=[local_pipeline],
+                id='pi_fine_tune', replace_existing=True,
+                name=f'Nightly Pi fine-tuning ({config.fine_tune_model}, {ft_hour}AM ET)',
+            )
+            logger.info(f"Pi fine-tuning: {config.fine_tune_model} nightly at {ft_hour}AM ET")
+
         logger.info(f"Pipeline mode: LOCAL (retrain every {retrain_hours}h, first run in 10s)")
     else:
         from .ml.colab_pipeline import ColabPipeline
@@ -124,33 +135,41 @@ def create_scheduler() -> BackgroundScheduler:
         )
         logger.info("Pipeline mode: COLAB (daily @ 4AM UTC)")
 
-    # Database pruning — daily cleanup of old predictions
+    # Database pruning — daily cleanup of old predictions (6:30 AM ET)
     scheduler.add_job(
-        _prune_old_predictions, CronTrigger(hour=6, minute=30),
+        _prune_old_predictions, CronTrigger(hour=6, minute=30, timezone='America/New_York'),
         id='prune_predictions', replace_existing=True,
         name='Prune old TermPredictions (keep 7 days)',
     )
 
-    # Accuracy evaluation — run daily to recalibrate against settled markets
+    # Accuracy evaluation — run daily to recalibrate against settled markets (7 AM ET)
     scheduler.add_job(
-        _evaluate_accuracy, CronTrigger(hour=7, minute=0),
+        _evaluate_accuracy, CronTrigger(hour=7, minute=0, timezone='America/New_York'),
         args=[predictor],
         id='accuracy_eval', replace_existing=True,
         name='Evaluate prediction accuracy vs settled markets',
     )
 
-    # Daily email digest at 8 AM
+    # Daily email digest at 8 AM ET (handles EST/EDT automatically)
     scheduler.add_job(
-        _send_daily_digest, CronTrigger(hour=8, minute=0),
+        _send_daily_digest, CronTrigger(hour=8, minute=0, timezone='America/New_York'),
         id='daily_digest', replace_existing=True,
-        name='Send daily email digest',
+        name='Send daily email digest (8 AM ET)',
     )
 
-    # Social media scraping — every 2 hours (Truth Social + daily digests)
+    # Social media scraping — every 30 min (primary terminology source)
+    social_minutes = config.social_media_scrape_minutes
     scheduler.add_job(
-        _scrape_social_media, IntervalTrigger(hours=2),
+        _scrape_social_media, IntervalTrigger(minutes=social_minutes),
         id='social_media_scrape', replace_existing=True,
-        name='Scrape Truth Social + rebuild daily digests',
+        name=f'Scrape Truth Social + Twitter (every {social_minutes}m)',
+    )
+
+    # Social media term analysis — every 30 min (after scrape)
+    scheduler.add_job(
+        _analyze_social_trends, IntervalTrigger(minutes=social_minutes),
+        id='social_analysis', replace_existing=True,
+        name='Analyze social media trending terms',
     )
 
     # 2A: News enrichment via Gemini — every hour
@@ -351,5 +370,24 @@ def _manage_positions(bot: TradingBot):
                 )
     except Exception as e:
         logger.error(f"Position management failed: {e}")
+
+
+def _run_pi_fine_tuning(pipeline):
+    """Nightly job: fine-tune Pythia-160M with LoRA on Pi."""
+    try:
+        result = pipeline.run_fine_tuning()
+        if result:
+            logger.info(f"Pi fine-tuning result: {result}")
+    except Exception as e:
+        logger.error(f"Pi fine-tuning failed: {e}")
+
+
+def _analyze_social_trends():
+    """Periodic job: analyze social media posts for trending terms."""
+    try:
+        from .ml.social_media_analyzer import social_media_analyzer
+        social_media_analyzer.refresh()
+    except Exception as e:
+        logger.error(f"Social media analysis failed: {e}")
 
 

@@ -84,11 +84,11 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
       <h1>TrumpGPT Trading Bot</h1>
       <div class="sub" x-text="modelMethod+(modelVer?' | v'+modelVer:'')"></div>
       <p style="color:var(--dim);font-size:12px;line-height:1.6;margin-bottom:12px">
-        Autonomous prediction market bot. Scrapes Trump speeches, tweets, and Truth Social posts,
-        trains a Markov chain + fine-tunes Pythia-410M with LoRA, runs Monte Carlo simulations
-        to predict which words he'll say, and trades on
+        Fully autonomous prediction market bot running on Raspberry Pi. Scrapes Trump speeches,
+        tweets, and Truth Social posts, trains a Markov chain + fine-tunes Pythia-160M with LoRA nightly,
+        runs Monte Carlo simulations to predict which words he'll say, and trades on
         <a href="https://kalshi.com" target="_blank">Kalshi</a> when it finds an edge.
-        Fully automated — set it and forget it.
+        Zero intervention — completely self-managing.
       </p>
       <div style="font-size:11px;color:var(--dim);line-height:1.8">
         <strong style="color:var(--text)">Navigate:</strong>
@@ -231,16 +231,18 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     <table>
       <thead><tr><th>Job</th><th>Interval</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--accent)">Local Pipeline</td><td>Every 6h</td><td>Markov + MC (35s) + auto fine-tune when corpus grows 50+ speeches</td></tr>
-        <tr><td style="color:var(--accent)">Market Sync</td><td>Every 1m</td><td>Sync Kalshi market prices</td></tr>
-        <tr><td style="color:var(--accent)">Predictions</td><td>Every 15m</td><td>Generate ensemble predictions</td></tr>
+        <tr><td style="color:var(--accent)">Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (35s)</td></tr>
+        <tr><td style="color:var(--accent)">Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~75 min) + MC sims</td></tr>
+        <tr><td style="color:var(--accent)">Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
+        <tr><td style="color:var(--accent)">Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
         <tr><td style="color:var(--accent)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
         <tr><td style="color:var(--accent)">Speech Scrape</td><td>Every 2h</td><td>Scrape 10 sources for new transcripts</td></tr>
-        <tr><td style="color:var(--accent)">Social Media</td><td>Every 2h</td><td>Scrape Truth Social + rebuild daily digests</td></tr>
+        <tr><td style="color:var(--accent)">Social Media</td><td>Every 30m</td><td>Scrape Truth Social + Twitter (primary source)</td></tr>
+        <tr><td style="color:var(--accent)">Social Analysis</td><td>Every 30m</td><td>TF-IDF trending term extraction</td></tr>
         <tr><td style="color:var(--accent)">News Enrichment</td><td>Every 1h</td><td>Gemini current events talking points</td></tr>
         <tr><td style="color:var(--accent)">Position Mgmt</td><td>Every 5m</td><td>Profit-taking and stop-loss checks</td></tr>
         <tr><td style="color:var(--accent)">Event Tracking</td><td>Every 30m</td><td>Discover upcoming Trump events</td></tr>
-        <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM ET</td><td>Email P&L summary</td></tr>
+        <tr><td style="color:var(--accent)">Daily Digest</td><td>8 AM ET</td><td>Email P&L + system health summary</td></tr>
       </tbody>
     </table>
   </div>
@@ -293,21 +295,70 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
     </template>
   </div>
 
-  <!-- PYTHIA PREDICTIONS (synced from Mac) -->
-  <h2>Pythia Predictions</h2>
+  <!-- PI FINE-TUNING STATUS -->
+  <h2>Fine-Tuning (Pi-Native)</h2>
   <div class="card" style="margin-bottom:14px">
-    <template x-if="pythiaStatus && pythiaStatus.available">
-      <div class="alert success">
-        <strong>Pythia predictions available</strong> — <span x-text="pythiaStatus.predictions"></span> terms, synced <span x-text="pythiaStatus.last_synced?.replace('T',' ').substring(0,16)+' ET'"></span>.
-        Blended with Markov predictions automatically.
+    <template x-if="piFtStatus">
+      <div>
+        <div class="grid g4" style="margin-bottom:10px">
+          <div class="card" style="text-align:center"><div class="label">Model</div><div class="val" style="font-size:12px;color:var(--accent)" x-text="piFtStatus.model||'N/A'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">PyTorch</div><div class="val" style="font-size:14px" :style="'color:'+(piFtStatus.pytorch_available?'var(--green)':'var(--red)')" x-text="piFtStatus.pytorch_available?(piFtStatus.torch_version||'OK'):'Missing'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Adapter</div><div class="val" style="font-size:14px" :style="'color:'+(piFtStatus.has_trained_model?'var(--green)':'var(--dim)')" x-text="piFtStatus.has_trained_model?'Ready':'None'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Schedule</div><div class="val" style="font-size:14px" x-text="piFtStatus.enabled?(piFtStatus.schedule_hour+'AM ET'):'Disabled'"></div></div>
+        </div>
+
+        <!-- Training progress (when active) -->
+        <template x-if="piFtStatus.training_status && piFtStatus.training_status.state==='training'">
+          <div style="border:1px solid var(--accent);border-radius:4px;padding:10px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <strong style="color:var(--accent)"><span class="spinner" style="margin-right:6px;vertical-align:middle"></span>Training...</strong>
+              <button class="btn" style="font-size:10px;border-color:var(--red);color:var(--red)" @click="apiPost('/fine-tune/stop')">Stop</button>
+            </div>
+            <div class="pbar" style="height:8px"><div class="fill" :style="'width:'+((piFtStatus.training_status.progress||0)*100)+'%;background:var(--accent)'"></div></div>
+            <div class="grid g4" style="margin-top:8px">
+              <div style="text-align:center"><span class="label">Epoch</span><br><span x-text="(piFtStatus.training_status.current_epoch||0)+'/'+piFtStatus.training_status.total_epochs"></span></div>
+              <div style="text-align:center"><span class="label">Loss</span><br><span x-text="piFtStatus.training_status.loss||'-'"></span></div>
+              <div style="text-align:center"><span class="label">ETA</span><br><span x-text="piFtStatus.training_status.eta_seconds?fmtSec(piFtStatus.training_status.eta_seconds):'-'"></span></div>
+              <div style="text-align:center"><span class="label">RAM</span><br><span x-text="piFtStatus.training_status.memory_mb?piFtStatus.training_status.memory_mb+'MB':'-'"></span></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Pythia predictions blend status -->
+        <template x-if="pythiaStatus && pythiaStatus.available">
+          <div class="alert success" style="font-size:12px">
+            Pythia predictions available: <span x-text="pythiaStatus.predictions"></span> terms, generated <span x-text="pythiaStatus.generated_at?.replace('T',' ').substring(0,16)||'?'"></span>. Auto-blended with Markov (60/40).
+          </div>
+        </template>
+        <template x-if="!pythiaStatus || !pythiaStatus.available">
+          <div style="font-size:11px;color:var(--dim);padding:4px">No fine-tuned predictions yet. Next training run scheduled at <span x-text="(piFtStatus.schedule_hour||2)+'AM ET'"></span>.</div>
+        </template>
+
+        <div style="margin-top:8px;display:flex;gap:8px">
+          <button class="btn primary" @click="apiPost('/fine-tune/start')" :disabled="piFtStatus.training_status?.state==='training'">Start Fine-Tune Now</button>
+        </div>
       </div>
     </template>
-    <template x-if="!pythiaStatus || !pythiaStatus.available">
-      <div style="font-size:12px;color:var(--dim);padding:4px">
-        No Pythia predictions on disk. Run <code style="background:var(--bg3);padding:2px 6px;border-radius:3px">python scripts/fine_tune_mac.py</code> on your Mac, then scp the file to this Pi.
-      </div>
+    <template x-if="!piFtStatus">
+      <div style="color:var(--dim);text-align:center;padding:12px">Loading fine-tune status...</div>
     </template>
   </div>
+
+  <!-- SOCIAL MEDIA TRENDS -->
+  <template x-if="socialTrends && socialTrends.trends && socialTrends.trends.length>0">
+    <div>
+      <h2>Trending Terms (Social Media)</h2>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:11px;color:var(--dim);margin-bottom:8px">Terms surging on Twitter/Truth Social vs 60-day baseline. Updated every 30 min.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <template x-for="t in socialTrends.trends.slice(0,30)" :key="t.term">
+            <span class="badge" :style="'font-size:11px;padding:4px 10px;border-radius:12px;background:rgba('+(t.trending?'46,204,113':'136,136,136')+',.15);color:'+(t.trending?'var(--green)':'var(--dim)')" x-text="t.term+' '+(t.score*100).toFixed(0)+'%'"></span>
+          </template>
+        </div>
+        <div style="font-size:10px;color:var(--dim);margin-top:8px" x-text="'Last refresh: '+(socialTrends.last_refresh||'never')"></div>
+      </div>
+    </div>
+  </template>
 
   <!-- LOG -->
   <h2>Pipeline Log</h2>
@@ -425,6 +476,120 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
   </table>
   <template x-if="trades.length===0">
     <div style="text-align:center;color:var(--dim);padding:20px">No trades yet. <template x-if="!botCfg.auto_trade"><span>Enable auto-trading above to start.</span></template></div>
+  </template>
+</div>
+
+<!-- ════════════════════════════════ HEALTH ════════════════════════════════ -->
+<div class="section" :class="{active:tab==='health'}">
+  <h1>Health Checks</h1>
+  <div class="sub">Autonomous system monitoring — all services and APIs</div>
+
+  <template x-if="healthDetail">
+    <div>
+      <!-- Overall status -->
+      <div class="card" :style="'border-color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)');margin-bottom:14px'">
+        <div style="text-align:center;padding:10px">
+          <span style="font-size:32px" x-text="healthDetail.status==='ok'?'&#10003;':'&#9888;'"></span>
+          <div style="font-size:18px;font-weight:bold;margin-top:4px" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'All Systems Operational':'Degraded'"></div>
+        </div>
+      </div>
+
+      <div class="grid g2" style="margin-bottom:14px">
+        <!-- Database -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Database</h3>
+          <template x-if="healthDetail.checks.database">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.database.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.checks.database.status"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Speeches</span><span x-text="healthDetail.checks.database.speeches||0"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Markets</span><span x-text="healthDetail.checks.database.markets||0"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms</span><span x-text="healthDetail.checks.database.terms||0"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Fine-Tuning -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Fine-Tuning</h3>
+          <template x-if="healthDetail.checks.fine_tuning">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Enabled</span><span :style="'color:'+(healthDetail.checks.fine_tuning.enabled?'var(--green)':'var(--dim)')" x-text="healthDetail.checks.fine_tuning.enabled?'Yes':'No'"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>PyTorch</span><span :style="'color:'+(healthDetail.checks.fine_tuning.pytorch_available?'var(--green)':'var(--red)')" x-text="healthDetail.checks.fine_tuning.pytorch_available?healthDetail.checks.fine_tuning.torch_version:'Missing'"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Model</span><span style="font-size:11px" x-text="healthDetail.checks.fine_tuning.model"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Social Media -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Social Media Corpus</h3>
+          <template x-if="healthDetail.checks.social_media">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Tweets</span><span x-text="healthDetail.checks.social_media.tweets||0"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Truth Social</span><span x-text="healthDetail.checks.social_media.truth_social||0"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Daily Digests</span><span x-text="healthDetail.checks.social_media.daily_digests||0"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Predictions -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Predictions</h3>
+          <template x-if="healthDetail.checks.predictions">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.predictions.status==='ok'?'var(--green)':healthDetail.checks.predictions.status==='stale'?'var(--accent)':'var(--red)')" x-text="healthDetail.checks.predictions.status"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Age</span><span x-text="(healthDetail.checks.predictions.age_hours||0).toFixed(1)+'h'"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Disk -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Disk Space</h3>
+          <template x-if="healthDetail.checks.disk">
+            <div>
+              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.disk.percent+'%;background:'+(healthDetail.checks.disk.warning?'var(--red)':'var(--purple)')"></div></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.disk.used_gb+'/'+healthDetail.checks.disk.total_gb+' GB'"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Memory -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Memory</h3>
+          <template x-if="healthDetail.checks.memory">
+            <div>
+              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.memory.percent+'%;background:'+(healthDetail.checks.memory.warning?'var(--red)':'var(--blue)')"></div></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.memory.used_gb+'/'+healthDetail.checks.memory.total_gb+' GB'"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Social Trends -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Social Trends</h3>
+          <template x-if="healthDetail.checks.social_trends">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms Tracked</span><span x-text="healthDetail.checks.social_trends.terms_tracked||0"></span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Last Refresh</span><span style="font-size:10px" x-text="healthDetail.checks.social_trends.last_refresh||'never'"></span></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Email -->
+        <div class="card">
+          <h3 style="margin-top:0;color:var(--text)">Email</h3>
+          <template x-if="healthDetail.checks.email">
+            <div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Configured</span><span :style="'color:'+(healthDetail.checks.email.configured?'var(--green)':'var(--red)')" x-text="healthDetail.checks.email.configured?'Yes':'No'"></span></div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+  <template x-if="!healthDetail">
+    <div style="text-align:center;color:var(--dim);padding:30px">Loading health checks...</div>
   </template>
 </div>
 
@@ -628,6 +793,7 @@ function app(){return{
     {id:'markets',label:'Markets'},
     {id:'predictions',label:'Predictions'},
     {id:'trading',label:'Trading'},
+    {id:'health',label:'Health'},
     {id:'system',label:'System'},
     {id:'trumpgpt',label:'TrumpGPT'},
   ],
@@ -638,6 +804,7 @@ function app(){return{
   versions:[], hw:null, pipelineLog:[], accuracy:null, _accChart:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
+  piFtStatus:null, socialTrends:null, healthDetail:null,
   pChart:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now.",
@@ -668,7 +835,7 @@ function app(){return{
     try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode=d.pipeline_mode||''}catch{this.health=false}
     const L={
       home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), markets:()=>this.loadMarkets(),
-      predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), system:()=>this.loadSystem(),
+      predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), health:()=>this.loadHealth(), system:()=>this.loadSystem(),
     };
     if(L[this.tab])await L[this.tab]();
   },
@@ -689,13 +856,15 @@ function app(){return{
   },
 
   async loadPipeline(){
-    const[tr,log,imp,ss,ps,rp]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/pythia-status'),this.api('/social-media/recent-posts?limit=5')]);
+    const[tr,log,imp,ss,ps,rp,ft,st]=await Promise.all([this.api('/pipeline/training-status'),this.api('/pipeline/log?limit=50'),this.api('/social-media/import-status'),this.api('/social-media/stats'),this.api('/fine-tune/pythia-status'),this.api('/social-media/recent-posts?limit=10'),this.api('/fine-tune/pi-status'),this.api('/social-media/trends')]);
     this.training=tr;
     this.pipelineLog=Array.isArray(log)?log:[];
     this.importStatus=imp;
     this.socialStats=ss;
     this.pythiaStatus=ps;
     this.recentPosts=Array.isArray(rp)?rp:[];
+    this.piFtStatus=ft;
+    this.socialTrends=st;
   },
 
   async importTwitter(){
@@ -714,6 +883,10 @@ function app(){return{
     const[c,p,th]=await Promise.all([this.api('/trading/config'),this.api('/trading/portfolio'),this.api('/trades/history?per_page=50')]);
     this.botCfg=c||{};this.portfolio=p;
     this.trades=(th?.trades||[]);this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
+  },
+
+  async loadHealth(){
+    this.healthDetail=await this.api('/system/health-detailed');
   },
 
   async loadSystem(){

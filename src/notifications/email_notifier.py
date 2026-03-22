@@ -125,7 +125,7 @@ class EmailNotifier:
         return self._send_email(subject, html)
 
     def send_daily_digest(self) -> bool:
-        """Send daily summary of bot activity and portfolio status."""
+        """Send daily summary of bot activity, portfolio, and system health."""
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
@@ -134,12 +134,6 @@ class EmailNotifier:
             # Today's trades
             today_trades = session.query(Trade).filter(
                 Trade.created_at >= today_start
-            ).all()
-
-            # Yesterday's trades (for comparison)
-            yesterday_trades = session.query(Trade).filter(
-                Trade.created_at >= yesterday_start,
-                Trade.created_at < today_start
             ).all()
 
             # P&L
@@ -165,6 +159,21 @@ class EmailNotifier:
                 TermPrediction.created_at >= yesterday_start
             ).order_by(TermPrediction.probability.desc()).limit(5).all()
 
+            # Model version info
+            from ..database.models import ModelVersion
+            active_model = session.query(ModelVersion).filter_by(
+                is_active=True
+            ).order_by(ModelVersion.created_at.desc()).first()
+            model_info = f"v{active_model.version} ({active_model.model_type})" if active_model else "No model"
+
+            # Social media stats
+            social_tweets = session.query(Speech).filter_by(
+                source='twitter', speech_type='social_media'
+            ).count()
+            social_truth = session.query(Speech).filter_by(
+                source='truth_social', speech_type='social_media'
+            ).count()
+
             # Build top predictions table
             pred_rows = ""
             for pred, term in top_preds:
@@ -189,6 +198,30 @@ class EmailNotifier:
                     <td style="padding: 4px 8px;">{pnl_str}</td>
                 </tr>"""
 
+        # System health
+        system_section = ""
+        try:
+            import psutil
+            ram = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            system_section = f"""
+            <h3>System Health</h3>
+            <table style="border-collapse: collapse; width: 100%;">
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Model</td>
+                    <td style="padding: 4px 8px;">{model_info}</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">RAM</td>
+                    <td style="padding: 4px 8px;">{ram.percent}% ({ram.used // (1024**3)}/{ram.total // (1024**3)} GB)</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Disk</td>
+                    <td style="padding: 4px 8px;">{disk.percent}% ({disk.used // (1024**3)}/{disk.total // (1024**3)} GB)</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Social Corpus</td>
+                    <td style="padding: 4px 8px;">{social_tweets} tweets + {social_truth} Truth Social posts</td></tr>
+                <tr><td style="padding: 4px 8px; font-weight: bold;">Scraped (24h)</td>
+                    <td style="padding: 4px 8px;">{recent_speeches} new items</td></tr>
+            </table>
+            """
+        except Exception:
+            pass
+
         subject = f"TrumpGPT Daily Digest | P&L: ${daily_pnl:+.2f}"
 
         html = f"""
@@ -208,17 +241,18 @@ class EmailNotifier:
                     <td style="padding: 4px 8px;">{len(today_trades)}</td></tr>
                 <tr><td style="padding: 4px 8px; font-weight: bold;">Active Markets</td>
                     <td style="padding: 4px 8px;">{active_markets}</td></tr>
-                <tr><td style="padding: 4px 8px; font-weight: bold;">Speeches Scraped (24h)</td>
-                    <td style="padding: 4px 8px;">{recent_speeches}</td></tr>
             </table>
 
             {"<h3>Trades Today</h3><table style='border-collapse: collapse; width: 100%;'><tr><th style='padding: 4px 8px; text-align: left;'>Market</th><th style='padding: 4px 8px; text-align: left;'>Side</th><th style='padding: 4px 8px; text-align: left;'>Qty</th><th style='padding: 4px 8px; text-align: left;'>P&L</th></tr>" + trade_rows + "</table>" if trade_rows else "<p>No trades today.</p>"}
 
             {'<h3>Top Predictions</h3><table style="border-collapse: collapse; width: 100%;"><tr><th style="padding: 4px 8px; text-align: left;">Term</th><th style="padding: 4px 8px; text-align: left;">Prob</th><th style="padding: 4px 8px; text-align: left;">Conf</th></tr>' + pred_rows + '</table>' if pred_rows else ''}
 
+            {system_section}
+
             <hr style="margin-top: 20px;">
             <p style="color: #888; font-size: 11px;">
-                TrumpGPT Trading Bot | Running on Raspberry Pi<br>
+                TrumpGPT Trading Bot | Running autonomously on Raspberry Pi<br>
+                Dashboard: <a href="https://trumpgpt.arinjaff.com">trumpgpt.arinjaff.com</a><br>
                 {now.strftime('%Y-%m-%d %H:%M UTC')}
             </p>
         </div>

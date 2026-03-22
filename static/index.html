@@ -645,7 +645,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ SYSTEM ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='system'}">
-  <h1>&#128187; System</h1>
+  <h1>System</h1>
   <div class="sub">Raspberry Pi hardware + model versions</div>
 
   <template x-if="hw">
@@ -682,7 +682,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </template>
 
   <!-- MODEL ACCURACY -->
-  <h2>&#127919; Model Accuracy</h2>
+  <h2>Model Accuracy</h2>
   <template x-if="accuracy && !accuracy.error">
     <div class="card" style="margin-bottom:14px" :style="accuracy.ready_for_live?'border-color:var(--green)':'border-color:var(--red)'">
       <div class="grid g4" style="margin-bottom:10px">
@@ -729,7 +729,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   </template>
 
   <!-- MODEL VERSIONS -->
-  <h2>&#128218; Model Versions</h2>
+  <h2>Model Versions</h2>
   <template x-for="v in versions" :key="v.id">
     <div class="card" :style="v.is_active?'border-color:var(--gold)':''" style="margin-bottom:6px">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -763,7 +763,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 <div class="section" :class="{active:tab==='trumpgpt'}">
   <div style="display:flex;align-items:flex-start;gap:20px;margin-bottom:14px">
     <div style="flex:1">
-      <h1>&#128172; TrumpGPT</h1>
+      <h1>TrumpGPT</h1>
       <div class="sub">Demo: Markov chain text generator trained on Trump speeches, tweets, and Truth Social posts</div>
     </div>
     <img src="images/trump-small.jpg" alt="" class="trump-img" style="width:80px;height:auto">
@@ -771,7 +771,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
   <div class="card" style="margin-bottom:14px;border-color:var(--gold);background:rgba(255,215,0,.03)">
     <div style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px">
-      <strong style="color:var(--gold)">&#9733; How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
+      <strong style="color:var(--gold)">How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
       Under the hood, the bot runs 2,000 simulated speeches per cycle and counts which terms appear — that's how it predicts what Trump will say.
       This tab lets you see one of those simulations in action.
       <strong style="color:var(--white)">The trading value comes from the aggregate statistics across thousands of simulations, not any single generation.</strong>

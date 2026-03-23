@@ -1,7 +1,7 @@
 """Database initialization and session management."""
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
@@ -9,8 +9,6 @@ from .models import Base
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///data/trading_bot.db')
 
-# SQLite doesn't benefit from connection pooling — NullPool avoids
-# QueuePool exhaustion when many scheduler jobs overlap.
 engine = create_engine(
     DATABASE_URL,
     echo=False,
@@ -18,6 +16,15 @@ engine = create_engine(
     poolclass=NullPool,
 )
 SessionLocal = sessionmaker(bind=engine)
+
+
+@event.listens_for(engine, "connect")
+def _set_sqlite_wal(dbapi_conn, connection_record):
+    """Enable WAL mode for concurrent read/write access."""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
 
 
 def init_db():

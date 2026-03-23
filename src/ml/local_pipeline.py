@@ -277,7 +277,7 @@ class LocalPipeline:
             return None
 
         try:
-            from .fine_tuner import GPT2FineTuner
+            from .fine_tuner import get_fine_tuner
         except ImportError as e:
             self._log_event(f'Fine-tuning skipped: missing deps ({e})')
             logger.warning(f"Fine-tuning deps not available: {e}")
@@ -287,7 +287,7 @@ class LocalPipeline:
         self._status.update(stage='Fine-tuning Pythia (LoRA)', progress=0.0)
 
         try:
-            fine_tuner = GPT2FineTuner()
+            fine_tuner = get_fine_tuner()
             train_result = fine_tuner.train()
 
             if not train_result or train_result.get('status') in ('error', None):

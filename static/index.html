@@ -88,6 +88,7 @@ input[type="number"],select{background:var(--bg3);border:1px solid var(--border)
 textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px}
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .idle-art{text-align:center;padding:30px;color:var(--dim)}
 .idle-art .emoji{font-size:40px;margin-bottom:10px}
 .idle-art .quip{font-size:14px;font-style:italic;color:var(--gold)}
@@ -225,68 +226,119 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         <h3>Quick Pipeline</h3>
         <p>Markov chain training + 2,000 Monte Carlo simulations. Fast predictions in ~35 seconds.</p>
         <div class="time">~35 seconds</div>
-        <button class="btn primary" @click="apiPost('/pipeline/run')" style="width:100%">Run Pipeline</button>
+        <button class="btn primary" @click="launchPipeline('quick')" :disabled="pipelineBusy" style="width:100%">
+          <template x-if="pipelineBusy && pipelineOp==='quick'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
+          <span x-text="pipelineBusy && pipelineOp==='quick'?'Running...':'Run Pipeline'"></span>
+        </button>
       </div>
       <div class="action-card">
         <h3>Fine-Tune Only</h3>
         <p>Train Pythia-160M with LoRA on the Pi. Generates 200 LLM-based Monte Carlo sims.</p>
         <div class="time">~75 minutes</div>
-        <button class="btn blue" @click="apiPost('/fine-tune/start')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">Start Fine-Tune</button>
+        <button class="btn blue" @click="launchPipeline('finetune')" :disabled="pipelineBusy" style="width:100%">
+          <template x-if="pipelineBusy && pipelineOp==='finetune'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
+          <span x-text="pipelineBusy && pipelineOp==='finetune'?'Training...':'Start Fine-Tune'"></span>
+        </button>
       </div>
       <div class="action-card" style="border-color:var(--gold)">
         <h3>Full Pipeline</h3>
         <p><strong style="color:var(--gold)">THE BIG ONE.</strong> Fine-tunes the model, THEN runs the full Markov pipeline with Pythia blending. Maximum prediction power.</p>
         <div class="time">~80 minutes total</div>
-        <button class="btn gold" @click="apiPost('/pipeline/full')" :disabled="piFtStatus?.training_status?.state==='training'" style="width:100%">Launch Full Pipeline</button>
+        <button class="btn gold" @click="launchPipeline('full')" :disabled="pipelineBusy" style="width:100%">
+          <template x-if="pipelineBusy && pipelineOp==='full'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
+          <span x-text="pipelineBusy && pipelineOp==='full'?'Running...':'Launch Full Pipeline'"></span>
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- IDLE STATE -->
-  <template x-if="!training || training.state==='idle'">
-    <div>
-      <div class="idle-art">
-        <div class="quip" x-text="idleQuips[Math.floor(Date.now()/60000)%idleQuips.length]"></div>
-        <div style="margin-top:12px;font-size:12px;color:var(--dim)">Pipeline is idle. Next run is scheduled automatically.</div>
-      </div>
-    </div>
-  </template>
+  <!-- STATUS PANEL -->
+  <div class="card" style="margin-bottom:16px" :style="pipelineBusy?'border-color:var(--gold)':((training&&training.state==='complete')?'border-color:var(--green)':((training&&training.state==='error')?'border-color:var(--red)':''))">
 
-  <!-- RUNNING STATE -->
-  <template x-if="training && training.state==='running'">
-    <div class="card" style="border-color:var(--gold);margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <strong style="color:var(--gold)">TRAINING IN PROGRESS</strong>
+    <!-- IDLE -->
+    <template x-if="!pipelineBusy && (!training || training.state==='idle')">
+      <div style="text-align:center;padding:16px">
+        <div style="font-size:14px;font-weight:bold;color:var(--dim);margin-bottom:6px">IDLE</div>
+        <div style="font-size:12px;color:var(--dim)">Pipeline is idle. Next run is scheduled automatically.</div>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px;font-style:italic" x-text="idleQuips[Math.floor(Date.now()/60000)%idleQuips.length]"></div>
+      </div>
+    </template>
+
+    <!-- LAUNCHED (immediate feedback before server status updates) -->
+    <template x-if="pipelineBusy && (!training || training.state==='idle')">
+      <div style="padding:12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span class="spinner"></span>
+          <strong style="color:var(--gold)" x-text="pipelineOp==='quick'?'QUICK PIPELINE STARTING...':pipelineOp==='finetune'?'FINE-TUNING STARTING...':'FULL PIPELINE STARTING...'"></strong>
         </div>
-        <span class="badge active" x-text="training.stage||'Starting...'"></span>
+        <div class="pbar" style="height:8px"><div class="fill" style="width:5%;background:linear-gradient(90deg,#B31942,#FFD700);animation:pulse 1.5s ease-in-out infinite"></div></div>
+        <div style="font-size:11px;color:var(--dim);margin-top:6px">Waiting for backend to begin processing...</div>
       </div>
-      <div class="pbar" style="height:10px;margin:14px 0">
-        <div class="fill" :style="'width:'+((training.progress||0)*100)+'%;background:linear-gradient(90deg,#B31942,#FFD700)'"></div>
-      </div>
-      <div class="grid g3">
-        <div class="card" style="text-align:center"><div class="label">Elapsed</div><div class="val" style="font-size:18px" x-text="fmtSec(training.elapsed_seconds)"></div></div>
-        <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:18px" x-text="training.eta_seconds>0?fmtSec(training.eta_seconds):'...'"></div></div>
-        <div class="card" style="text-align:center"><div class="label">Progress</div><div class="val" style="font-size:18px;color:var(--gold)" x-text="Math.round((training.progress||0)*100)+'%'"></div></div>
-      </div>
-      <template x-if="training.trainer && training.trainer.current_simulation">
-        <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--dim)" x-text="'Simulation '+training.trainer.current_simulation+'/'+training.trainer.total_simulations"></div>
-      </template>
-    </div>
-  </template>
+    </template>
 
-  <!-- COMPLETE STATE -->
-  <template x-if="training && training.state==='complete'">
-    <div class="alert success" style="font-size:14px">
-      <strong x-text="'TrumpGPT v'+(training.current_version||'?')+' trained successfully - WINNING!'"></strong>
-      <span style="margin-left:8px" x-text="training.completed_at?(training.completed_at).substring(0,16):''"></span>
-    </div>
-  </template>
+    <!-- RUNNING (Markov pipeline) -->
+    <template x-if="training && training.state==='running'">
+      <div style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="spinner"></span>
+            <strong style="color:var(--gold)">PIPELINE RUNNING</strong>
+          </div>
+          <span class="badge active" x-text="training.stage||'Starting...'"></span>
+        </div>
+        <div class="pbar" style="height:10px;margin-bottom:12px">
+          <div class="fill" :style="'width:'+((training.progress||0)*100)+'%;background:linear-gradient(90deg,#B31942,#FFD700)'"></div>
+        </div>
+        <div class="grid g3">
+          <div class="card" style="text-align:center"><div class="label">Elapsed</div><div class="val" style="font-size:18px" x-text="fmtSec(training.elapsed_seconds)"></div></div>
+          <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:18px" x-text="training.eta_seconds>0?fmtSec(training.eta_seconds):'...'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Progress</div><div class="val" style="font-size:18px;color:var(--gold)" x-text="Math.round((training.progress||0)*100)+'%'"></div></div>
+        </div>
+        <template x-if="training.trainer && training.trainer.current_simulation">
+          <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--dim)" x-text="'Simulation '+training.trainer.current_simulation+'/'+training.trainer.total_simulations"></div>
+        </template>
+      </div>
+    </template>
 
-  <!-- ERROR STATE -->
-  <template x-if="training && training.state==='error'">
-    <div class="alert error"><strong>Pipeline Error:</strong> <span x-text="training.error"></span></div>
-  </template>
+    <!-- RUNNING (Fine-tune via pi-status) -->
+    <template x-if="(!training || training.state==='idle') && piFtStatus?.training_status?.state==='training'">
+      <div style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="spinner"></span>
+            <strong style="color:var(--gold)">FINE-TUNING IN PROGRESS</strong>
+          </div>
+          <span class="badge active" x-text="'Epoch '+(piFtStatus.training_status.current_epoch||0)+'/'+piFtStatus.training_status.total_epochs"></span>
+        </div>
+        <div class="pbar" style="height:10px;margin-bottom:12px">
+          <div class="fill" :style="'width:'+((piFtStatus.training_status.progress||0)*100)+'%;background:linear-gradient(90deg,#002868,#3B82F6)'"></div>
+        </div>
+        <div class="grid g4">
+          <div class="card" style="text-align:center"><div class="label">Loss</div><div class="val" style="font-size:16px" x-text="piFtStatus.training_status.loss||'-'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">Best Loss</div><div class="val" style="font-size:16px;color:var(--green)" x-text="piFtStatus.training_status.best_loss||'-'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">ETA</div><div class="val" style="font-size:16px" x-text="piFtStatus.training_status.eta_seconds?fmtSec(piFtStatus.training_status.eta_seconds):'-'"></div></div>
+          <div class="card" style="text-align:center"><div class="label">RAM</div><div class="val" style="font-size:16px" x-text="piFtStatus.training_status.memory_mb?piFtStatus.training_status.memory_mb+'MB':'-'"></div></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- COMPLETE -->
+    <template x-if="!pipelineBusy && training && training.state==='complete'">
+      <div style="padding:12px;text-align:center">
+        <div style="font-size:14px;font-weight:bold;color:var(--green);margin-bottom:4px">COMPLETE</div>
+        <strong x-text="'TrumpGPT v'+(training.current_version||'?')+' trained successfully'"></strong>
+        <div style="font-size:11px;color:var(--dim);margin-top:4px" x-text="training.completed_at?(training.completed_at).substring(0,16):''"></div>
+      </div>
+    </template>
+
+    <!-- ERROR -->
+    <template x-if="!pipelineBusy && training && training.state==='error'">
+      <div style="padding:12px">
+        <div style="font-size:14px;font-weight:bold;color:var(--red);margin-bottom:4px">ERROR</div>
+        <div style="font-size:12px;color:var(--red)" x-text="training.error"></div>
+      </div>
+    </template>
+  </div>
 
   <div class="stars-divider">* * * * *</div>
 
@@ -867,7 +919,7 @@ function app(){return{
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   piFtStatus:null, socialTrends:null, healthDetail:null,
-  pChart:null,
+  pChart:null, pipelineBusy:false, pipelineOp:'', _pollInterval:null,
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now. Tremendous course.",
     "TrumpGPT is eating a beautiful chocolate cake. The most beautiful.",
@@ -927,6 +979,24 @@ function app(){return{
     this.recentPosts=Array.isArray(rp)?rp:[];
     this.piFtStatus=ft;
     this.socialTrends=st;
+  },
+
+  async launchPipeline(op){
+    this.pipelineBusy=true;this.pipelineOp=op;
+    const endpoints={quick:'/pipeline/run',finetune:'/fine-tune/start',full:'/pipeline/full'};
+    await this.apiPost(endpoints[op]);
+    // Poll faster while busy (every 3s)
+    if(this._pollInterval)clearInterval(this._pollInterval);
+    this._pollInterval=setInterval(async()=>{
+      await this.loadPipeline();
+      // Auto-clear busy once backend confirms running, complete, or error
+      const running=this.training?.state==='running'||this.training?.state==='complete'||this.training?.state==='error'||this.piFtStatus?.training_status?.state==='training';
+      if(running)this.pipelineBusy=false;
+      // Stop fast polling once idle again after completion
+      if(!this.pipelineBusy&&(!this.training||this.training.state==='idle'||this.training.state==='complete'||this.training.state==='error')&&this.piFtStatus?.training_status?.state!=='training'){
+        clearInterval(this._pollInterval);this._pollInterval=null;
+      }
+    },3000);
   },
 
   async importTwitter(){await this.apiPost('/social-media/import-twitter')},

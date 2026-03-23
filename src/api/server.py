@@ -1171,8 +1171,8 @@ def get_pi_fine_tune_status():
 
     # Check fine-tuner status if available
     try:
-        from ..ml.fine_tuner import GPT2FineTuner
-        fine_tuner = GPT2FineTuner()
+        from ..ml.fine_tuner import get_fine_tuner
+        fine_tuner = get_fine_tuner()
         result["training_status"] = fine_tuner.get_status()
         result["loss_history"] = fine_tuner.get_loss_history()[-100:]
         result["has_trained_model"] = fine_tuner.has_trained_model()
@@ -1201,8 +1201,8 @@ def start_pi_fine_tuning(background_tasks: BackgroundTasks):
 def stop_pi_fine_tuning():
     """Stop running Pi fine-tuning."""
     try:
-        from ..ml.fine_tuner import GPT2FineTuner
-        fine_tuner = GPT2FineTuner()
+        from ..ml.fine_tuner import get_fine_tuner
+        fine_tuner = get_fine_tuner()
         fine_tuner.stop_training()
         return {"status": "Stop requested"}
     except Exception as e:

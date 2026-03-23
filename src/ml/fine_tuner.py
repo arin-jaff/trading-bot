@@ -638,3 +638,13 @@ class GPT2FineTuner:
         """Check if a fine-tuned adapter exists."""
         adapter_path = os.path.join(ADAPTERS_DIR, 'adapter_latest')
         return os.path.exists(adapter_path)
+
+
+# Module-level singleton so status is shared across API calls and training
+_singleton = None
+
+def get_fine_tuner() -> GPT2FineTuner:
+    global _singleton
+    if _singleton is None:
+        _singleton = GPT2FineTuner()
+    return _singleton

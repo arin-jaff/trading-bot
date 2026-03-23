@@ -4,132 +4,225 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TrumpGPT - Making Predictions Great Again</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <style>
-:root { --bg:#0A1628; --bg2:#0F1F3D; --bg3:#162A50; --text:#FFFFFF; --dim:#8899BB; --accent:#FF3B3B; --green:#2ecc71; --red:#FF3B3B; --blue:#3B82F6; --white:#FFFFFF; --gold:#FFD700; --border:#1E3A6E; --navy:#0A1628; --star:#FFD700; }
+:root{--bg:#001a33;--bg2:#002244;--bg3:#003366;--text:#F0EDE6;--dim:#8a9bb5;--accent:#BF0A30;--green:#2ecc71;--red:#BF0A30;--blue:#3B82F6;--white:#FFFFFF;--gold:#FFD700;--gold-dark:#D4AF37;--gold-mid:#E8C547;--border:#2a4a6e;--navy:#001a33;--star:#FFD700;--marble1:#001c36;--marble2:#002040;--marble3:#00254a}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Georgia','Times New Roman',serif;background:var(--bg);color:var(--text);font-size:13px;
+body{font-family:'Montserrat','Helvetica Neue',sans-serif;background:var(--bg);color:var(--text);font-size:13px;
   background-image:
-    radial-gradient(circle at 20% 50%, rgba(59,130,246,.06) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(255,59,59,.06) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(255,215,0,.03) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 20%, rgba(212,175,55,.04) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 30%, rgba(191,10,48,.03) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 80%, rgba(212,175,55,.02) 0%, transparent 60%),
+    radial-gradient(ellipse at 30% 60%, var(--marble2) 0%, transparent 70%),
+    radial-gradient(ellipse at 70% 40%, var(--marble3) 0%, transparent 60%),
+    linear-gradient(135deg, var(--marble1) 0%, var(--bg) 50%, var(--marble2) 100%);
+  background-attachment:fixed;
 }
-a{color:var(--gold);text-decoration:none}
+a{color:var(--gold);text-decoration:none;transition:color .2s}
+a:hover{color:#fff}
 
-/* Stars background */
+/* Marble noise overlay */
 body::before{
   content:'';position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;
   background-image:
-    radial-gradient(2px 2px at 10% 15%, var(--star) 50%, transparent 50%),
-    radial-gradient(2px 2px at 25% 35%, var(--star) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 10% 15%, var(--star) 50%, transparent 50%),
+    radial-gradient(1px 1px at 25% 35%, var(--star) 50%, transparent 50%),
     radial-gradient(1px 1px at 40% 10%, var(--star) 50%, transparent 50%),
-    radial-gradient(2px 2px at 55% 45%, var(--star) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 55% 45%, var(--star) 50%, transparent 50%),
     radial-gradient(1px 1px at 70% 20%, var(--star) 50%, transparent 50%),
-    radial-gradient(2px 2px at 85% 40%, var(--star) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 85% 40%, var(--star) 50%, transparent 50%),
     radial-gradient(1px 1px at 95% 8%, var(--star) 50%, transparent 50%),
-    radial-gradient(2px 2px at 15% 80%, var(--star) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 15% 80%, var(--star) 50%, transparent 50%),
     radial-gradient(1px 1px at 60% 75%, var(--star) 50%, transparent 50%),
-    radial-gradient(2px 2px at 90% 85%, var(--star) 50%, transparent 50%);
-  opacity:.15;
+    radial-gradient(1.5px 1.5px at 90% 85%, var(--star) 50%, transparent 50%);
+  opacity:.1;
 }
 
-/* Red-white-blue stripe accent at top */
-nav{position:sticky;top:0;z-index:100;
-  background:linear-gradient(180deg, #B31942 0%, #B31942 33%, #FFFFFF 33%, #FFFFFF 66%, #002868 66%, #002868 100%);
-  padding:0;display:flex;flex-direction:column;
+/* Gold shine sweep animation */
+@keyframes goldShine{
+  0%{left:-100%;opacity:0}
+  10%{opacity:1}
+  100%{left:200%;opacity:0}
 }
-nav .stripe-bar{display:flex;align-items:center;padding:0 16px;background:var(--bg2);border-bottom:3px solid var(--gold)}
-nav .logo{color:var(--gold);font-weight:bold;font-size:18px;padding:14px 16px 14px 0;white-space:nowrap;border-right:2px solid var(--gold);margin-right:8px;letter-spacing:3px;font-family:'Georgia',serif;text-shadow:0 0 20px rgba(255,215,0,.3)}
+.shine{position:relative;overflow:hidden}
+.shine::after{
+  content:'';position:absolute;top:-50%;left:-100%;width:40%;height:200%;
+  background:linear-gradient(90deg,transparent,rgba(255,215,0,.08),rgba(255,255,255,.12),rgba(255,215,0,.08),transparent);
+  transform:skewX(-20deg);animation:goldShine 5s ease-in-out infinite;pointer-events:none;z-index:1;
+}
+
+/* Nav — presidential header */
+nav{position:sticky;top:0;z-index:100;
+  background:linear-gradient(180deg, rgba(191,10,48,.15) 0%, transparent 4px, var(--bg2) 4px, var(--bg2) calc(100% - 4px), transparent calc(100% - 4px), rgba(0,40,104,.15) 100%);
+  padding:0;display:flex;flex-direction:column;
+  border-top:4px solid;border-image:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark)) 1;
+  box-shadow:0 4px 24px rgba(0,0,0,.5),0 1px 0 var(--gold-dark);
+}
+nav .stripe-bar{display:flex;align-items:center;padding:0 20px;
+  background:linear-gradient(180deg, var(--bg2), rgba(0,26,51,.95));
+  border-bottom:3px solid;border-image:linear-gradient(90deg,transparent 5%,var(--gold-dark),var(--gold),var(--gold-dark),transparent 95%) 1;
+}
+nav .logo{
+  color:var(--gold);font-weight:700;font-size:20px;padding:16px 20px 16px 0;white-space:nowrap;
+  border-right:2px solid var(--gold-dark);margin-right:12px;letter-spacing:6px;
+  font-family:'Cinzel',Georgia,serif;
+  text-shadow:0 0 30px rgba(255,215,0,.4),0 2px 4px rgba(0,0,0,.5);
+  background:linear-gradient(180deg,#FFD700,#D4AF37);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
 nav .logo .flag{margin-right:8px}
-nav .tab{padding:14px 14px;cursor:pointer;color:var(--dim);font-size:11px;white-space:nowrap;border-bottom:3px solid transparent;transition:all .2s;text-transform:uppercase;letter-spacing:1px;font-weight:bold}
-nav .tab:hover{color:var(--white)}
-nav .tab.active{color:var(--gold);border-bottom-color:var(--gold)}
-nav .status{margin-left:auto;padding:14px;font-size:11px;display:flex;align-items:center;gap:6px}
+nav .tab{padding:16px 16px;cursor:pointer;color:var(--dim);font-size:10px;white-space:nowrap;
+  border-bottom:3px solid transparent;transition:all .25s;text-transform:uppercase;letter-spacing:2px;font-weight:700;
+  font-family:'Montserrat',sans-serif;
+}
+nav .tab:hover{color:var(--gold-mid)}
+nav .tab.active{color:var(--gold);border-bottom-color:var(--gold);text-shadow:0 0 12px rgba(255,215,0,.3)}
+nav .status{margin-left:auto;padding:14px;font-size:11px;display:flex;align-items:center;gap:6px;font-family:'Montserrat',sans-serif}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%}
-.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)} .dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
-.container{max-width:1100px;margin:0 auto;padding:20px;position:relative;z-index:1}
+.dot.on{background:var(--green);box-shadow:0 0 10px var(--green)} .dot.off{background:var(--red);box-shadow:0 0 10px var(--red)}
+
+.container{max-width:1100px;margin:0 auto;padding:24px;position:relative;z-index:1}
 .section{display:none} .section.active{display:block}
-h1{font-size:26px;color:var(--gold);margin-bottom:4px;text-shadow:0 0 30px rgba(255,215,0,.2);font-family:'Georgia',serif}
-h2{font-size:16px;color:var(--white);margin:20px 0 8px;text-transform:uppercase;letter-spacing:1px}
-h3{font-size:13px;color:var(--dim);margin:12px 0 6px}
-.sub{color:var(--dim);font-size:11px;margin-bottom:14px}
-.grid{display:grid;gap:10px} .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr} .g4{grid-template-columns:1fr 1fr 1fr 1fr}
+
+/* Typography — Cinzel headers */
+h1{font-size:30px;color:var(--gold);margin-bottom:6px;font-family:'Cinzel',Georgia,serif;font-weight:700;letter-spacing:2px;
+  text-shadow:0 0 40px rgba(255,215,0,.2),0 2px 4px rgba(0,0,0,.4);
+  text-transform:uppercase;
+}
+h2{font-size:15px;color:var(--gold-mid);margin:24px 0 10px;text-transform:uppercase;letter-spacing:3px;font-family:'Cinzel',Georgia,serif;font-weight:600}
+h3{font-size:13px;color:var(--dim);margin:12px 0 6px;font-family:'Montserrat',sans-serif;font-weight:600}
+.sub{color:var(--dim);font-size:11px;margin-bottom:14px;font-family:'Montserrat',sans-serif;letter-spacing:.5px}
+
+/* Grid */
+.grid{display:grid;gap:12px} .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr} .g4{grid-template-columns:1fr 1fr 1fr 1fr}
 @media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-.card .label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
-.card .val{font-size:22px;font-weight:bold;margin-top:2px}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:6px 8px;color:var(--gold);border-bottom:2px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:1px}
-td{padding:6px 8px;border-bottom:1px solid var(--bg3)}
-tr:hover{background:var(--bg3)}
-.btn{padding:8px 18px;border:2px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px;transition:all .2s;font-weight:bold;text-transform:uppercase;letter-spacing:1px}
-.btn:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,.2)}
-.btn.primary{background:linear-gradient(135deg,#B31942,#FF3B3B);color:var(--white);border-color:#FF3B3B;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,.3)}
-.btn.primary:hover{background:linear-gradient(135deg,#D4214F,#FF5555);box-shadow:0 0 20px rgba(255,59,59,.4)}
-.btn.blue{background:linear-gradient(135deg,#002868,#3B82F6);color:var(--white);border-color:#3B82F6}
-.btn.blue:hover{box-shadow:0 0 20px rgba(59,130,246,.4)}
-.btn.gold{background:linear-gradient(135deg,#B8860B,#FFD700);color:#0A1628;border-color:#FFD700}
-.btn.gold:hover{box-shadow:0 0 20px rgba(255,215,0,.4)}
-.pbar{background:var(--bg3);border-radius:4px;height:6px;overflow:hidden;margin:6px 0}
+
+/* Cards — embossed gold panels */
+.card{background:linear-gradient(145deg, var(--bg2), var(--bg3));
+  border:1px solid var(--border);border-radius:10px;padding:16px;
+  box-shadow:0 2px 12px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,215,0,.06),0 0 0 1px rgba(212,175,55,.08);
+  transition:box-shadow .3s,border-color .3s;
+}
+.card:hover{box-shadow:0 4px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,215,0,.1),0 0 0 1px rgba(212,175,55,.15)}
+.card .label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:2px;font-family:'Montserrat',sans-serif;font-weight:600}
+.card .val{font-size:24px;font-weight:700;margin-top:4px;font-family:'Cinzel',Georgia,serif}
+
+/* Tables — gold headers */
+table{width:100%;border-collapse:collapse;font-size:12px;font-family:'Montserrat',sans-serif}
+th{text-align:left;padding:8px 10px;color:var(--gold);
+  border-bottom:2px solid var(--gold-dark);font-size:9px;text-transform:uppercase;letter-spacing:2px;font-weight:700;
+  background:linear-gradient(180deg, rgba(212,175,55,.08), transparent);
+}
+td{padding:7px 10px;border-bottom:1px solid rgba(42,74,110,.5)}
+tr:hover{background:rgba(212,175,55,.04)}
+
+/* Buttons — gilded */
+.btn{padding:10px 22px;border:2px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);
+  cursor:pointer;font-family:'Montserrat',sans-serif;font-size:11px;transition:all .25s;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;
+}
+.btn:hover{border-color:var(--gold);color:var(--gold);box-shadow:0 0 16px rgba(255,215,0,.2),inset 0 0 20px rgba(255,215,0,.03)}
+.btn.primary{background:linear-gradient(135deg,#8B0000,#BF0A30);color:var(--white);border-color:#BF0A30;
+  text-shadow:0 1px 3px rgba(0,0,0,.4);box-shadow:0 2px 8px rgba(191,10,48,.3)}
+.btn.primary:hover{background:linear-gradient(135deg,#A01030,#D4214F);box-shadow:0 0 24px rgba(191,10,48,.5)}
+.btn.blue{background:linear-gradient(135deg,#001a40,#002868);color:var(--white);border-color:#3B82F6;box-shadow:0 2px 8px rgba(0,40,104,.3)}
+.btn.blue:hover{box-shadow:0 0 24px rgba(59,130,246,.4);background:linear-gradient(135deg,#002050,#003080)}
+.btn.gold{background:linear-gradient(135deg,#B8860B,#D4AF37,#FFD700,#D4AF37);color:#001a33;border-color:var(--gold);
+  font-weight:700;box-shadow:0 2px 12px rgba(255,215,0,.3);text-shadow:0 1px 2px rgba(0,0,0,.2);
+  font-size:12px;padding:12px 28px;
+}
+.btn.gold:hover{box-shadow:0 0 30px rgba(255,215,0,.5),inset 0 0 20px rgba(255,255,255,.1);
+  background:linear-gradient(135deg,#D4AF37,#FFD700,#FFF8DC,#FFD700,#D4AF37)}
+
+/* Progress bars */
+.pbar{background:rgba(0,51,102,.6);border-radius:4px;height:6px;overflow:hidden;margin:6px 0;border:1px solid rgba(42,74,110,.3)}
 .pbar .fill{height:100%;border-radius:4px;transition:width .5s}
-.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;text-transform:uppercase;font-weight:bold}
-.badge.active{background:rgba(46,204,113,.2);color:var(--green)} .badge.yes{background:rgba(46,204,113,.2);color:var(--green)}
-.badge.no{background:rgba(255,59,59,.2);color:var(--red)} .badge.closed{background:rgba(136,136,136,.2);color:var(--dim)}
-.badge.paper{background:rgba(255,215,0,.2);color:var(--gold)}
-.alert{padding:10px 14px;border-radius:6px;margin:8px 0;font-size:12px}
-.alert.success{background:rgba(46,204,113,.12);border:1px solid var(--green);color:var(--green)}
-.alert.error{background:rgba(255,59,59,.12);border:1px solid var(--red);color:var(--red)}
-.alert.info{background:rgba(59,130,246,.12);border:1px solid var(--blue);color:var(--blue)}
-.alert.warning{background:rgba(255,215,0,.12);border:1px solid var(--gold);color:var(--gold)}
-.log-entry{padding:4px 8px;font-size:11px;border-left:3px solid var(--gold);margin:2px 0;color:var(--dim)}
-.log-entry .ts{color:var(--gold);margin-right:8px}
-input[type="number"],select{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-family:inherit;font-size:12px;width:80px}
-textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:4px;font-family:inherit;font-size:13px}
+
+/* Badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:9px;text-transform:uppercase;font-weight:700;letter-spacing:1px;font-family:'Montserrat',sans-serif}
+.badge.active{background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)} .badge.yes{background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)}
+.badge.no{background:rgba(191,10,48,.15);color:var(--red);border:1px solid rgba(191,10,48,.3)} .badge.closed{background:rgba(136,136,136,.15);color:var(--dim);border:1px solid rgba(136,136,136,.2)}
+.badge.paper{background:rgba(255,215,0,.12);color:var(--gold);border:1px solid rgba(255,215,0,.25)}
+
+/* Alerts */
+.alert{padding:12px 16px;border-radius:8px;margin:8px 0;font-size:12px;font-family:'Montserrat',sans-serif}
+.alert.success{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);color:var(--green)}
+.alert.error{background:rgba(191,10,48,.1);border:1px solid rgba(191,10,48,.3);color:var(--red)}
+.alert.info{background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.alert.warning{background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);color:var(--gold)}
+
+/* Log entries */
+.log-entry{padding:4px 8px;font-size:11px;border-left:3px solid var(--gold-dark);margin:2px 0;color:var(--dim);font-family:'Montserrat',sans-serif}
+.log-entry .ts{color:var(--gold);margin-right:8px;font-weight:600}
+
+/* Form inputs */
+input[type="number"],select{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-family:'Montserrat',sans-serif;font-size:12px;width:80px;transition:border-color .2s}
+input[type="number"]:focus,select:focus{border-color:var(--gold);outline:none}
+textarea{background:var(--bg3);border:2px solid var(--border);color:var(--text);padding:10px;border-radius:8px;font-family:'Montserrat',sans-serif;font-size:13px;transition:border-color .2s}
+textarea:focus{border-color:var(--gold-dark);outline:none;box-shadow:0 0 12px rgba(255,215,0,.1)}
+
+/* Spinner */
 .spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Idle art */
 .idle-art{text-align:center;padding:30px;color:var(--dim)}
 .idle-art .emoji{font-size:40px;margin-bottom:10px}
-.idle-art .quip{font-size:14px;font-style:italic;color:var(--gold)}
+.idle-art .quip{font-size:15px;font-style:italic;color:var(--gold);font-family:'Cinzel',Georgia,serif}
 
 /* Live terminal */
-.terminal{background:#0c0c0c;border:1px solid #333;border-radius:6px;font-family:'Courier New',monospace;font-size:11px;overflow:hidden}
-.terminal .bar{background:#1a1a1a;padding:6px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #333}
-.terminal .bar .dots{display:flex;gap:4px}
-.terminal .bar .dots span{width:10px;height:10px;border-radius:50%}
-.terminal .bar .title{color:#888;font-size:10px;margin-left:8px}
-.terminal .body{padding:12px;max-height:280px;overflow-y:auto;line-height:1.7;color:#ccc}
+.terminal{background:#080C10;border:2px solid var(--gold-dark);border-radius:8px;font-family:'Courier New',monospace;font-size:11px;overflow:hidden;
+  box-shadow:0 4px 24px rgba(0,0,0,.5),inset 0 0 40px rgba(0,0,0,.3)}
+.terminal .bar{background:linear-gradient(180deg,#111820,#0c1018);padding:8px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(212,175,55,.2)}
+.terminal .bar .dots{display:flex;gap:5px}
+.terminal .bar .dots span{width:11px;height:11px;border-radius:50%}
+.terminal .bar .title{color:#667;font-size:10px;margin-left:8px;letter-spacing:1px}
+.terminal .body{padding:14px;max-height:280px;overflow-y:auto;line-height:1.8;color:#b0bec5}
 .terminal .body .line{white-space:pre-wrap;word-break:break-all}
-.terminal .body .ts{color:#666}
+.terminal .body .ts{color:#556}
 .terminal .body .info{color:#4ec9b0}
 .terminal .body .warn{color:#dcdcaa}
 .terminal .body .err{color:#f44747}
-.terminal .body .debug{color:#666}
-.terminal .cursor{display:inline-block;width:7px;height:13px;background:var(--gold);animation:blink 1s step-end infinite;vertical-align:text-bottom}
+.terminal .body .debug{color:#556}
+.terminal .cursor{display:inline-block;width:7px;height:14px;background:var(--gold);animation:blink 1s step-end infinite;vertical-align:text-bottom}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 
-/* Patriotic decorative elements */
-.trump-img{border-radius:8px;border:3px solid var(--gold);box-shadow:0 4px 20px rgba(255,215,0,.2);opacity:.9;transition:all .3s}
-.trump-img:hover{opacity:1;box-shadow:0 4px 30px rgba(255,215,0,.4);transform:scale(1.02)}
-.seal-watermark{position:fixed;bottom:20px;right:20px;width:120px;height:120px;opacity:.04;pointer-events:none;z-index:0}
-.stars-divider{text-align:center;color:var(--gold);font-size:10px;letter-spacing:8px;margin:16px 0;opacity:.5}
+/* Presidential decorative elements */
+.trump-img{border-radius:10px;border:3px solid var(--gold-dark);
+  box-shadow:0 4px 24px rgba(212,175,55,.25),0 0 0 1px rgba(255,215,0,.1);
+  opacity:.92;transition:all .3s}
+.trump-img:hover{opacity:1;box-shadow:0 6px 36px rgba(212,175,55,.4),0 0 0 2px rgba(255,215,0,.2);transform:scale(1.02)}
+.seal-watermark{position:fixed;bottom:20px;right:20px;width:120px;height:120px;opacity:.03;pointer-events:none;z-index:0}
+.stars-divider{text-align:center;color:var(--gold-dark);font-size:10px;letter-spacing:10px;margin:20px 0;opacity:.4;font-family:'Cinzel',Georgia,serif}
 
-/* Command Center */
-.command-center{background:linear-gradient(135deg, var(--bg2), var(--bg3));border:2px solid var(--gold);border-radius:12px;padding:20px;margin-bottom:20px;position:relative;overflow:hidden}
-.command-center::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#B31942,#FFFFFF,#002868)}
-.command-center h2{color:var(--gold);margin:0 0 4px;font-size:18px}
-.command-center .sub{margin-bottom:16px}
-.command-center .actions{display:flex;gap:12px;flex-wrap:wrap;align-items:stretch}
-.command-center .action-card{flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px}
-.command-center .action-card h3{color:var(--white);margin:0;font-size:14px}
-.command-center .action-card p{color:var(--dim);font-size:11px;line-height:1.5;flex:1;margin:0}
-.command-center .action-card .time{color:var(--gold);font-size:11px;font-weight:bold}
+/* Command Center — gilded war room */
+.command-center{background:linear-gradient(145deg, var(--bg2), var(--bg3));
+  border:2px solid var(--gold-dark);border-radius:12px;padding:24px;margin-bottom:24px;position:relative;overflow:hidden;
+  box-shadow:0 4px 24px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,215,0,.08)}
+.command-center::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#BF0A30,#FFFFFF,#002868)}
+.command-center::after{
+  content:'';position:absolute;top:-50%;left:-100%;width:40%;height:200%;
+  background:linear-gradient(90deg,transparent,rgba(255,215,0,.06),rgba(255,255,255,.08),rgba(255,215,0,.06),transparent);
+  transform:skewX(-20deg);animation:goldShine 6s ease-in-out infinite;pointer-events:none;
+}
+.command-center h2{color:var(--gold);margin:0 0 4px;font-size:20px;font-family:'Cinzel',Georgia,serif}
+.command-center .sub{margin-bottom:18px}
+.command-center .actions{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch}
+.command-center .action-card{flex:1;min-width:200px;background:linear-gradient(145deg,var(--bg),var(--bg2));
+  border:1px solid var(--border);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;
+  transition:border-color .3s,box-shadow .3s}
+.command-center .action-card:hover{border-color:rgba(212,175,55,.3);box-shadow:0 0 16px rgba(212,175,55,.08)}
+.command-center .action-card h3{color:var(--white);margin:0;font-size:14px;font-family:'Cinzel',Georgia,serif;font-weight:600}
+.command-center .action-card p{color:var(--dim);font-size:11px;line-height:1.6;flex:1;margin:0;font-family:'Montserrat',sans-serif}
+.command-center .action-card .time{color:var(--gold);font-size:11px;font-weight:700;font-family:'Montserrat',sans-serif}
 
 /* Floating decorative images */
 .decor-img{position:absolute;opacity:.08;pointer-events:none;z-index:0}
 
-/* Tooltips */
+/* Tooltips — preserved exactly */
 .tip{position:relative;display:inline-flex}
 .tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;pointer-events:none;background:#3a3d44;color:#e8e8e8;border-radius:8px;padding:8px 18px;font-size:11px;line-height:1.5;min-width:200px;max-width:320px;white-space:normal;text-align:center;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.45);transition:opacity .15s,transform .15s}
 .tip::before{content:'';position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;border:6px solid transparent;border-bottom-color:#3a3d44;z-index:999;transition:opacity .15s,transform .15s}
@@ -160,6 +253,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- ════════════════════════════════ HOME ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='home'}">
+
   <div style="display:flex;align-items:flex-start;gap:24px;margin-bottom:14px">
     <div style="flex:1">
       <h1>TrumpGPT Trading Bot</h1>
@@ -184,11 +278,22 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     </div>
     <img src="/static/images/trump-portrait.jpg" alt="Donald J. Trump" class="trump-img" style="width:140px;height:auto">
   </div>
-
+ <!-- Department Seal -->
+  <div style="text-align:center;margin-bottom:24px">
+    <div style="display:inline-block;width:140px;height:140px;border-radius:50%;border:3px solid var(--gold-dark);background:radial-gradient(circle,var(--bg3),var(--bg2));box-shadow:0 0 30px rgba(212,175,55,.15),inset 0 0 20px rgba(0,0,0,.4);position:relative;overflow:hidden">
+      <div style="position:absolute;inset:6px;border-radius:50%;border:2px solid rgba(212,175,55,.3)"></div>
+      <div style="position:absolute;inset:12px;border-radius:50%;border:1px solid rgba(212,175,55,.15)"></div>
+      <div style="position:absolute;top:28px;left:0;right:0;text-align:center;font-family:'Cinzel',serif;font-size:7px;color:var(--gold-dark);letter-spacing:2px;text-transform:uppercase">Department of</div>
+      <div style="position:absolute;top:44px;left:0;right:0;text-align:center;font-family:'Cinzel',serif;font-size:16px;color:var(--gold);font-weight:700;letter-spacing:1px;text-shadow:0 0 10px rgba(255,215,0,.3)">GPT</div>
+      <div style="position:absolute;top:70px;left:0;right:0;text-align:center;font-family:'Cinzel',serif;font-size:6.5px;color:var(--gold-dark);letter-spacing:1.5px;text-transform:uppercase">Autonomous Predictions</div>
+      <img src="/static/images/great-seal.svg" style="position:absolute;top:80px;left:50%;transform:translateX(-50%);width:40px;opacity:.25">
+    </div>
+  </div>
   <div class="stars-divider">* * * * * * * * * * * * *</div>
 
+  
   <!-- PORTFOLIO CHART -->
-  <div class="card" style="margin-bottom:14px">
+  <div class="card shine" style="margin-bottom:14px;border-color:var(--gold-dark)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h3 style="margin:0;color:var(--white)">Portfolio Value</h3>
       <span :style="'font-size:18px;font-weight:bold;color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span>
@@ -1023,16 +1128,16 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </label>
       </div>
       <div style="margin-top:14px">
-        <button class="btn gold" @click="generateTrumpGPT()" :disabled="gptLoading">
+        <button class="btn gold shine" @click="generateTrumpGPT()" :disabled="gptLoading" style="font-size:14px;padding:14px 36px">
           <template x-if="gptLoading"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
-          <span x-text="gptLoading?'Generating...':'Generate'"></span>
+          <span x-text="gptLoading?'Generating...':'Generate (Tremendous)'"></span>
         </button>
       </div>
     </div>
   </div>
 
   <template x-if="gptOutput">
-    <div class="card" style="max-height:500px;overflow-y:auto;border-color:var(--gold)">
+    <div class="card shine" style="max-height:500px;overflow-y:auto;border:2px solid var(--gold-dark);box-shadow:0 4px 30px rgba(212,175,55,.2),inset 0 0 30px rgba(0,0,0,.2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <h3 style="margin:0;color:var(--gold)">TrumpGPT Output</h3>
         <span style="font-size:11px;color:var(--dim)" x-text="gptOutput.split(' ').length+' words'"></span>
@@ -1052,10 +1157,13 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 </div><!-- /container -->
 
 <!-- Footer -->
-<div style="text-align:center;padding:20px;color:var(--dim);font-size:10px;border-top:1px solid var(--border);margin-top:30px;position:relative;z-index:1">
-  <div style="margin-bottom:4px">TrumpGPT Trading Bot</div>
-  <div>Running autonomously on Raspberry Pi | <a href="https://trumpgpt.arinjaff.com">trumpgpt.arinjaff.com</a></div>
-  <div style="margin-top:4px;letter-spacing:4px;color:var(--gold);font-size:8px">MAKING PREDICTIONS GREAT AGAIN</div>
+<div style="text-align:center;padding:28px 20px;color:var(--dim);font-size:10px;margin-top:30px;position:relative;z-index:1;
+  border-top:3px solid;border-image:linear-gradient(90deg,transparent 10%,var(--gold-dark),var(--gold),var(--gold-dark),transparent 90%) 1;
+  background:linear-gradient(180deg,transparent,rgba(0,26,51,.5))">
+  <div style="font-family:'Cinzel',Georgia,serif;font-size:11px;letter-spacing:3px;margin-bottom:6px;color:var(--text)">TrumpGPT Trading Bot</div>
+  <div style="font-family:'Montserrat',sans-serif">Running autonomously on Raspberry Pi | <a href="https://trumpgpt.arinjaff.com">trumpgpt.arinjaff.com</a></div>
+  <div style="margin-top:8px;letter-spacing:6px;font-size:9px;font-family:'Cinzel',Georgia,serif;
+    background:linear-gradient(90deg,var(--gold-dark),var(--gold),var(--gold-dark));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">MAKING PREDICTIONS GREAT AGAIN</div>
 </div>
 
 <script>
@@ -1206,10 +1314,10 @@ function app(){return{
     this._accChart=new Chart(c,{type:'line',data:{labels,datasets:[
       {label:'Hit Rate %',data:hitData,borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y'},
       {label:'Brier Score',data:brierData,borderColor:'#FF3B3B',backgroundColor:'rgba(255,59,59,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1'},
-    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8899BB',font:{size:10}}}},scales:{
-      x:{ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'}},
-      y:{position:'left',title:{display:true,text:'Hit Rate %',color:'#2ecc71'},ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'},min:0,max:100},
-      y1:{position:'right',title:{display:true,text:'Brier',color:'#FF3B3B'},ticks:{color:'#556',font:{size:9}},grid:{display:false},min:0,max:0.5},
+    ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}}}},scales:{
+      x:{ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.4)'}},
+      y:{position:'left',title:{display:true,text:'Hit Rate %',color:'#2ecc71'},ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.4)'},min:0,max:100},
+      y1:{position:'right',title:{display:true,text:'Brier',color:'#FF3B3B'},ticks:{color:'#4a5a70',font:{size:9}},grid:{display:false},min:0,max:0.5},
     }}});
   },
 
@@ -1221,7 +1329,7 @@ function app(){return{
     const data=pts.map(t=>{cum+=t.pnl;return+cum.toFixed(2)});
     if(this.pChart)this.pChart.destroy();
     this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:1,borderWidth:2}]},
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#556',font:{size:9}},grid:{color:'#1E3A6E'}},y:{ticks:{color:'#556',font:{size:9},callback:v=>'$'+v},grid:{color:'#1E3A6E'}}}}});
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.4)'}},y:{ticks:{color:'#4a5a70',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(42,74,110,.4)'}}}}});
   },
 }}
 </script>

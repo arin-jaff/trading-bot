@@ -212,3 +212,5 @@ __marimo__/
 # Private keys (all stored in secrets/ folder)
 # *.pem entries kept as safety net
 *.pem
+data/trading_bot.db
+data/

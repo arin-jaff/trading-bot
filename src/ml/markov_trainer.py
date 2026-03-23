@@ -709,11 +709,12 @@ class MarkovChainTrainer:
             latest = session.query(ModelVersion).order_by(
                 ModelVersion.created_at.desc()
             ).first()
+            version_str = latest.version if latest else None
 
-        if not latest:
+        if not version_str:
             return '1.0.0'
 
-        parts = latest.version.split('.')
+        parts = version_str.split('.')
         if len(parts) == 3:
             major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
             return f'{major}.{minor}.{patch + 1}'

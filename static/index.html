@@ -755,22 +755,47 @@ textarea:focus{border-color:var(--gold-dark);outline:none;box-shadow:0 0 12px rg
 <!-- ════════════════════════════════ MARKETS ════════════════════════════════ -->
 <div class="section" :class="{active:tab==='markets'}">
   <h1>Markets</h1>
-  <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets (active first, resolved last)'"></div>
+  <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
+
+  <h2>Active Markets</h2>
   <table>
     <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Status</th><th>Closes</th></tr></thead>
     <tbody>
-      <template x-for="m in markets" :key="m.ticker">
+      <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="m.ticker">
         <tr :style="m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:0.5':''">
           <td style="color:var(--gold);font-size:11px" x-text="m.ticker"></td>
           <td x-text="(m.terms||[]).join(', ')"></td>
           <td :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--text)')" x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></td>
           <td x-text="m.volume||0"></td>
-          <td><span class="badge" :class="m.display_status==='Yes'?'yes':m.display_status==='No'?'no':m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':(m.status==='active'||m.status==='open')?'active':'closed'" x-text="m.display_status||m.status"></span></td>
+          <td><span class="badge" :class="m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':'active'" x-text="m.display_status||m.status"></span></td>
           <td style="font-size:10px" x-text="m.close_time?m.close_time.substring(5,16):'-'"></td>
         </tr>
       </template>
     </tbody>
   </table>
+  <template x-if="markets.filter(m=>m.status==='active'||m.status==='open').length===0">
+    <div style="text-align:center;color:var(--dim);padding:16px">No active markets</div>
+  </template>
+
+  <h2 style="margin-top:28px">Resolved Markets</h2>
+  <table>
+    <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Result</th><th>Closed</th></tr></thead>
+    <tbody>
+      <template x-for="m in markets.filter(m=>m.status!=='active'&&m.status!=='open')" :key="m.ticker">
+        <tr style="opacity:0.7">
+          <td style="color:var(--dim);font-size:11px" x-text="m.ticker"></td>
+          <td x-text="(m.terms||[]).join(', ')"></td>
+          <td :style="'color:'+(m.display_status==='Yes'?'var(--green)':m.display_status==='No'?'var(--red)':'var(--dim)')" x-text="m.yes_price!=null?(m.yes_price*100).toFixed(0)+'c':'-'"></td>
+          <td x-text="m.volume||0"></td>
+          <td><span class="badge" :class="m.display_status==='Yes'?'yes':m.display_status==='No'?'no':'closed'" x-text="m.display_status||m.status"></span></td>
+          <td style="font-size:10px" x-text="m.close_time?m.close_time.substring(5,16):'-'"></td>
+        </tr>
+      </template>
+    </tbody>
+  </table>
+  <template x-if="markets.filter(m=>m.status!=='active'&&m.status!=='open').length===0">
+    <div style="text-align:center;color:var(--dim);padding:16px">No resolved markets yet</div>
+  </template>
 </div>
 
 <!-- ════════════════════════════════ PREDICTIONS ════════════════════════════════ -->

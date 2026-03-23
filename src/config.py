@@ -60,6 +60,9 @@ class AppConfig(BaseModel):
     # Social media analysis
     social_media_scrape_minutes: int = int(os.getenv('SOCIAL_MEDIA_SCRAPE_MINUTES', '30'))
 
+    # Admin (for dashboard launch key — falls back to KALSHI_API_KEY if not set)
+    admin_key: str = os.getenv('ADMIN_KEY', '')
+
     # App
     log_level: str = os.getenv('LOG_LEVEL', 'INFO')
     refresh_interval: int = int(os.getenv('REFRESH_INTERVAL_SECONDS', '300'))

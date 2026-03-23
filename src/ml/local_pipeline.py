@@ -110,10 +110,10 @@ class LocalPipeline:
 
     def should_retrain(self) -> bool:
         with get_session() as session:
+            # Count ALL speech records including individual social media posts
             current_count = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
                 Speech.is_processed == True,
-                Speech.word_count >= 100,
             ).count()
 
         last_count = self._status.get('last_training_speech_count', 0)
@@ -136,8 +136,11 @@ class LocalPipeline:
 
         return False
 
-    def run_full_pipeline(self) -> dict:
-        """Run Phases 0-5: scrape → train → simulate → predict → save."""
+    def run_full_pipeline(self, force=False) -> dict:
+        """Run Phases 0-5: scrape → train → simulate → predict → save.
+
+        If force=True, bypasses the should_retrain() threshold check.
+        """
         if not self._lock.acquire(blocking=False):
             return {'status': 'already_running'}
 
@@ -151,11 +154,13 @@ class LocalPipeline:
             # Phase 0: Social media refresh
             self._refresh_social_media()
 
-            # Check if retraining is needed
-            if not self.should_retrain():
+            # Check if retraining is needed (force=True bypasses threshold)
+            if not force and not self.should_retrain():
                 self._status.update(state='idle', stage='No retraining needed')
                 self._log_event('Skipped — not enough new data')
                 return {'status': 'skipped', 'reason': 'not enough new data'}
+            if force:
+                self._log_event('Force mode — bypassing retrain threshold')
 
             # Phase 1: Train Markov chain
             self._status.update(stage='Training Markov chain', progress=0.1)
@@ -218,12 +223,11 @@ class LocalPipeline:
                     active_model.simulation_count = config.monte_carlo_simulations
                     active_model.prediction_count = pred_count
 
-            # Record speech count
+            # Record speech count (matches should_retrain filter — all records)
             with get_session() as session:
                 current_count = session.query(Speech).filter(
                     Speech.transcript.isnot(None),
                     Speech.is_processed == True,
-                    Speech.word_count >= 100,
                 ).count()
             self._status['last_training_speech_count'] = current_count
 
@@ -258,8 +262,8 @@ class LocalPipeline:
         finally:
             self._lock.release()
 
-    def run_pipeline_async(self):
-        thread = threading.Thread(target=self.run_full_pipeline, daemon=True)
+    def run_pipeline_async(self, force=False):
+        thread = threading.Thread(target=self.run_full_pipeline, args=(force,), daemon=True)
         thread.start()
         return {'status': 'started'}
 

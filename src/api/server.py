@@ -28,6 +28,15 @@ from ..config import config as app_config
 
 app = FastAPI(title="Trump Mentions Trading Bot", version="1.0.0")
 
+
+def _require_admin(request: Request):
+    """Check admin key from X-Admin-Key header. Raises 401 if invalid."""
+    key = request.headers.get('X-Admin-Key', '')
+    expected = app_config.admin_key or app_config.kalshi_api_key
+    if expected and key != expected:
+        raise HTTPException(status_code=401, detail="Admin key required")
+
+
 # --- In-memory job status tracker ---
 import threading
 
@@ -493,6 +502,19 @@ def get_discovered_phrases():
     return colab_predictor.get_discovered_phrases()
 
 
+# --- Admin endpoints ---
+
+@app.post("/api/admin/verify")
+async def verify_admin(request: Request):
+    """Verify admin key for dashboard launch key."""
+    data = await request.json()
+    key = data.get('key', '')
+    expected = app_config.admin_key or app_config.kalshi_api_key
+    if not expected:
+        return {"valid": True}
+    return {"valid": key == expected}
+
+
 # --- Pipeline endpoints ---
 
 @app.get("/api/pipeline/status")
@@ -517,10 +539,12 @@ def get_pipeline_log(limit: int = 50):
 
 
 @app.post("/api/pipeline/run")
-def run_pipeline(background_tasks: BackgroundTasks):
-    """Trigger the training pipeline (local or Colab depending on config)."""
-    _pipeline.run_pipeline_async()
-    return {"status": "pipeline started", "mode": app_config.pipeline_mode}
+def run_pipeline(request: Request, background_tasks: BackgroundTasks, force: bool = False):
+    """Trigger the training pipeline. force=true bypasses retrain threshold (requires admin key)."""
+    if force:
+        _require_admin(request)
+    _pipeline.run_pipeline_async(force=force)
+    return {"status": "pipeline started", "mode": app_config.pipeline_mode, "force": force}
 
 
 @app.post("/api/pipeline/export-upload")
@@ -1183,16 +1207,16 @@ def get_pi_fine_tune_status():
 
 
 @app.post("/api/fine-tune/start")
-def start_pi_fine_tuning(background_tasks: BackgroundTasks):
-    """Manually trigger Pi fine-tuning."""
-    if not app_config.fine_tune_enabled:
+def start_pi_fine_tuning(request: Request, background_tasks: BackgroundTasks, force: bool = False):
+    """Manually trigger Pi fine-tuning. force=true requires admin key."""
+    if force:
+        _require_admin(request)
+    if not app_config.fine_tune_enabled and not force:
         raise HTTPException(status_code=400, detail="Fine-tuning disabled")
 
     try:
-        from ..ml.local_pipeline import LocalPipeline
-        pipeline = LocalPipeline()
-        background_tasks.add_task(pipeline.run_fine_tuning)
-        return {"status": "Fine-tuning started"}
+        background_tasks.add_task(_pipeline.run_fine_tuning)
+        return {"status": "Fine-tuning started", "force": force}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1209,26 +1233,86 @@ def stop_pi_fine_tuning():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/fine-tune/config")
+def get_fine_tune_config():
+    """Get fine-tuning and pipeline configuration (public)."""
+    return {
+        "model": app_config.fine_tune_model,
+        "epochs": app_config.fine_tune_epochs,
+        "learning_rate": app_config.fine_tune_learning_rate,
+        "lora_rank": app_config.fine_tune_lora_rank,
+        "batch_size": app_config.fine_tune_batch_size,
+        "grad_accum": app_config.fine_tune_grad_accum,
+        "max_length": app_config.fine_tune_max_length,
+        "mc_sims": app_config.fine_tune_mc_sims,
+        "schedule_hour": app_config.fine_tune_hour,
+        "gradient_checkpointing": app_config.fine_tune_gradient_checkpointing,
+        "enabled": app_config.fine_tune_enabled,
+        "monte_carlo_simulations": app_config.monte_carlo_simulations,
+    }
+
+
+class FineTuneConfigUpdate(BaseModel):
+    epochs: Optional[int] = None
+    learning_rate: Optional[float] = None
+    lora_rank: Optional[int] = None
+    batch_size: Optional[int] = None
+    grad_accum: Optional[int] = None
+    max_length: Optional[int] = None
+    mc_sims: Optional[int] = None
+    schedule_hour: Optional[int] = None
+    gradient_checkpointing: Optional[bool] = None
+    enabled: Optional[bool] = None
+    monte_carlo_simulations: Optional[int] = None
+
+
+@app.put("/api/fine-tune/config")
+def update_fine_tune_config(update: FineTuneConfigUpdate, request: Request):
+    """Update fine-tuning configuration (admin only)."""
+    _require_admin(request)
+
+    field_map = {
+        'epochs': 'fine_tune_epochs',
+        'learning_rate': 'fine_tune_learning_rate',
+        'lora_rank': 'fine_tune_lora_rank',
+        'batch_size': 'fine_tune_batch_size',
+        'grad_accum': 'fine_tune_grad_accum',
+        'max_length': 'fine_tune_max_length',
+        'mc_sims': 'fine_tune_mc_sims',
+        'schedule_hour': 'fine_tune_hour',
+        'gradient_checkpointing': 'fine_tune_gradient_checkpointing',
+        'enabled': 'fine_tune_enabled',
+        'monte_carlo_simulations': 'monte_carlo_simulations',
+    }
+
+    updates = {k: v for k, v in update.dict().items() if v is not None}
+    for param_name, config_field in field_map.items():
+        if param_name in updates:
+            setattr(app_config, config_field, updates[param_name])
+
+    return get_fine_tune_config()
+
+
 @app.post("/api/pipeline/full")
-def run_full_pipeline(background_tasks: BackgroundTasks):
-    """Run fine-tuning then predictions pipeline back-to-back."""
-    if not app_config.fine_tune_enabled:
+def run_full_pipeline_endpoint(request: Request, background_tasks: BackgroundTasks, force: bool = False):
+    """Run fine-tuning then predictions pipeline back-to-back. force=true bypasses threshold."""
+    if force:
+        _require_admin(request)
+    if not app_config.fine_tune_enabled and not force:
         raise HTTPException(status_code=400, detail="Fine-tuning disabled")
 
     def _run_full():
-        from ..ml.local_pipeline import LocalPipeline
-        pipeline = LocalPipeline()
         try:
             logger.info("Full pipeline: starting fine-tuning...")
-            pipeline.run_fine_tuning()
+            _pipeline.run_fine_tuning()
             logger.info("Full pipeline: fine-tuning done, starting Markov pipeline...")
-            pipeline.run_full_pipeline()
+            _pipeline.run_full_pipeline(force=force)
             logger.info("Full pipeline: complete")
         except Exception as e:
             logger.error(f"Full pipeline failed: {e}")
 
     background_tasks.add_task(_run_full)
-    return {"status": "Full pipeline started (fine-tune → predictions)"}
+    return {"status": "Full pipeline started (fine-tune → predictions)", "force": force}
 
 
 @app.post("/api/fine-tune/upload-predictions")

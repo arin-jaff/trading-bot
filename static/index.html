@@ -93,6 +93,22 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 .idle-art .emoji{font-size:40px;margin-bottom:10px}
 .idle-art .quip{font-size:14px;font-style:italic;color:var(--gold)}
 
+/* Live terminal */
+.terminal{background:#0c0c0c;border:1px solid #333;border-radius:6px;font-family:'Courier New',monospace;font-size:11px;overflow:hidden}
+.terminal .bar{background:#1a1a1a;padding:6px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #333}
+.terminal .bar .dots{display:flex;gap:4px}
+.terminal .bar .dots span{width:10px;height:10px;border-radius:50%}
+.terminal .bar .title{color:#888;font-size:10px;margin-left:8px}
+.terminal .body{padding:12px;max-height:280px;overflow-y:auto;line-height:1.7;color:#ccc}
+.terminal .body .line{white-space:pre-wrap;word-break:break-all}
+.terminal .body .ts{color:#666}
+.terminal .body .info{color:#4ec9b0}
+.terminal .body .warn{color:#dcdcaa}
+.terminal .body .err{color:#f44747}
+.terminal .body .debug{color:#666}
+.terminal .cursor{display:inline-block;width:7px;height:13px;background:var(--gold);animation:blink 1s step-end infinite;vertical-align:text-bottom}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
 /* Patriotic decorative elements */
 .trump-img{border-radius:8px;border:3px solid var(--gold);box-shadow:0 4px 20px rgba(255,215,0,.2);opacity:.9;transition:all .3s}
 .trump-img:hover{opacity:1;box-shadow:0 4px 30px rgba(255,215,0,.4);transform:scale(1.02)}
@@ -112,6 +128,12 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 /* Floating decorative images */
 .decor-img{position:absolute;opacity:.08;pointer-events:none;z-index:0}
+
+/* Tooltips */
+.tip{position:relative;display:inline-flex}
+.tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;pointer-events:none;background:#3a3d44;color:#e8e8e8;border-radius:8px;padding:8px 18px;font-size:11px;line-height:1.5;min-width:200px;max-width:320px;white-space:normal;text-align:center;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.45);transition:opacity .15s,transform .15s}
+.tip::before{content:'';position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;border:6px solid transparent;border-bottom-color:#3a3d44;z-index:999;transition:opacity .15s,transform .15s}
+.tip:hover::after,.tip:hover::before{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -142,8 +164,10 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     <div style="flex:1">
       <h1>TrumpGPT Trading Bot</h1>
       <div class="sub" x-text="modelMethod+(modelVer?' | v'+modelVer:'')"></div>
+      <h2 style="color:var(--gold);font-size:16px;margin:8px 0 4px 0;font-weight:700;letter-spacing:0.5px">The World's First HLM <span style="font-weight:400;font-size:11px;opacity:0.7">(Huuuuuuge Language Model)</span></h2>
+      <h3 style="color:var(--white);font-size:13px;margin:0 0 10px 0;font-weight:600;opacity:0.85">The Most Tremendous Prediction Bot Ever Built</h3>
       <p style="color:var(--dim);font-size:12px;line-height:1.8;margin-bottom:12px">
-        <strong style="color:var(--gold)">The most tremendous prediction bot ever built.</strong> Fully autonomous on Raspberry Pi.
+        Fully autonomous on Raspberry Pi.
         Scrapes Trump speeches, tweets, and Truth Social posts. Trains a Markov chain + fine-tunes Pythia-160M with LoRA nightly.
         Runs Monte Carlo simulations to predict which words he'll say, then trades on
         <a href="https://kalshi.com" target="_blank">Kalshi</a> when it finds an edge.
@@ -202,11 +226,145 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
     </div>
   </template>
 
-  <!-- SYSTEM FLOWCHART -->
-  <div class="stars-divider" style="margin-top:20px">* * * * *</div>
-  <div class="card" style="margin-bottom:14px;text-align:center">
-    <h3 style="margin:0 0 12px;color:var(--gold)">System Architecture</h3>
-    <img src="/static/images/pipeline-flowchart.svg" alt="Pipeline Flowchart" style="width:100%;max-width:1100px;border-radius:8px;border:1px solid var(--border)">
+  <!-- LIVE TERMINAL -->
+  <h2>Live Feed</h2>
+  <div class="terminal" style="margin-bottom:14px">
+    <div class="bar">
+      <div class="dots"><span style="background:#ff5f56"></span><span style="background:#ffbd2e"></span><span style="background:#27c93f"></span></div>
+      <div class="title">arin@orion:~/trading-bot</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span class="dot" :class="health?'on':'off'" style="width:6px;height:6px"></span>
+        <span style="color:#888;font-size:9px" x-text="health?'LIVE':'OFFLINE'"></span>
+      </div>
+    </div>
+    <div class="body" id="terminalBody">
+      <template x-if="homeLogs.length===0">
+        <div class="line" style="color:#666">Waiting for events...</div>
+      </template>
+      <template x-for="(l,i) in homeLogs" :key="i">
+        <div class="line">
+          <span class="ts" x-text="l.timestamp?l.timestamp.substring(11,19)+'  ':''"></span>
+          <span :class="l.message.includes('ERROR')?'err':l.message.includes('WARNING')?'warn':l.message.includes('DEBUG')?'debug':'info'" x-text="l.message"></span>
+        </div>
+      </template>
+      <div class="line" style="margin-top:2px"><span style="color:var(--gold)">$</span> <span class="cursor"></span></div>
+    </div>
+  </div>
+
+  <!-- BLOG -->
+  <div style="max-width:720px;margin:50px auto 0;padding:0 24px;position:relative;z-index:1">
+    <div style="border-top:2px solid var(--gold);padding-top:36px">
+      <h2 style="color:var(--gold);font-size:24px;margin-bottom:6px;font-family:'Georgia',serif">The Build Process</h2>
+      <div style="color:var(--dim);font-size:11px;margin-bottom:28px;letter-spacing:1px;text-transform:uppercase">The story behind TrumpGPT</div>
+
+      <div style="color:#b0b8cc;font-size:14px;line-height:2.1">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;flex-wrap:wrap">
+          <a href="https://huggingface.co/EleutherAI/pythia-160m" target="_blank" class="tip" data-tip="Pythia-160M by EleutherAI - The fine-tuned language model powering TrumpGPT predictions" style="cursor:pointer"><svg width="36" height="36" viewBox="0 0 36 36" style="opacity:0.85"><circle cx="18" cy="18" r="17" fill="var(--bg2)" stroke="var(--gold)" stroke-width="1.5"/><circle cx="18" cy="14" r="3" fill="none" stroke="var(--gold)" stroke-width="1.5"/><path d="M10 22c0-4.4 3.6-8 8-8s8 3.6 8 8" fill="none" stroke="var(--gold)" stroke-width="1.5"/><circle cx="10" cy="18" r="2" fill="none" stroke="var(--gold)" stroke-width="1"/><circle cx="26" cy="18" r="2" fill="none" stroke="var(--gold)" stroke-width="1"/><line x1="12" y1="18" x2="16" y2="16" stroke="var(--gold)" stroke-width="1"/><line x1="24" y1="18" x2="20" y2="16" stroke="var(--gold)" stroke-width="1"/><circle cx="14" cy="26" r="1.5" fill="none" stroke="var(--gold)" stroke-width="1"/><circle cx="22" cy="26" r="1.5" fill="none" stroke="var(--gold)" stroke-width="1"/><line x1="14" y1="24.5" x2="16" y2="22" stroke="var(--gold)" stroke-width="1"/><line x1="22" y1="24.5" x2="20" y2="22" stroke="var(--gold)" stroke-width="1"/><text x="18" y="32" text-anchor="middle" fill="var(--gold)" font-size="4" font-family="monospace">HLM</text></svg></a>
+          <a href="https://www.raspberrypi.com/products/raspberry-pi-4-model-b/" target="_blank" class="tip" data-tip="Raspberry Pi 4 - The $50 computer running the entire bot 24/7" style="cursor:pointer"><svg width="30" height="38" viewBox="0 0 30 38" style="opacity:0.85"><rect x="3" y="8" width="24" height="22" rx="3" fill="#75A928"/><rect x="6" y="11" width="18" height="16" rx="2" fill="#006837"/><circle cx="10" cy="17" r="1.5" fill="#fff"/><circle cx="20" cy="17" r="1.5" fill="#fff"/><rect x="8" y="21" width="14" height="3" rx="1" fill="#C51A4A"/><rect x="11" y="2" width="2" height="6" fill="#888"/><rect x="17" y="2" width="2" height="6" fill="#888"/><rect x="1" y="15" width="2" height="4" rx="1" fill="#888"/><rect x="27" y="15" width="2" height="4" rx="1" fill="#888"/><rect x="9" y="30" width="3" height="5" rx="1" fill="#888"/><rect x="18" y="30" width="3" height="5" rx="1" fill="#888"/></svg></a>
+          <a href="https://pytorch.org/" target="_blank" class="tip" data-tip="PyTorch - Deep learning framework for Pythia LoRA fine-tuning" style="cursor:pointer"><img src="/static/images/pytorch-logo.png" alt="PyTorch" style="width:34px;height:34px;opacity:0.85"></a>
+          <a href="https://pandas.pydata.org/" target="_blank" class="tip" data-tip="Pandas - Data manipulation for feature engineering and analysis" style="cursor:pointer"><img src="/static/images/pandas-logo.svg" alt="Pandas" style="height:24px;opacity:0.85"></a>
+          <a href="https://kalshi.com/" target="_blank" class="tip" data-tip="Kalshi - Prediction market exchange where TrumpGPT trades" style="cursor:pointer"><svg width="28" height="28" viewBox="0 0 24 24" style="opacity:0.85"><rect width="24" height="24" rx="6" fill="#00d298"/><text x="12" y="17" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="Arial">K</text></svg></a>
+          <span style="color:var(--dim);font-size:10px;letter-spacing:1px;text-transform:uppercase">Powered by</span>
+        </div>
+
+        <p>In November 2025, Kalshi launched prediction markets on which words Trump would say in his next speech. <span style="color:var(--gold)">"Border," "China," "tremendous"</span> - all tradeable. I thought that was hilarious, and also that it was probably beatable.</p>
+
+        <div style="border-left:3px solid var(--gold);padding:12px 16px;margin:24px 0;background:rgba(255,215,0,.03);border-radius:0 6px 6px 0">
+          <p style="margin:0;font-style:italic;color:var(--text)">The idea was simple: using transcripts of every speech, rally, press conference, Twitter/X, and Truth Social post Trump gives, you can build a statistical model of what he's likely to say next.</p>
+        </div>
+
+        <p>I decided to use a combination of Markov Chains and Monte Carlo simulations to get a good spread for probability distributions of the hot terms. From there we compare those to what Kalshi is pricing to calculate our edges.</p>
+
+        <div style="margin:28px 0;padding:16px 0;border-top:1px solid var(--bg3);border-bottom:1px solid var(--bg3)">
+          <p style="margin:0;color:var(--dim);font-size:13px">The first version ran on my laptop and was very clunky. It scraped a few sources on GPT-2 Small and spit out predictions into a JSON file. It worked well enough that I saw potential, so I kept going.</p>
+        </div>
+
+        <div style="display:flex;align-items:flex-start;gap:20px;margin:24px 0">
+          <div style="flex:1">
+            <p style="margin:0">Then I found out about OpenClaw and other ventures into autonomous agents and LLMs. Instantly I wanted to find a way to run this autonomously, 24/7, without any intervention. The <strong style="color:var(--white)">Raspberry Pi 4, 8GB RAM, $50 single-board computer</strong> felt like the right level for this project.</p>
+          </div>
+          <div style="flex-shrink:0;text-align:center">
+            <a href="https://www.raspberrypi.com/products/raspberry-pi-4-model-b/" target="_blank" class="tip" data-tip="Raspberry Pi 4 - 8GB RAM, ARM Cortex-A72, running the full bot autonomously" style="cursor:pointer"><img src="/static/images/raspberry-pi-board.jpg" alt="Raspberry Pi 4" style="width:160px;border-radius:8px;border:1px solid var(--bg3);box-shadow:0 4px 16px rgba(0,0,0,.4)"></a>
+            <div style="font-size:9px;color:var(--dim);margin-top:6px">The $50 brain</div>
+          </div>
+        </div>
+
+        <p style="margin-top:18px">The Pi scrapes 10 sources every few hours, pulls from Truth Social and Twitter, retrains the Markov chain, runs 2,000 simulated speeches, generates predictions, and checks for trades - <span style="color:var(--gold)">optimized for only 8GB of RAM</span>. At some point I added Pythia-160M fine-tuning with LoRA, which takes about 75 minutes on the Pi's CPU. Not fast, but it runs at 2 AM during off trading hours when Trump won't speak and affect the market.</p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:28px 0">
+          <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:6px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:bold;color:var(--gold)">7</div>
+            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Signals</div>
+          </div>
+          <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:6px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:bold;color:var(--gold)">2,000</div>
+            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Simulations</div>
+          </div>
+          <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:6px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:bold;color:var(--gold)">10</div>
+            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Scrapers</div>
+          </div>
+          <div style="background:var(--bg2);border:1px solid var(--bg3);border-radius:6px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:bold;color:var(--gold)">$50</div>
+            <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Hardware</div>
+          </div>
+        </div>
+
+        <p>The prediction ensemble grew from one signal to seven as I tried to dial into POTUS's patterns. We needed a way to account for his hyperfixations, his targets, current events, hot topics, and more. <strong style="color:var(--white)">We had to get into the mind of the most volatile man in the United States.</strong></p>
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin:22px 0;justify-content:center">
+          <a href="https://scikit-learn.org/" target="_blank" class="tip" data-tip="scikit-learn - GBM, Random Forest, and Logistic Regression ensemble" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <img src="/static/images/scikit-learn-logo.png" alt="scikit-learn" style="height:16px">
+            <span style="font-size:11px;color:var(--dim)">scikit-learn</span>
+          </a>
+          <a href="https://pytorch.org/" target="_blank" class="tip" data-tip="PyTorch + LoRA - Fine-tunes Pythia-160M for speech generation" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <img src="/static/images/pytorch-logo.png" alt="PyTorch" style="height:16px">
+            <span style="font-size:11px;color:var(--dim)">PyTorch + LoRA</span>
+          </a>
+          <a href="https://fastapi.tiangolo.com/" target="_blank" class="tip" data-tip="FastAPI - Python web framework serving the API and dashboard" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font-size:11px;color:var(--dim)">FastAPI</span>
+          </a>
+          <a href="https://ai.google.dev/gemini-api" target="_blank" class="tip" data-tip="Gemini API - Google AI for current events news enrichment" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2L4.5 7.8l2.3 1.5L12 5.7l5.2 3.6 2.3-1.5L12 2z" fill="#4285f4"/><path d="M12 22l7.5-5.8-2.3-1.5L12 18.3l-5.2-3.6-2.3 1.5L12 22z" fill="#34a853"/><path d="M4.5 7.8v8.4l2.3-1.5V9.3L4.5 7.8z" fill="#ea4335"/><path d="M19.5 7.8v8.4l-2.3-1.5V9.3l2.3-1.5z" fill="#fbbc05"/><circle cx="12" cy="12" r="3" fill="#4285f4"/></svg>
+            <span style="font-size:11px;color:var(--dim)">Gemini API</span>
+          </a>
+          <a href="https://www.sqlite.org/" target="_blank" class="tip" data-tip="SQLite WAL - Database with Write-Ahead Logging for concurrency" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <svg width="16" height="14" viewBox="0 0 50 34"><path d="M1 17h48M25 1v32" stroke="#0f80cc" stroke-width="3" stroke-linecap="round"/><text x="25" y="30" text-anchor="middle" fill="#0f80cc" font-size="10" font-weight="bold" font-family="Arial">SQL</text></svg>
+            <span style="font-size:11px;color:var(--dim)">SQLite WAL</span>
+          </a>
+          <a href="https://kalshi.com/" target="_blank" class="tip" data-tip="Kalshi - CFTC-regulated prediction market exchange" style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;padding:6px 14px;text-decoration:none;transition:border-color .2s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bg3)'">
+            <svg width="16" height="16" viewBox="0 0 24 24"><path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12" fill="none" stroke="#00d298" stroke-width="2"/><ellipse cx="12" cy="7" rx="9" ry="3" fill="none" stroke="#00d298" stroke-width="2"/><path d="M3 7v10c0 1.66 4.03 3 9 3s9-1.34 9-3V7" fill="none" stroke="#00d298" stroke-width="2"/></svg>
+            <span style="font-size:11px;color:var(--dim)">Kalshi</span>
+          </a>
+        </div>
+
+        <p style="margin-top:18px">My model grew to add historical frequency, temporal patterns, trend velocity, event correlation, Monte Carlo simulations, news relevance via Gemini API, and social media velocity from Twitter/Truth Social. Each one catches something the others miss. Finally the bot uses fee-aware Kelly criterion sizing with all the usual risk controls - daily loss limits, drawdown protection, position management.</p>
+
+        <p style="margin-top:18px">Is it profitable? <strong style="color:var(--white)">Too early to say definitively.</strong> The Brier scores look reasonable and the calibration is improving with each model version. Stay tuned to check out the Portfolio value as the model gains confidence.</p>
+
+        <div style="border-left:3px solid var(--green);padding:12px 16px;margin:24px 0;background:rgba(46,204,113,.03);border-radius:0 6px 6px 0">
+          <p style="margin:0;color:var(--text)">The whole thing is open source, and has been developed using ONLY free-tier resources and open-source tools/models. If you want to see if you can improve upon it with a better training pipeline or larger model, feel free to fork the repo below!</p>
+        </div>
+
+        <div style="margin-top:28px">
+          <p style="margin:0;color:var(--gold);font-size:16px;font-family:'Georgia',serif">- Arin Jaff</p>
+          <p style="margin:4px 0 0;color:var(--dim);font-size:12px;font-style:italic">Professional POTUS Psychologist</p>
+        </div>
+
+        <div style="margin:36px -24px 0;text-align:center">
+          <h3 style="color:var(--gold);font-size:18px;margin-bottom:14px;font-family:'Georgia',serif">System Architecture</h3>
+          <img src="/static/images/pipeline-flowchart.svg" alt="System Architecture" style="width:100%;max-width:1100px;border-radius:8px;border:1px solid var(--bg3)">
+        </div>
+
+        <div style="margin-top:32px;text-align:center">
+          <a href="https://github.com/arin-jaff/trading-bot" target="_blank" style="display:inline-flex;align-items:center;gap:10px;padding:12px 28px;background:var(--bg2);border:2px solid #333;border-radius:8px;color:var(--white);text-decoration:none;font-size:14px;font-weight:bold;transition:all .2s;letter-spacing:0.5px" onmouseover="this.style.borderColor='var(--gold)';this.style.boxShadow='0 0 16px rgba(255,215,0,.15)'" onmouseout="this.style.borderColor='#333';this.style.boxShadow='none'">
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            TrumpGPT on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="stars-divider" style="margin-top:20px">* * * MAKE PREDICTIONS GREAT AGAIN * * *</div>
@@ -650,7 +808,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128190; Disk Space</h3>
+          <h3 style="margin-top:0;color:var(--white)">Disk Space</h3>
           <template x-if="healthDetail.checks.disk">
             <div>
               <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.disk.percent+'%;background:'+(healthDetail.checks.disk.warning?'var(--red)':'var(--blue)')"></div></div>
@@ -660,7 +818,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128187; Memory</h3>
+          <h3 style="margin-top:0;color:var(--white)">Memory</h3>
           <template x-if="healthDetail.checks.memory">
             <div>
               <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.memory.percent+'%;background:'+(healthDetail.checks.memory.warning?'var(--red)':'#B31942')"></div></div>
@@ -670,7 +828,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128293; Social Trends</h3>
+          <h3 style="margin-top:0;color:var(--white)">Social Trends</h3>
           <template x-if="healthDetail.checks.social_trends">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms Tracked</span><span x-text="healthDetail.checks.social_trends.terms_tracked||0"></span></div>
@@ -680,7 +838,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">&#128231; Email</h3>
+          <h3 style="margin-top:0;color:var(--white)">Email</h3>
           <template x-if="healthDetail.checks.email">
             <div>
               <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Configured</span><span :style="'color:'+(healthDetail.checks.email.configured?'var(--green)':'var(--red)')" x-text="healthDetail.checks.email.configured?'Yes':'No'"></span></div>
@@ -824,7 +982,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
   <div class="card" style="margin-bottom:14px;border-color:var(--gold);background:rgba(255,215,0,.03)">
     <div style="font-size:11px;color:var(--dim);line-height:1.7;margin-bottom:10px">
       <strong style="color:var(--gold)">How this works:</strong> The same Markov chain that powers the trading predictions can also generate Trump-style text.
-      Under the hood, the bot runs 2,000 simulated speeches per cycle and counts which terms appear — that's how it predicts what Trump will say.
+      Under the hood, the bot runs 2,000 simulated speeches per cycle and counts which terms appear - that's how it predicts what Trump will say.
       This tab lets you see one of those simulations in action.
       <strong style="color:var(--white)">The trading value comes from the aggregate statistics across thousands of simulations, not any single generation.</strong>
     </div>
@@ -864,7 +1022,7 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
       <div style="margin-top:14px">
         <button class="btn gold" @click="generateTrumpGPT()" :disabled="gptLoading">
           <template x-if="gptLoading"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
-          <span x-text="gptLoading?'Generating...':'&#9733; Generate'"></span>
+          <span x-text="gptLoading?'Generating...':'Generate'"></span>
         </button>
       </div>
     </div>
@@ -882,7 +1040,6 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
   <template x-if="!gptOutput && !gptLoading">
     <div class="idle-art">
-      <div style="font-size:48px">&#127482;&#127480;</div>
       <div class="quip">Give TrumpGPT a topic and watch it riff. Tremendous words, believe me.</div>
       <div style="margin-top:8px;font-size:12px;color:var(--dim)">Leave the prompt blank to generate a full speech from the selected scenario.</div>
     </div>
@@ -893,9 +1050,9 @@ textarea{background:var(--bg3);border:1px solid var(--border);color:var(--text);
 
 <!-- Footer -->
 <div style="text-align:center;padding:20px;color:var(--dim);font-size:10px;border-top:1px solid var(--border);margin-top:30px;position:relative;z-index:1">
-  <div style="margin-bottom:4px">&#127482;&#127480; &#9733; TrumpGPT Trading Bot &#9733; &#127482;&#127480;</div>
+  <div style="margin-bottom:4px">TrumpGPT Trading Bot</div>
   <div>Running autonomously on Raspberry Pi | <a href="https://trumpgpt.arinjaff.com">trumpgpt.arinjaff.com</a></div>
-  <div style="margin-top:4px;letter-spacing:4px;color:var(--gold);font-size:8px">&#9733; &#9733; &#9733; MAKING PREDICTIONS GREAT AGAIN &#9733; &#9733; &#9733;</div>
+  <div style="margin-top:4px;letter-spacing:4px;color:var(--gold);font-size:8px">MAKING PREDICTIONS GREAT AGAIN</div>
 </div>
 
 <script>
@@ -919,7 +1076,7 @@ function app(){return{
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   piFtStatus:null, socialTrends:null, healthDetail:null,
-  pChart:null, pipelineBusy:false, pipelineOp:'', _pollInterval:null,
+  pChart:null, pipelineBusy:false, pipelineOp:'', _pollInterval:null, homeLogs:[],
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now. Tremendous course.",
     "TrumpGPT is eating a beautiful chocolate cake. The most beautiful.",
@@ -966,7 +1123,9 @@ function app(){return{
     this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
     if(st){this.modelMethod=st.method||'Monte Carlo';this.modelVer=st.version||'';this.modelStatus=st}
     this.botCfg=(await this.api('/trading/config'))||{};
-    this.$nextTick(()=>this.renderPortfolio(th?.trades||[]));
+    const log=await this.api('/pipeline/log?limit=30');
+    this.homeLogs=Array.isArray(log)?log.reverse():[];
+    this.$nextTick(()=>{this.renderPortfolio(th?.trades||[]);const tb=document.getElementById('terminalBody');if(tb)tb.scrollTop=tb.scrollHeight});
   },
 
   async loadPipeline(){

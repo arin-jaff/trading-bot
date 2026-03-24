@@ -175,23 +175,32 @@ class MarkovChainTrainer:
 
             training_duration = time.time() - start_time
 
-            # Create ModelVersion record
-            with get_session() as session:
-                # Deactivate previous versions
-                session.query(ModelVersion).filter_by(is_active=True).update(
-                    {'is_active': False}
-                )
-                mv = ModelVersion(
-                    version=version_str,
-                    model_type='markov_chain',
-                    markov_order=self.order,
-                    corpus_size=corpus_size,
-                    corpus_word_count=corpus_word_count,
-                    training_duration_seconds=round(training_duration, 2),
-                    artifact_path=artifact_path,
-                    is_active=True,
-                )
-                session.add(mv)
+            # Create ModelVersion record (retry on DB lock)
+            for attempt in range(5):
+                try:
+                    with get_session() as session:
+                        # Deactivate previous versions
+                        session.query(ModelVersion).filter_by(is_active=True).update(
+                            {'is_active': False}
+                        )
+                        mv = ModelVersion(
+                            version=version_str,
+                            model_type='markov_chain',
+                            markov_order=self.order,
+                            corpus_size=corpus_size,
+                            corpus_word_count=corpus_word_count,
+                            training_duration_seconds=round(training_duration, 2),
+                            artifact_path=artifact_path,
+                            is_active=True,
+                        )
+                        session.add(mv)
+                    break
+                except Exception as e:
+                    if 'locked' in str(e).lower() and attempt < 4:
+                        logger.warning(f"DB locked on model save, retry {attempt+1}/5...")
+                        time.sleep(3 * (attempt + 1))
+                    else:
+                        raise
 
             self._status.update(stage='Training complete', progress=1.0)
             logger.info(
@@ -705,11 +714,19 @@ class MarkovChainTrainer:
 
     def _next_version(self) -> str:
         """Get next version string by incrementing patch number."""
-        with get_session() as session:
-            latest = session.query(ModelVersion).order_by(
-                ModelVersion.created_at.desc()
-            ).first()
-            version_str = latest.version if latest else None
+        for attempt in range(3):
+            try:
+                with get_session() as session:
+                    latest = session.query(ModelVersion).order_by(
+                        ModelVersion.created_at.desc()
+                    ).first()
+                    version_str = latest.version if latest else None
+                break
+            except Exception as e:
+                if 'locked' in str(e).lower() and attempt < 2:
+                    time.sleep(2)
+                else:
+                    raise
 
         if not version_str:
             return '1.0.0'

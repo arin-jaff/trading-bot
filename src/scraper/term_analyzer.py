@@ -15,29 +15,51 @@ class TermAnalyzer:
     """Processes speech transcripts to track term usage over time."""
 
     def process_all_unprocessed(self) -> int:
-        """Process all speeches that haven't been analyzed yet."""
-        count = 0
+        """Process all speeches that haven't been analyzed yet.
+
+        Each speech is committed individually to avoid holding the DB
+        write lock for the entire batch (which could be 100K+ inserts).
+        """
+        # First, get the IDs and terms in a read-only query
         with get_session() as session:
-            speeches = session.query(Speech).filter_by(is_processed=False).filter(
-                Speech.transcript.isnot(None),
-                Speech.transcript != ''
-            ).all()
+            speech_ids = [
+                s.id for s in session.query(Speech.id).filter_by(is_processed=False).filter(
+                    Speech.transcript.isnot(None),
+                    Speech.transcript != ''
+                ).all()
+            ]
+            terms_data = [
+                {'id': t.id, 'normalized_term': t.normalized_term,
+                 'is_compound': t.is_compound, 'sub_terms': t.sub_terms}
+                for t in session.query(Term).all()
+            ]
 
-            terms = session.query(Term).all()
-            if not terms:
-                logger.warning("No terms in database. Run market sync first.")
-                return 0
+        if not terms_data:
+            logger.warning("No terms in database. Run market sync first.")
+            return 0
 
-            for speech in speeches:
-                try:
+        # Process each speech in its own short transaction
+        count = 0
+        for speech_id in speech_ids:
+            try:
+                with get_session() as session:
+                    speech = session.query(Speech).get(speech_id)
+                    if not speech or speech.is_processed:
+                        continue
+                    terms = session.query(Term).all()
                     self._process_speech(session, speech, terms)
                     speech.is_processed = True
-                    count += 1
-                except Exception as e:
-                    logger.error(f"Error processing speech {speech.id}: {e}")
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing speech {speech_id}: {e}")
 
-            # Update aggregate counts
-            self._update_term_stats(session)
+        # Update aggregate counts in a separate short transaction
+        if count > 0:
+            try:
+                with get_session() as session:
+                    self._update_term_stats(session)
+            except Exception as e:
+                logger.error(f"Error updating term stats: {e}")
 
         logger.info(f"Processed {count} speeches")
         return count

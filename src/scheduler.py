@@ -1,6 +1,7 @@
 """Background scheduler for periodic data updates."""
 
 import os
+from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
@@ -15,10 +16,29 @@ from .scraper.event_tracker import EventTracker
 from .ml.predictor import TermPredictor
 from .config import config
 
+# Global scheduler reference for pause/resume during long DB operations
+_scheduler: Optional[BackgroundScheduler] = None
+
+
+def pause_scheduler():
+    """Pause all scheduler jobs to avoid DB lock contention during training."""
+    if _scheduler and _scheduler.running:
+        _scheduler.pause()
+        logger.info("Scheduler paused (DB-intensive operation in progress)")
+
+
+def resume_scheduler():
+    """Resume scheduler jobs after DB-intensive operation completes."""
+    if _scheduler and _scheduler.running:
+        _scheduler.resume()
+        logger.info("Scheduler resumed")
+
 
 def create_scheduler() -> BackgroundScheduler:
     """Create and configure the background scheduler."""
+    global _scheduler
     scheduler = BackgroundScheduler()
+    _scheduler = scheduler
 
     # Initialize components
     client = KalshiClient()

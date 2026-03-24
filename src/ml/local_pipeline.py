@@ -151,6 +151,14 @@ class LocalPipeline:
             )
             self._log_event('Pipeline started')
 
+            # Pause scheduler to avoid DB lock contention during training
+            try:
+                from ..scheduler import pause_scheduler
+                pause_scheduler()
+                self._log_event('Scheduler paused for training')
+            except Exception as e:
+                logger.debug(f"Could not pause scheduler: {e}")
+
             # Phase 0: Social media refresh
             self._refresh_social_media()
 
@@ -262,6 +270,12 @@ class LocalPipeline:
             return {'status': 'error', 'error': str(e)}
 
         finally:
+            # Resume scheduler regardless of success/failure
+            try:
+                from ..scheduler import resume_scheduler
+                resume_scheduler()
+            except Exception as e:
+                logger.debug(f"Could not resume scheduler: {e}")
             self._lock.release()
 
     def run_pipeline_async(self, force=False):

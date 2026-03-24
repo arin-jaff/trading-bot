@@ -146,11 +146,17 @@ class MarketSync:
             'sub_terms': sub_terms,
         }
 
+    # How many markets to process per commit batch (reduces lock hold time)
+    _BATCH_SIZE = 10
+
     def sync_markets(self) -> dict:
         """Fetch all Trump Mentions markets and sync to database.
 
         Returns summary of sync results.
         3A: Detects newly created markets and adds them to new_market_tickers.
+
+        Markets are committed in batches to avoid holding the DB write lock
+        for the entire sync (which can take 5-15s with 100+ markets).
         """
         logger.info("Starting market sync...")
         raw_markets = self.client.find_trump_mentions_markets()
@@ -159,108 +165,109 @@ class MarketSync:
                  'updated_markets': 0, 'new_terms': 0,
                  'new_market_tickers': []}  # 3A: track new markets
 
-        with get_session() as session:
-            for market_data in raw_markets:
-                ticker = market_data.get('ticker', '')
-                if not ticker:
-                    continue
+        # Process in batches to keep write lock hold time short
+        for batch_start in range(0, len(raw_markets), self._BATCH_SIZE):
+            batch = raw_markets[batch_start:batch_start + self._BATCH_SIZE]
+            with get_session() as session:
+                for market_data in batch:
+                    ticker = market_data.get('ticker', '')
+                    if not ticker:
+                        continue
 
-                # Upsert market
-                market = session.query(Market).filter_by(kalshi_ticker=ticker).first()
-                if not market:
-                    market = Market(kalshi_ticker=ticker)
-                    session.add(market)
-                    stats['new_markets'] += 1
-                    stats['new_market_tickers'].append(ticker)  # 3A
-                else:
-                    stats['updated_markets'] += 1
+                    # Upsert market
+                    market = session.query(Market).filter_by(kalshi_ticker=ticker).first()
+                    if not market:
+                        market = Market(kalshi_ticker=ticker)
+                        session.add(market)
+                        stats['new_markets'] += 1
+                        stats['new_market_tickers'].append(ticker)  # 3A
+                    else:
+                        stats['updated_markets'] += 1
 
-                market.kalshi_event_ticker = market_data.get('event_ticker', '')
-                market.title = market_data.get('title', '')
-                market.subtitle = market_data.get('subtitle', '')
-                market.market_type = 'trump_mentions'
-                market.status = market_data.get('status', '')
+                    market.kalshi_event_ticker = market_data.get('event_ticker', '')
+                    market.title = market_data.get('title', '')
+                    market.subtitle = market_data.get('subtitle', '')
+                    market.market_type = 'trump_mentions'
+                    market.status = market_data.get('status', '')
 
-                # Prices: v2 API uses dollar-string fields (*_dollars)
-                # Fallback chain: yes_bid_dollars -> last_price_dollars -> legacy yes_bid (cents)
-                yes_price = self._parse_dollar_field(
-                    market_data, 'yes_bid_dollars', 'last_price_dollars'
-                )
-                no_price = self._parse_dollar_field(
-                    market_data, 'no_bid_dollars'
-                )
-                # Legacy fallback: old API returned cents (0-100)
-                if yes_price is None:
-                    legacy = market_data.get('yes_bid') or market_data.get('last_price')
-                    if legacy:
-                        yes_price = legacy / 100.0
-                if no_price is None:
-                    legacy = market_data.get('no_bid')
-                    if legacy:
-                        no_price = legacy / 100.0
-
-                market.yes_price = yes_price
-                market.no_price = no_price
-
-                # Volume: v2 uses volume_fp (fixed-point string), fallback to volume
-                market.volume = self._parse_fp_field(
-                    market_data, 'volume_fp', 'volume'
-                )
-                market.open_interest = self._parse_fp_field(
-                    market_data, 'open_interest_fp', 'open_interest'
-                )
-
-                if market_data.get('close_time'):
-                    try:
-                        market.close_time = datetime.fromisoformat(
-                            market_data['close_time'].replace('Z', '+00:00'))
-                    except (ValueError, AttributeError):
-                        pass
-
-                if market_data.get('expiration_time'):
-                    try:
-                        market.expiration_time = datetime.fromisoformat(
-                            market_data['expiration_time'].replace('Z', '+00:00'))
-                    except (ValueError, AttributeError):
-                        pass
-
-                market.result = market_data.get('result', '')
-                market.raw_data = market_data
-
-                # Flush so new markets get an ID before we create price snapshots
-                session.flush()
-
-                # Record price snapshot for history (must be after flush for new markets)
-                if yes_price is not None:
-                    snapshot = PriceSnapshot(
-                        market_id=market.id,
-                        yes_price=yes_price,
-                        no_price=no_price,
-                        volume=market.volume,
-                        open_interest=market.open_interest,
+                    # Prices: v2 API uses dollar-string fields (*_dollars)
+                    # Fallback chain: yes_bid_dollars -> last_price_dollars -> legacy yes_bid (cents)
+                    yes_price = self._parse_dollar_field(
+                        market_data, 'yes_bid_dollars', 'last_price_dollars'
                     )
-                    session.add(snapshot)
+                    no_price = self._parse_dollar_field(
+                        market_data, 'no_bid_dollars'
+                    )
+                    # Legacy fallback: old API returned cents (0-100)
+                    if yes_price is None:
+                        legacy = market_data.get('yes_bid') or market_data.get('last_price')
+                        if legacy:
+                            yes_price = legacy / 100.0
+                    if no_price is None:
+                        legacy = market_data.get('no_bid')
+                        if legacy:
+                            no_price = legacy / 100.0
 
-                # Extract and link terms
-                extracted_terms = self.extract_terms_from_market(market_data)
-                for term_data in extracted_terms:
-                    term = session.query(Term).filter_by(
-                        normalized_term=term_data['normalized_term']
-                    ).first()
-                    if not term:
-                        term = Term(
-                            term=term_data['term'],
-                            normalized_term=term_data['normalized_term'],
-                            is_compound=term_data.get('is_compound', False),
-                            sub_terms=term_data.get('sub_terms'),
+                    market.yes_price = yes_price
+                    market.no_price = no_price
+
+                    # Volume: v2 uses volume_fp (fixed-point string), fallback to volume
+                    market.volume = self._parse_fp_field(
+                        market_data, 'volume_fp', 'volume'
+                    )
+                    market.open_interest = self._parse_fp_field(
+                        market_data, 'open_interest_fp', 'open_interest'
+                    )
+
+                    if market_data.get('close_time'):
+                        try:
+                            market.close_time = datetime.fromisoformat(
+                                market_data['close_time'].replace('Z', '+00:00'))
+                        except (ValueError, AttributeError):
+                            pass
+
+                    if market_data.get('expiration_time'):
+                        try:
+                            market.expiration_time = datetime.fromisoformat(
+                                market_data['expiration_time'].replace('Z', '+00:00'))
+                        except (ValueError, AttributeError):
+                            pass
+
+                    market.result = market_data.get('result', '')
+                    market.raw_data = market_data
+
+                    # Flush so new markets get an ID before we create price snapshots
+                    session.flush()
+
+                    # Record price snapshot for history (must be after flush for new markets)
+                    if yes_price is not None:
+                        snapshot = PriceSnapshot(
+                            market_id=market.id,
+                            yes_price=yes_price,
+                            no_price=no_price,
+                            volume=market.volume,
+                            open_interest=market.open_interest,
                         )
-                        session.add(term)
-                        stats['new_terms'] += 1
+                        session.add(snapshot)
 
-                    if term not in market.terms:
-                        market.terms.append(term)
+                    # Extract and link terms
+                    extracted_terms = self.extract_terms_from_market(market_data)
+                    for term_data in extracted_terms:
+                        term = session.query(Term).filter_by(
+                            normalized_term=term_data['normalized_term']
+                        ).first()
+                        if not term:
+                            term = Term(
+                                term=term_data['term'],
+                                normalized_term=term_data['normalized_term'],
+                                is_compound=term_data.get('is_compound', False),
+                                sub_terms=term_data.get('sub_terms'),
+                            )
+                            session.add(term)
+                            stats['new_terms'] += 1
 
-                session.flush()
+                        if term not in market.terms:
+                            market.terms.append(term)
 
         logger.info(f"Market sync complete: {stats}")
         return stats

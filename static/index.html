@@ -353,8 +353,19 @@ textarea:focus{border-color:var(--gold-dark);outline:none;box-shadow:0 0 12px rg
   <!-- PORTFOLIO CHART -->
   <div class="card shine" style="margin-bottom:14px;border-color:var(--gold-dark)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <h3 style="margin:0;color:var(--white)">Portfolio Value</h3>
-      <span :style="'font-size:18px;font-weight:bold;color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span>
+      <h3 style="margin:0;color:var(--white)">Portfolio Equity</h3>
+      <div style="text-align:right">
+        <span :style="'font-size:18px;font-weight:bold;color:'+((equityCurve.current_value||100)>=equityCurve.starting_balance?'var(--green)':'var(--red)')" x-text="'$'+(equityCurve.current_value||100).toFixed(2)"></span>
+        <div style="font-size:9px;color:var(--dim);margin-top:2px">
+          <span x-text="'Cash $'+(equityCurve.cash||100).toFixed(2)"></span>
+          <template x-if="equityCurve.unrealized">
+            <span x-text="' + Unrealized $'+equityCurve.unrealized.toFixed(2)"></span>
+          </template>
+          <template x-if="equityCurve.positions_count>0">
+            <span x-text="' ('+equityCurve.positions_count+' positions)'"></span>
+          </template>
+        </div>
+      </div>
     </div>
     <canvas id="portfolioChart" height="140"></canvas>
   </div>
@@ -1360,6 +1371,7 @@ function app(){return{
   pChart:null, pipelineBusy:false, pipelineOp:'', _pollInterval:null, homeLogs:[],
   adminKey:'', adminAuthed:false, adminKeyInput:'', showKeyInput:false, keyShake:false,
   ftConfig:{}, ftConfigDirty:false,
+  equityCurve:{starting_balance:100,current_value:100,cash:100,unrealized:0,positions_count:0,points:[]},
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now. Tremendous course.",
     "TrumpGPT is eating a beautiful chocolate cake. The most beautiful.",
@@ -1425,20 +1437,22 @@ function app(){return{
   },
 
   async loadHome(){
-    const[ms,ss,sugg,tr,th,st]=await Promise.all([
+    const[ms,ss,sugg,tr,th,st,eq]=await Promise.all([
       this.api('/markets?status=active'),this.api('/speeches/stats'),
       this.api('/trading/suggestions'),this.api('/pipeline/training-status'),
       this.api('/trades/history?per_page=100'),this.api('/model/status'),
+      this.api('/trading/equity-curve?starting_balance=100'),
     ]);
     this.homeData={markets:Array.isArray(ms)?ms.length:0,speeches:ss?.total_speeches||0,predictions:st?.colab_predictions_count||0};
     this.suggestions=Array.isArray(sugg)?sugg:[];
     this.training=tr;
     this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
     if(st){this.modelMethod=st.method||'Monte Carlo';this.modelVer=st.version||'';this.modelStatus=st}
+    if(eq)this.equityCurve=eq;
     this.botCfg=(await this.api('/trading/config'))||{};
     const log=await this.api('/pipeline/log?limit=30');
     this.homeLogs=Array.isArray(log)?log.reverse():[];
-    this.$nextTick(()=>{this.renderPortfolio(th?.trades||[]);const tb=document.getElementById('terminalBody');if(tb)tb.scrollTop=tb.scrollHeight});
+    this.$nextTick(()=>{this.renderPortfolio();const tb=document.getElementById('terminalBody');if(tb)tb.scrollTop=tb.scrollHeight});
   },
 
   async loadPipeline(){
@@ -1525,15 +1539,22 @@ function app(){return{
     }}});
   },
 
-  renderPortfolio(trades){
+  renderPortfolio(){
     const c=document.getElementById('portfolioChart');if(!c)return;
-    const pts=trades.filter(t=>t.pnl!=null).reverse();
-    if(pts.length===0){if(this.pChart){this.pChart.destroy();this.pChart=null}return}
-    let cum=0;const labels=pts.map(t=>(t.created_at||'').substring(5,10));
-    const data=pts.map(t=>{cum+=t.pnl;return+cum.toFixed(2)});
+    const pts=this.equityCurve.points||[];
+    if(pts.length===0){
+      if(this.pChart){this.pChart.destroy();this.pChart=null}
+      return;
+    }
+    const labels=pts.map(p=>p.date?(p.date).substring(5,10):'start');
+    const data=pts.map(p=>p.value);
+    const baseVal=this.equityCurve.starting_balance||100;
     if(this.pChart)this.pChart.destroy();
-    this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:1,borderWidth:2}]},
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.4)'}},y:{ticks:{color:'#4a5a70',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(42,74,110,.4)'}}}}});
+    this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[
+      {data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pts.length>30?0:2,borderWidth:2},
+      {data:pts.map(()=>baseVal),borderColor:'rgba(255,255,255,.15)',borderDash:[4,4],borderWidth:1,pointRadius:0,fill:false},
+    ]},
+      options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:12},grid:{color:'rgba(42,74,110,.4)'}},y:{ticks:{color:'#4a5a70',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(42,74,110,.4)'}}}}});
   },
 }}
 </script>

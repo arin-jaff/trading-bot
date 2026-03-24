@@ -1003,6 +1003,91 @@ def get_trade_history(page: int = 1, per_page: int = 50,
         }
 
 
+@app.get("/api/trading/equity-curve")
+def get_equity_curve(starting_balance: float = 100.0):
+    """Compute portfolio equity curve from trade history.
+
+    Tracks cash + mark-to-market of open positions at each trade event.
+    Paper trades start at the given starting_balance (default $100).
+    """
+    with get_session() as session:
+        trades = session.query(Trade).filter(
+            Trade.status.in_(['filled', 'paper'])
+        ).order_by(Trade.created_at).all()
+
+        now = datetime.now().isoformat()
+
+        if not trades:
+            return {
+                'starting_balance': starting_balance,
+                'current_value': starting_balance,
+                'cash': starting_balance,
+                'unrealized': 0,
+                'positions_count': 0,
+                'points': [{'date': now, 'value': starting_balance}],
+            }
+
+        # Preload all markets referenced by trades
+        market_ids = {t.market_id for t in trades if t.market_id}
+        markets = {}
+        if market_ids:
+            for m in session.query(Market).filter(Market.id.in_(market_ids)).all():
+                markets[m.id] = m
+
+        def _mtm(positions):
+            """Mark-to-market: value of all open positions at current prices."""
+            total = 0.0
+            for mid, pos in positions.items():
+                m = markets.get(mid)
+                if not m or pos['qty'] <= 0:
+                    continue
+                if m.result == 'yes':
+                    price = 1.0 if pos['side'] == 'yes' else 0.0
+                elif m.result == 'no':
+                    price = 0.0 if pos['side'] == 'yes' else 1.0
+                elif m.yes_price is not None:
+                    price = m.yes_price if pos['side'] == 'yes' else (1 - m.yes_price)
+                else:
+                    price = 0.5
+                total += pos['qty'] * price
+            return total
+
+        cash = starting_balance
+        positions = {}  # market_id -> {side, qty}
+        points = []
+
+        for t in trades:
+            mid = t.market_id
+            price = t.fill_price or t.price or 0.5
+
+            if t.action == 'buy':
+                cash -= t.quantity * price
+                if mid not in positions:
+                    positions[mid] = {'side': t.side, 'qty': 0}
+                positions[mid]['qty'] += t.quantity
+            elif t.action == 'sell':
+                cash += t.quantity * price
+                if mid in positions:
+                    positions[mid]['qty'] = max(0, positions[mid]['qty'] - t.quantity)
+                    if positions[mid]['qty'] <= 0:
+                        del positions[mid]
+
+            points.append({
+                'date': t.created_at.isoformat() if t.created_at else None,
+                'value': round(cash + _mtm(positions), 2),
+            })
+
+        unrealized = _mtm(positions)
+        return {
+            'starting_balance': starting_balance,
+            'current_value': round(cash + unrealized, 2),
+            'cash': round(cash, 2),
+            'unrealized': round(unrealized, 2),
+            'positions_count': len(positions),
+            'points': [{'date': points[0]['date'], 'value': starting_balance}] + points,
+        }
+
+
 def _get_version_accuracy(session, model_version_id: int) -> Optional[dict]:
     """Compute accuracy for a specific model version from tagged predictions."""
     from ..database.models import TermPrediction

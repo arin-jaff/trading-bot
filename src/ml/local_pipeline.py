@@ -69,7 +69,7 @@ class LocalPipeline:
         else:
             status['elapsed_seconds'] = None
 
-        if status['state'] == 'running':
+        if status['state'] in ('running', 'error', 'complete'):
             trainer_status = self.trainer.get_status()
             status['trainer'] = trainer_status
 
@@ -167,7 +167,9 @@ class LocalPipeline:
             self._log_event('Phase 1: Training Markov chain on speech corpus...')
             train_result = self.trainer.train()
             if not train_result:
-                raise RuntimeError("Markov chain training failed")
+                trainer_err = self.trainer.get_status().get('error', 'unknown error')
+                self._log_event(f'Trainer error detail: {trainer_err}')
+                raise RuntimeError(f"Markov chain training failed: {trainer_err}")
             self._log_event(f'Markov chain trained: {train_result["corpus_size"]} speeches, {train_result["chain_states"]} states in {train_result["training_seconds"]:.1f}s')
 
             # Phase 2: Get terms

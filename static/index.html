@@ -150,6 +150,29 @@ tr:hover{background:rgba(212,175,55,.06)}
 .tip{position:relative;display:inline-flex}
 .tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 10px);left:50%;transform:translateX(-50%) translateY(4px);opacity:0;pointer-events:none;background:#3a3d44;color:#e8e8e8;border-radius:8px;padding:8px 18px;font-size:12px;line-height:1.5;min-width:200px;max-width:320px;white-space:normal;text-align:center;z-index:999;box-shadow:0 4px 20px rgba(0,0,0,.45);transition:opacity .15s,transform .15s}
 .tip:hover::after{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Launch Key */
+.launch-key{display:flex;align-items:center;gap:10px;margin-left:12px;padding-left:14px;border-left:1px solid var(--border)}
+.keyhole{width:38px;height:38px;border-radius:50%;border:2px solid var(--border);background:radial-gradient(circle,var(--bg3),var(--bg));cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .5s;position:relative}
+.keyhole:hover{border-color:var(--gold-dark);box-shadow:0 0 14px rgba(255,215,0,.2)}
+.keyhole.authed{border-color:var(--gold);background:radial-gradient(circle,rgba(255,215,0,.12),var(--bg));animation:keyGlow 3s ease-in-out infinite}
+.keyhole .key-svg{transition:transform .7s cubic-bezier(.68,-.55,.27,1.55),color .4s;color:var(--dim)}
+.keyhole.authed .key-svg{transform:rotate(90deg);color:var(--gold);filter:drop-shadow(0 0 6px rgba(255,215,0,.5))}
+.key-label{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;transition:color .4s}
+.key-label.locked{color:var(--dim)}
+.key-label.authed{color:var(--gold);text-shadow:0 0 10px rgba(255,215,0,.3)}
+.key-input-wrap{display:flex;gap:6px;align-items:center;animation:slideIn .3s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+@keyframes keyGlow{0%,100%{box-shadow:0 0 16px rgba(255,215,0,.25)}50%{box-shadow:0 0 32px rgba(255,215,0,.45),0 0 48px rgba(255,215,0,.15)}}
+@keyframes keyShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+.keyhole.shake{animation:keyShake .4s ease-out}
+.key-input{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-family:'Montserrat',sans-serif;font-size:12px;width:130px;transition:border-color .2s}
+.key-input:focus{border-color:var(--gold);outline:none;box-shadow:0 0 8px rgba(255,215,0,.15)}
+.key-turn-btn{padding:6px 12px;font-size:10px;white-space:nowrap;background:linear-gradient(135deg,#B8860B,#D4AF37,#FFD700);color:#001a33;border:1px solid var(--gold);border-radius:6px;cursor:pointer;font-family:'Montserrat',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;transition:all .2s}
+.key-turn-btn:hover{box-shadow:0 0 16px rgba(255,215,0,.4)}
+.btn.admin-only{position:relative;transition:all .3s}
+.btn.admin-only.locked{opacity:.45;pointer-events:none}
+.btn.admin-only.unlocked{opacity:1}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -166,6 +189,27 @@ tr:hover{background:rgba(212,175,55,.06)}
       <span class="dot" :class="health?'on':'off'"></span>
       <span x-text="health?'SYSTEM ONLINE':'SYSTEM OFFLINE'" style="font-weight:bold;letter-spacing:1px; color:var(--white);"></span>
       <template x-if="botCfg.paper_mode"><span class="badge paper" style="margin-left:6px; background:rgba(255,215,0,.15); color:var(--gold); border:1px solid var(--gold);">PAPER TRADING</span></template>
+    </div>
+    <!-- LAUNCH KEY -->
+    <div class="launch-key">
+      <div class="keyhole" :class="{'authed':adminAuthed,'shake':keyShake}" @click="!adminAuthed&&(showKeyInput=!showKeyInput)">
+        <svg class="key-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="3.5"/>
+          <path d="M12 11.5V20"/>
+          <path d="M10 15h4"/>
+          <path d="M10 18h4"/>
+        </svg>
+      </div>
+      <span class="key-label" :class="adminAuthed?'authed':'locked'" x-text="adminAuthed?'AUTHORIZED':'LOCKED'"></span>
+      <template x-if="showKeyInput&&!adminAuthed">
+        <div class="key-input-wrap">
+          <input type="password" class="key-input" x-model="adminKeyInput" @keyup.enter="verifyAdmin()" placeholder="Admin key...">
+          <button class="key-turn-btn" @click="verifyAdmin()">TURN KEY</button>
+        </div>
+      </template>
+      <template x-if="adminAuthed">
+        <button style="background:none;border:1px solid var(--border);color:var(--dim);padding:4px 8px;border-radius:4px;font-size:8px;cursor:pointer;font-family:'Montserrat',sans-serif;letter-spacing:1px" @click="adminAuthed=false;adminKey='';sessionStorage.removeItem('adminKey')">LOCK</button>
+      </template>
     </div>
   </div>
 </nav>

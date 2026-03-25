@@ -1,4 +1,4 @@
-.PHONY: install install-pi install-finetune api gui all clean init export-colab deploy-pi import-twitter
+.PHONY: install install-pi install-finetune api clean init deploy-pi import-twitter
 
 install:
 	pip install -r requirements.txt
@@ -13,18 +13,6 @@ init:
 
 api:
 	python run_api.py
-
-gui:
-	python run_gui.py
-
-all:
-	@echo "Starting API server and GUI..."
-	python run_api.py &
-	sleep 2
-	python run_gui.py
-
-export-colab:
-	python export_for_colab.py
 
 deploy-pi:
 	bash deploy/setup-pi.sh

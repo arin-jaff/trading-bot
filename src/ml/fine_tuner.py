@@ -295,12 +295,13 @@ class GPT2FineTuner:
 
                             self._loss_history.append((global_step, round(current_loss, 4)))
 
-                            # Memory
+                            # Memory (reuse singleton process handle)
                             mem_mb = None
                             try:
-                                import psutil
-                                proc = psutil.Process()
-                                mem_mb = round(proc.memory_info().rss / (1024 * 1024))
+                                if not hasattr(self, '_psutil_proc'):
+                                    import psutil
+                                    self._psutil_proc = psutil.Process()
+                                mem_mb = round(self._psutil_proc.memory_info().rss / (1024 * 1024))
                             except Exception:
                                 pass
 

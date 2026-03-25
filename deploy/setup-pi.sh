@@ -38,10 +38,8 @@ python3 -c "from src.database.db import init_db; init_db()"
 # --- Install systemd services ---
 echo "[6/7] Installing systemd services..."
 sudo cp deploy/trumpbot-api.service /etc/systemd/system/
-sudo cp deploy/trumpbot-gui.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable trumpbot-api
-sudo systemctl enable trumpbot-gui
 
 # --- Install watchdog cron ---
 echo "[7/7] Setting up watchdog cron..."
@@ -60,10 +58,8 @@ echo "Next steps:"
 echo "  1. Copy your .env file:  scp .env pi@<pi-ip>:/home/pi/trading-bot/.env"
 echo "  2. Copy your secrets/:   scp -r secrets/ pi@<pi-ip>:/home/pi/trading-bot/secrets/"
 echo "  3. Start the bot:        sudo systemctl start trumpbot-api"
-echo "  4. Start the dashboard:  sudo systemctl start trumpbot-gui"
-echo "  5. Check status:         sudo systemctl status trumpbot-api"
-echo "  6. View logs:            journalctl -u trumpbot-api -f"
+echo "  4. Check status:         sudo systemctl status trumpbot-api"
+echo "  5. View logs:            journalctl -u trumpbot-api -f"
 echo ""
-echo "Dashboard will be available at: http://<pi-ip>:8501"
-echo "API will be available at:       http://<pi-ip>:8000"
+echo "Dashboard + API at: http://<pi-ip>:8000"
 echo ""

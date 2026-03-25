@@ -17,7 +17,6 @@ from loguru import logger
 from ..database.db import get_session
 from ..database.models import Speech, Term, ModelVersion, TrumpEvent
 from .markov_trainer import MarkovChainTrainer
-from .colab_integration import ColabPredictor
 from ..config import config
 
 MIN_NEW_SPEECHES_FOR_RETRAIN = 5
@@ -40,7 +39,6 @@ class LocalPipeline:
 
     def __init__(self):
         self.trainer = MarkovChainTrainer(order=config.markov_order)
-        self.colab_predictor = ColabPredictor()
         self._lock = threading.Lock()
         self._log = []
         self._max_log = 200
@@ -215,7 +213,7 @@ class LocalPipeline:
 
             # Phase 5: Import to DB + blend with Pythia if available
             self._status.update(stage='Importing to database', progress=0.93)
-            self.colab_predictor.save_to_database()
+            self._save_predictions_to_db()
             self._log_event('Phase 5: Predictions imported to database')
 
             # Blend with Pythia predictions if they exist on disk
@@ -352,6 +350,47 @@ class LocalPipeline:
             logger.error(f"Pi fine-tuning failed: {e}")
             return None
 
+    # ── DB import ──
+
+    def _save_predictions_to_db(self):
+        """Import predictions from predictions_latest.json into the TermPrediction table."""
+        from ..database.models import TermPrediction, Term
+        pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
+        if not os.path.exists(pred_path):
+            logger.warning("No predictions file to import")
+            return
+
+        with open(pred_path) as f:
+            data = json.load(f)
+
+        predictions = data.get('term_predictions', [])
+        if not predictions:
+            return
+
+        with get_session() as session:
+            term_map = {t.normalized_term: t.id for t in session.query(Term).all()}
+            saved = 0
+            for pred in predictions:
+                term_id = term_map.get(pred['term'].lower().strip())
+                if not term_id:
+                    continue
+                tp = TermPrediction(
+                    term_id=term_id,
+                    model_name=pred.get('model_name', 'markov_monte_carlo'),
+                    probability=pred['probability'],
+                    confidence=pred.get('confidence', 0.8),
+                    reasoning=f"Monte Carlo: {pred.get('speeches_containing', '?')}/{pred.get('total_mentions', '?')} speeches",
+                    features_used={
+                        'speeches_containing': pred.get('speeches_containing'),
+                        'total_mentions': pred.get('total_mentions'),
+                        'avg_mentions_per_speech': pred.get('avg_mentions_per_speech'),
+                    },
+                    target_date=datetime.utcnow(),
+                )
+                session.add(tp)
+                saved += 1
+            logger.info(f"Saved {saved} predictions to database")
+
     # ── Pythia blending ──
 
     def _blend_pythia_if_available(self, markov_data: dict) -> bool:
@@ -402,7 +441,7 @@ class LocalPipeline:
             pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
             with open(pred_path, 'w') as f:
                 json.dump(markov_data, f, indent=2)
-            self.colab_predictor.save_to_database()
+            self._save_predictions_to_db()
             return True
 
         except Exception as e:

@@ -1259,7 +1259,7 @@ function app(){return{
       const ttl=this._tabTTL[this.tab]||20000;
       if(Date.now()-lastFetch<ttl)return;
     }
-    try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode=d.pipeline_mode||''}catch{this.health=false}
+    try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode='local'}catch{this.health=false}
     const L={
       home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), markets:()=>this.loadMarkets(),
       predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), health:()=>this.loadHealth(), system:()=>this.loadSystem(),
@@ -1274,7 +1274,7 @@ function app(){return{
       this.api('/trades/history?per_page=100'),this.api('/model/status'),
       this.api('/trading/equity-curve?starting_balance=100'),
     ]);
-    this.homeData={markets:Array.isArray(ms)?ms.length:0,speeches:ss?.total_speeches||0,predictions:st?.colab_predictions_count||0};
+    this.homeData={markets:Array.isArray(ms)?ms.length:0,speeches:ss?.total_speeches||0,predictions:st?.monte_carlo_predictions_count||0};
     this.suggestions=Array.isArray(sugg)?sugg:[];
     this.training=tr;
     this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};

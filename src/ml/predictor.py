@@ -80,18 +80,52 @@ class TermPredictor:
         return predictions
 
     def _load_monte_carlo_predictions(self):
-        """Load Monte Carlo predictions (from local Markov chain or Colab)."""
-        try:
-            from .colab_integration import ColabPredictor
-            predictor = ColabPredictor()
-            preds = predictor.get_predictions()
-            if preds:
-                self._monte_carlo_predictions = {
-                    p['term'].lower().strip(): p for p in preds
-                }
-                logger.info(f"Loaded {len(preds)} Monte Carlo predictions")
+        """Load Monte Carlo predictions from predictions_latest.json."""
+        import math
+        import glob as _glob
+
+        self._monte_carlo_predictions = {}
+        pred_dir = os.path.join('data', 'predictions')
+        latest_path = os.path.join(pred_dir, 'predictions_latest.json')
+
+        if not os.path.exists(latest_path):
+            files = sorted(_glob.glob(os.path.join(pred_dir, 'predictions_*.json')), reverse=True)
+            if files:
+                latest_path = files[0]
             else:
-                self._monte_carlo_predictions = {}
+                return
+
+        try:
+            with open(latest_path) as f:
+                data = json.load(f)
+
+            predictions = data.get('term_predictions', [])
+            if not predictions:
+                return
+
+            # Map term names to DB IDs
+            with get_session() as session:
+                term_map = {t.normalized_term: t.id for t in session.query(Term).all()}
+                for pred in predictions:
+                    pred['term_id'] = term_map.get(pred['term'].lower().strip())
+
+            # Poisson length correction for short simulations
+            sim_params = data.get('simulation_params', {})
+            snippet_words = sim_params.get('avg_words_per_speech', 430)
+            target_words = 7000
+            if snippet_words < target_words * 0.8:
+                for pred in predictions:
+                    avg_mentions = pred.get('avg_mentions_per_speech')
+                    if avg_mentions and avg_mentions > 0:
+                        lam = avg_mentions / snippet_words
+                        pred['raw_probability'] = pred['probability']
+                        pred['probability'] = round(1.0 - math.exp(-lam * target_words), 4)
+
+            self._monte_carlo_predictions = {
+                p['term'].lower().strip(): p for p in predictions
+            }
+            logger.info(f"Loaded {len(predictions)} Monte Carlo predictions from {latest_path}")
+
         except Exception as e:
             logger.debug(f"No Monte Carlo predictions available: {e}")
             self._monte_carlo_predictions = {}

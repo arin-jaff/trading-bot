@@ -21,7 +21,6 @@ from ..scraper.speech_scraper import SpeechScraper
 from ..scraper.term_analyzer import TermAnalyzer
 from ..scraper.event_tracker import EventTracker
 from ..ml.predictor import TermPredictor
-from ..ml.colab_integration import ColabPredictor
 from ..scraper.live_monitor import LiveSpeechMonitor
 from ..alerts import alert_manager
 from ..config import config as app_config
@@ -93,20 +92,11 @@ term_analyzer = TermAnalyzer()
 event_tracker = EventTracker()
 predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
-colab_predictor = ColabPredictor()
 live_monitor = LiveSpeechMonitor()
 
-# Pipeline: local or Colab depending on config
-_pipeline = None
-_drive_sync = None
-if app_config.pipeline_mode == 'local':
-    from ..ml.local_pipeline import LocalPipeline
-    _pipeline = LocalPipeline()
-else:
-    from ..ml.colab_pipeline import ColabPipeline
-    from ..ml.drive_sync import DriveSync
-    _pipeline = ColabPipeline()
-    _drive_sync = DriveSync()
+# Pipeline
+from ..ml.local_pipeline import LocalPipeline
+_pipeline = LocalPipeline()
 
 
 @app.on_event("startup")
@@ -245,7 +235,9 @@ def _run_market_sync():
     try:
         _update_job('market_sync', 'Fetching markets from Kalshi...')
         stats = market_sync.sync_markets()
-        invalidate_cache()  # Markets changed — clear all caches
+        invalidate_cache('markets')
+        invalidate_cache('predictions_final')
+        invalidate_cache('model_status')
         _update_job('market_sync', f'Done: {stats}', done=True)
         logger.info(f"Market sync: {stats}")
     except Exception as e:
@@ -359,7 +351,8 @@ def _run_predictions():
         preds = predictor.predict_all_terms()
         _update_job('predictions', f'Saving {len(preds)} predictions...')
         predictor.save_predictions(preds)
-        invalidate_cache()  # Predictions changed — clear all caches
+        invalidate_cache('predictions_final')
+        invalidate_cache('model_status')
         _update_job('predictions', f'Done: {len(preds)} predictions generated', done=True)
         logger.info(f"Generated {len(preds)} predictions")
     except Exception as e:
@@ -494,49 +487,6 @@ def get_live_status():
 
 # --- ML Model endpoints ---
 
-@app.post("/api/ml/train")
-def train_models():
-    """Deprecated — use POST /api/pipeline/run instead."""
-    return {"status": "deprecated", "message": "Use POST /api/pipeline/run"}
-
-
-@app.get("/api/ml/info")
-def get_model_info():
-    """Deprecated — use GET /api/model/status instead."""
-    return {"status": "deprecated", "message": "Use GET /api/model/status"}
-
-
-@app.get("/api/ml/predictions")
-def get_ml_predictions():
-    """Deprecated — use GET /api/predictions/final instead."""
-    return {"status": "deprecated", "message": "Use GET /api/predictions/final"}
-
-
-@app.get("/api/colab/predictions")
-def get_colab_predictions():
-    """Get predictions from Colab fine-tuned model."""
-    return colab_predictor.get_predictions()
-
-
-@app.post("/api/colab/import")
-def import_colab_predictions(file_path: str):
-    """Import a predictions JSON from Colab."""
-    return colab_predictor.import_predictions_file(file_path)
-
-
-@app.post("/api/colab/save-to-db")
-def save_colab_to_db():
-    """Save Colab predictions to the trading database."""
-    colab_predictor.save_to_database()
-    return {"status": "saved"}
-
-
-@app.get("/api/colab/discovered-phrases")
-def get_discovered_phrases():
-    """Get new phrases discovered by Monte Carlo that aren't in Kalshi's term list."""
-    return colab_predictor.get_discovered_phrases()
-
-
 # --- Admin endpoints ---
 
 @app.post("/api/admin/verify")
@@ -555,10 +505,7 @@ async def verify_admin(request: Request):
 @app.get("/api/pipeline/status")
 def get_pipeline_status():
     """Get the status of the automated training pipeline."""
-    status = {'pipeline': _pipeline.get_status(), 'mode': app_config.pipeline_mode}
-    if _drive_sync:
-        status['drive'] = _drive_sync.get_status()
-    return status
+    return {'pipeline': _pipeline.get_status(), 'mode': 'local'}
 
 
 @app.get("/api/pipeline/training-status")
@@ -582,72 +529,6 @@ def run_pipeline(request: Request, background_tasks: BackgroundTasks, force: boo
     return {"status": "pipeline started", "mode": app_config.pipeline_mode, "force": force}
 
 
-@app.post("/api/pipeline/export-upload")
-def pipeline_export_upload(background_tasks: BackgroundTasks):
-    """Export training data and upload to Google Drive (Colab mode only)."""
-    if app_config.pipeline_mode == 'local':
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    background_tasks.add_task(_run_export_upload)
-    return {"status": "export and upload started"}
-
-
-def _run_export_upload():
-    try:
-        _update_job('export_upload', 'Exporting training data...')
-        result = _pipeline.export_and_upload()
-        _update_job('export_upload', f'Done: {result}', done=True)
-    except Exception as e:
-        _update_job('export_upload', '', done=True, error=str(e))
-        logger.error(f"Export & upload failed: {e}")
-
-
-@app.post("/api/pipeline/trigger-training")
-def trigger_training():
-    """Upload latest data to Drive and write a trigger file for Colab."""
-    if not _drive_sync:
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    upload = _drive_sync.upload_training_data()
-    if 'error' in upload:
-        raise HTTPException(status_code=500, detail=upload['error'])
-    trigger = _drive_sync.write_trigger_file(
-        trigger_type='manual',
-        extra_data={'triggered_from': 'api'},
-    )
-    return {'upload': upload, 'trigger': trigger}
-
-
-@app.post("/api/pipeline/poll")
-def poll_colab_results():
-    """Check if Colab training has completed and import results."""
-    if app_config.pipeline_mode == 'local':
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    return _pipeline.check_and_import()
-
-
-@app.get("/api/drive/status")
-def get_drive_status():
-    """Get Google Drive integration status."""
-    if not _drive_sync:
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    return _drive_sync.get_status()
-
-
-@app.post("/api/drive/upload")
-def upload_to_drive():
-    """Upload training exports to Google Drive."""
-    if not _drive_sync:
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    return _drive_sync.upload_training_data()
-
-
-@app.post("/api/drive/download-predictions")
-def download_predictions_from_drive():
-    """Download latest predictions from Google Drive."""
-    if not _drive_sync:
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    return _drive_sync.download_predictions()
-
-
 # --- Job status endpoint ---
 
 @app.get("/api/jobs/status")
@@ -662,31 +543,6 @@ def get_job_status(job_name: str):
     """Get status of a specific background job."""
     with _job_lock:
         return _job_status.get(job_name, {'step': 'idle', 'done': True})
-
-
-@app.post("/api/drive/download-and-import")
-def download_and_import_predictions(background_tasks: BackgroundTasks):
-    """Download predictions from Drive and import into DB."""
-    if not _drive_sync:
-        return {"status": "disabled", "message": "Set PIPELINE_MODE=colab to enable"}
-    background_tasks.add_task(_run_download_import)
-    return {"status": "downloading predictions from Drive..."}
-
-
-def _run_download_import():
-    try:
-        _update_job('drive_download', 'Downloading predictions_latest.json from Drive...')
-        result = _drive_sync.download_predictions()
-        if 'error' in result:
-            _update_job('drive_download', '', done=True, error=result['error'])
-            return
-        _update_job('drive_download', 'Saving to database...')
-        colab_predictor.save_to_database()
-        _update_job('drive_download', 'Done: predictions imported', done=True)
-        logger.info(f"Drive download & import: {result}")
-    except Exception as e:
-        _update_job('drive_download', '', done=True, error=str(e))
-        logger.error(f"Drive download failed: {e}")
 
 
 # --- Alert endpoints ---
@@ -724,17 +580,20 @@ def get_config_status():
 @app.get("/api/model/status")
 def get_model_status():
     """Get TrumpGPT model status: weights, terms, scenario info, last run."""
-    # Load latest Colab predictions file for metadata
-    import glob as _glob
+    return _cached('model_status', 60, _get_model_status_uncached)
+
+
+def _get_model_status_uncached():
+    # Load latest predictions file for metadata
     pred_dir = os.path.join('data', 'predictions')
     latest_path = os.path.join(pred_dir, 'predictions_latest.json')
-    colab_meta = {}
+    pred_meta = {}
     term_predictions = []
 
     if os.path.exists(latest_path):
         with open(latest_path) as f:
-            colab_meta = json.load(f)
-        term_predictions = colab_meta.get('term_predictions', [])
+            pred_meta = json.load(f)
+        term_predictions = pred_meta.get('term_predictions', [])
 
     # Ensemble weights from the local predictor
     ensemble_weights = predictor.model_weights
@@ -768,27 +627,24 @@ def get_model_status():
                 'trained_at': active_model.created_at.isoformat() if active_model.created_at else None,
             }
 
-    sim_params = colab_meta.get('simulation_params', {})
-    model_type = sim_params.get('model_type', 'markov_chain' if app_config.pipeline_mode == 'local' else 'colab_llm')
-    method = 'Markov Chain + Monte Carlo' if model_type == 'markov_chain' else 'LoRA fine-tune + Monte Carlo'
+    sim_params = pred_meta.get('simulation_params', {})
 
     return {
         'model_name': 'TrumpGPT',
         'version': model_version_info.get('version') if model_version_info else None,
         'version_info': model_version_info,
-        'pipeline_mode': app_config.pipeline_mode,
-        'base_model': sim_params.get('base_model', model_type),
-        'method': method,
+        'pipeline_mode': 'local',
+        'base_model': sim_params.get('base_model', 'markov_chain'),
+        'method': 'Markov Chain + Monte Carlo',
         'ensemble_weights': ensemble_weights,
-        'last_run': colab_meta.get('generated_at'),
-        'simulation_params': colab_meta.get('simulation_params', {}),
-        'scenario_weights': colab_meta.get('scenario_weights_used', {}),
-        'scenario_counts': colab_meta.get('scenario_counts', {}),
-        'gemini_enrichment': colab_meta.get('gemini_enrichment', {}),
+        'last_run': pred_meta.get('generated_at'),
+        'simulation_params': sim_params,
+        'scenario_weights': pred_meta.get('scenario_weights_used', {}),
+        'scenario_counts': pred_meta.get('scenario_counts', {}),
+        'gemini_enrichment': pred_meta.get('gemini_enrichment', {}),
         'total_terms_tracked': total_terms,
         'total_predictions_in_db': total_predictions,
-        'colab_predictions_count': len(term_predictions),
-        'discovered_phrases_count': len(colab_meta.get('discovered_phrases', [])),
+        'monte_carlo_predictions_count': len(term_predictions),
         'new_iteration_info': {
             'new_speeches_last_24h': new_speeches,
             'would_retrain': new_speeches >= 5,
@@ -850,11 +706,14 @@ def _get_final_predictions_uncached():
         except Exception as e:
             logger.warning(f"Ensemble predictions failed: {e}")
 
-        # Load Colab predictions
-        colab_preds = {}
+        # Load Monte Carlo predictions from file
+        mc_preds = {}
         try:
-            colab = colab_predictor.get_predictions()
-            colab_preds = {p['term'].lower().strip(): p for p in colab}
+            mc_path = os.path.join('data', 'predictions', 'predictions_latest.json')
+            if os.path.exists(mc_path):
+                with open(mc_path) as f:
+                    mc_data = json.load(f)
+                mc_preds = {p['term'].lower().strip(): p for p in mc_data.get('term_predictions', [])}
         except Exception:
             pass
 
@@ -889,11 +748,11 @@ def _get_final_predictions_uncached():
                 ensemble_prob = ens.get('probability')
                 component_scores = ens.get('component_scores', {})
 
-                # Colab prediction
-                col = colab_preds.get(norm, {})
-                colab_prob = col.get('probability')
-                recency_weight = col.get('recency_weight', 1.0)
-                by_scenario = col.get('by_scenario', {})
+                # Monte Carlo prediction
+                mc = mc_preds.get(norm, {})
+                mc_prob = mc.get('probability')
+                recency_weight = mc.get('recency_weight', 1.0)
+                by_scenario = mc.get('by_scenario', {})
 
                 # Final blended probability
                 signals = []
@@ -920,7 +779,7 @@ def _get_final_predictions_uncached():
                     'final_probability': round(final_prob, 4),
                     'edge': round(final_prob - (market.yes_price or 0.5), 4),
                     'ensemble_probability': ensemble_prob,
-                    'colab_probability': colab_prob,
+                    'monte_carlo_probability': mc_prob,
                     'recency_weight': recency_weight,
                     'historical_speech_rate': round(hist_rate, 4),
                     'historical_market_record': {
@@ -1529,13 +1388,18 @@ class PromptRequest(BaseModel):
     qa_mode: bool = False
 
 
+_trumpgpt_trainer = None
+
 @app.post("/api/trumpgpt/generate")
 def generate_trumpgpt(req: PromptRequest):
     """Generate text from TrumpGPT Markov chain."""
+    global _trumpgpt_trainer
     temp = max(0.3, min(2.0, req.temperature))
 
-    from ..ml.markov_trainer import MarkovChainTrainer
-    trainer = MarkovChainTrainer(order=app_config.markov_order)
+    if _trumpgpt_trainer is None:
+        from ..ml.markov_trainer import MarkovChainTrainer
+        _trumpgpt_trainer = MarkovChainTrainer(order=app_config.markov_order)
+    trainer = _trumpgpt_trainer
     if req.prompt.strip():
         text = trainer.generate_from_prompt(req.prompt, word_count=req.word_count, temperature=temp, qa_mode=req.qa_mode)
     else:

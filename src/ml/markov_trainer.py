@@ -59,6 +59,19 @@ _PROPER_NOUNS = {
     'god', 'bible', 'christmas', 'easter',
 }
 
+# Pre-compiled proper noun patterns (built once at import time)
+_PROPER_NOUN_PATTERNS = [
+    (noun, re.compile(r'\b' + re.escape(noun) + r'\b', re.IGNORECASE))
+    for noun in _PROPER_NOUNS
+]
+
+_ABBREVIATIONS = ('FBI', 'CIA', 'DOJ', 'CNN', 'MSNBC', 'ABC', 'NBC', 'CBS',
+                   'USA', 'GOP', 'MAGA', 'NATO', 'EU', 'ISIS', 'COVID')
+_ABBREVIATION_PATTERNS = [
+    (abbr, re.compile(r'\b' + abbr.capitalize() + r'\b'))
+    for abbr in _ABBREVIATIONS
+]
+
 # Current pickle format version
 _FORMAT_VERSION = 2
 
@@ -144,6 +157,7 @@ class MarkovChainTrainer:
                     self._status['progress'] = 0.2 + 0.5 * (i / len(transcripts))
 
             self.chain = dict(chain)
+            self._cached_keys = list(self.chain.keys())
 
             # B: Build topic_vocab — words disproportionately common in each type
             self._status.update(stage='Building topic vocab', progress=0.72)
@@ -242,8 +256,10 @@ class MarkovChainTrainer:
         target_words = word_count or SCENARIO_WORD_COUNTS.get(scenario_type, 3000)
         topic_words = self.topic_vocab.get(scenario_type, set())
 
-        # Pick a random starting state
-        keys = list(self.chain.keys())
+        # Pick a random starting state (use cached keys)
+        if not hasattr(self, '_cached_keys') or self._cached_keys is None:
+            self._cached_keys = list(self.chain.keys())
+        keys = self._cached_keys
         if not keys:
             return ""
 
@@ -279,7 +295,10 @@ class MarkovChainTrainer:
 
         target_words = word_count or SCENARIO_WORD_COUNTS.get(scenario_type, 3000)
 
-        keys = list(self.chain.keys())
+        # Use cached keys list (rebuilt only when chain changes)
+        if not hasattr(self, '_cached_keys') or self._cached_keys is None:
+            self._cached_keys = list(self.chain.keys())
+        keys = self._cached_keys
         if not keys:
             return ""
 
@@ -324,7 +343,9 @@ class MarkovChainTrainer:
             return ""
 
         prompt_words = self._tokenize(prompt)
-        keys = list(self.chain.keys())
+        if not hasattr(self, '_cached_keys') or self._cached_keys is None:
+            self._cached_keys = list(self.chain.keys())
+        keys = self._cached_keys
         if not keys:
             return ""
 
@@ -372,13 +393,12 @@ class MarkovChainTrainer:
             total_simulations=num_simulations,
         )
 
-        # Normalize terms for matching
+        # Normalize terms for matching — pre-compile regex + store substring for fast pre-check
         term_patterns = {}
         for term in terms:
             normalized = term.lower().strip()
-            # Pre-compile regex for whole-word matching
             pattern = re.compile(r'\b' + re.escape(normalized) + r'\b', re.IGNORECASE)
-            term_patterns[normalized] = pattern
+            term_patterns[normalized] = (normalized, pattern)  # (substring, compiled regex)
 
         # Track per-term statistics
         term_stats = {t: {'speeches_containing': 0, 'total_mentions': 0}
@@ -401,8 +421,11 @@ class MarkovChainTrainer:
                 speech = self._generate_raw(scenario, word_count)
                 total_words_generated += len(speech.split())
 
-                # Count term occurrences
-                for term_key, pattern in term_patterns.items():
+                # Count term occurrences — substring pre-check skips regex when term is absent
+                speech_lower = speech.lower()
+                for term_key, (substr, pattern) in term_patterns.items():
+                    if substr not in speech_lower:
+                        continue
                     matches = pattern.findall(speech)
                     if matches:
                         term_stats[term_key]['speeches_containing'] += 1
@@ -553,8 +576,9 @@ class MarkovChainTrainer:
                 return random.choice(states)
 
         # No inverted index or no match — random fallback
-        keys = list(self.chain.keys())
-        return random.choice(keys) if keys else ()
+        if not hasattr(self, '_cached_keys') or self._cached_keys is None:
+            self._cached_keys = list(self.chain.keys())
+        return random.choice(self._cached_keys) if self._cached_keys else ()
 
     # ── Q&A helpers ──
 
@@ -696,19 +720,13 @@ class MarkovChainTrainer:
         # Capitalize "i'" contractions (i'm, i've, i'll, i'd)
         text = re.sub(r"\bi'", "I'", text)
 
-        # Capitalize proper nouns
-        for noun in _PROPER_NOUNS:
-            text = re.sub(
-                r'\b' + re.escape(noun) + r'\b',
-                lambda m: m.group().capitalize(),
-                text,
-                flags=re.IGNORECASE,
-            )
+        # Capitalize proper nouns (using pre-compiled patterns)
+        for noun, pattern in _PROPER_NOUN_PATTERNS:
+            text = pattern.sub(lambda m: m.group().capitalize(), text)
 
-        # Fix double-capitalized all-caps abbreviations that got lowered then capitalized
-        for abbr in ('FBI', 'CIA', 'DOJ', 'CNN', 'MSNBC', 'ABC', 'NBC', 'CBS',
-                      'USA', 'GOP', 'MAGA', 'NATO', 'EU', 'ISIS', 'COVID'):
-            text = re.sub(r'\b' + abbr.capitalize() + r'\b', abbr, text)
+        # Fix abbreviations that got title-cased
+        for abbr, pattern in _ABBREVIATION_PATTERNS:
+            text = pattern.sub(abbr, text)
 
         return text
 
@@ -764,6 +782,7 @@ class MarkovChainTrainer:
         with open(path, 'rb') as f:
             data = pickle.load(f)
         self.chain = data['chain']
+        self._cached_keys = list(self.chain.keys())
         self.order = data['order']
 
         # v2 fields — gracefully degrade for old pickles

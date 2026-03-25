@@ -526,7 +526,7 @@ def run_pipeline(request: Request, background_tasks: BackgroundTasks, force: boo
     if force:
         _require_admin(request)
     _pipeline.run_pipeline_async(force=force)
-    return {"status": "pipeline started", "mode": app_config.pipeline_mode, "force": force}
+    return {"status": "pipeline started", "mode": "local", "force": force}
 
 
 # --- Job status endpoint ---
@@ -1429,7 +1429,7 @@ def health_check():
     return {
         "status": "ok",
         "timestamp": datetime.utcnow().isoformat(),
-        "pipeline_mode": app_config.pipeline_mode,
+        "pipeline_mode": "local",
         "live_monitoring": live_monitor.is_monitoring,
         "config": app_config.get_status(),
     }

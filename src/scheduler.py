@@ -122,7 +122,7 @@ def create_scheduler() -> BackgroundScheduler:
             id='local_pipeline_startup', replace_existing=True,
             name='Initial pipeline run at startup',
         )
-        # Nightly Pi fine-tuning (Pythia-160M LoRA, ~75 min on Pi 4)
+        # Nightly Pi fine-tuning (Pythia-160M LoRA, ~90 min on Pi 4)
         if config.fine_tune_enabled:
             ft_hour = config.fine_tune_hour
             scheduler.add_job(

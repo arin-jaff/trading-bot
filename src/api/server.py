@@ -28,6 +28,28 @@ from ..config import config as app_config
 
 app = FastAPI(title="Trump Mentions Trading Bot", version="1.0.0")
 
+# --- In-memory TTL cache for heavy endpoints ---
+_endpoint_cache: dict = {}
+
+
+def _cached(key: str, ttl_seconds: int, fn):
+    """Return cached result if fresh, otherwise compute and cache."""
+    entry = _endpoint_cache.get(key)
+    now = time.time()
+    if entry and now < entry['exp']:
+        return entry['data']
+    data = fn()
+    _endpoint_cache[key] = {'data': data, 'exp': now + ttl_seconds}
+    return data
+
+
+def invalidate_cache(key: str = None):
+    """Clear one or all cache entries (call after data-mutating operations)."""
+    if key:
+        _endpoint_cache.pop(key, None)
+    else:
+        _endpoint_cache.clear()
+
 
 def _require_admin(request: Request):
     """Check admin key from X-Admin-Key header. Raises 401 if invalid."""
@@ -107,6 +129,13 @@ def get_markets(status: Optional[str] = None):
     - Resolved markets: 'Yes' / 'No' based on result
     - Otherwise: the raw status
     """
+    cache_key = f'markets:{status or "all"}'
+    def _fetch_markets():
+        return _get_markets_uncached(status)
+    return _cached(cache_key, 120, _fetch_markets)
+
+
+def _get_markets_uncached(status: Optional[str] = None):
     with get_session() as session:
         query = session.query(Market)
         if status:
@@ -216,6 +245,7 @@ def _run_market_sync():
     try:
         _update_job('market_sync', 'Fetching markets from Kalshi...')
         stats = market_sync.sync_markets()
+        invalidate_cache()  # Markets changed — clear all caches
         _update_job('market_sync', f'Done: {stats}', done=True)
         logger.info(f"Market sync: {stats}")
     except Exception as e:
@@ -268,6 +298,10 @@ def _run_speech_scrape():
 @app.get("/api/speeches/stats")
 def get_speech_stats():
     """Get speech collection statistics."""
+    return _cached('speeches_stats', 120, _get_speech_stats_uncached)
+
+
+def _get_speech_stats_uncached():
     from ..database.models import Speech
     with get_session() as session:
         total = session.query(Speech).count()
@@ -325,6 +359,7 @@ def _run_predictions():
         preds = predictor.predict_all_terms()
         _update_job('predictions', f'Saving {len(preds)} predictions...')
         predictor.save_predictions(preds)
+        invalidate_cache()  # Predictions changed — clear all caches
         _update_job('predictions', f'Done: {len(preds)} predictions generated', done=True)
         logger.info(f"Generated {len(preds)} predictions")
     except Exception as e:
@@ -337,7 +372,7 @@ def _run_predictions():
 @app.get("/api/trading/suggestions")
 def get_suggestions():
     """Get trading suggestions."""
-    return trading_bot.generate_suggestions()
+    return _cached('trading_suggestions', 120, trading_bot.generate_suggestions)
 
 
 @app.get("/api/trading/portfolio")
@@ -777,7 +812,12 @@ def get_final_predictions():
     - TrumpGPT Monte Carlo predictions
     - Local ensemble predictor
     """
+    return _cached('predictions_final', 180, _get_final_predictions_uncached)
+
+
+def _get_final_predictions_uncached():
     from collections import defaultdict
+    from sqlalchemy import func
     from ..database.models import Speech, TermOccurrence
 
     with get_session() as session:
@@ -791,6 +831,16 @@ def get_final_predictions():
 
         # Historical data: for each term, how often has he said it?
         total_processed = session.query(Speech).filter_by(is_processed=True).count()
+
+        # Batch: get all TermOccurrence counts in 2 queries instead of N*2
+        occ_counts = dict(
+            session.query(TermOccurrence.term_id, func.count())
+            .group_by(TermOccurrence.term_id).all()
+        )
+        speech_counts = dict(
+            session.query(TermOccurrence.term_id, func.count(func.distinct(TermOccurrence.speech_id)))
+            .group_by(TermOccurrence.term_id).all()
+        )
 
         # Get latest ensemble predictions
         ensemble_preds = {}
@@ -822,13 +872,9 @@ def get_final_predictions():
             for term in market.terms:
                 norm = term.normalized_term.lower().strip()
 
-                # Historical stats
-                occ_count = session.query(TermOccurrence).filter_by(
-                    term_id=term.id
-                ).count()
-                speeches_with_term = session.query(
-                    TermOccurrence.speech_id
-                ).filter_by(term_id=term.id).distinct().count()
+                # Historical stats (from batched queries)
+                occ_count = occ_counts.get(term.id, 0)
+                speeches_with_term = speech_counts.get(term.id, 0)
                 hist_rate = speeches_with_term / max(1, total_processed)
 
                 # Past market outcomes for this term
@@ -894,11 +940,15 @@ def get_final_predictions():
 @app.get("/api/system/hardware")
 def get_hardware_status():
     """Get Raspberry Pi / system hardware metrics."""
+    return _cached('system_hardware', 15, _get_hardware_uncached)
+
+
+def _get_hardware_uncached():
     import psutil
     import platform
 
     # CPU, RAM, disk
-    cpu_percent = psutil.cpu_percent(interval=1)
+    cpu_percent = psutil.cpu_percent(interval=0)
     ram = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
     load_1, load_5, load_15 = psutil.getloadavg()
@@ -1109,6 +1159,10 @@ def _get_version_accuracy(session, model_version_id: int) -> Optional[dict]:
 @app.get("/api/model/versions")
 def get_model_versions():
     """Get all model version records."""
+    return _cached('model_versions', 300, _get_model_versions_uncached)
+
+
+def _get_model_versions_uncached():
     with get_session() as session:
         versions = session.query(ModelVersion).order_by(
             ModelVersion.created_at.desc()
@@ -1503,7 +1557,7 @@ def generate_trumpgpt(req: PromptRequest):
 @app.get("/api/model/accuracy")
 def get_model_accuracy():
     """1C: Get prediction accuracy metrics against settled markets."""
-    return predictor.evaluate_accuracy()
+    return _cached('model_accuracy', 300, predictor.evaluate_accuracy)
 
 
 @app.get("/api/system/health")

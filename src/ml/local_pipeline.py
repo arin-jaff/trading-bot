@@ -2,7 +2,7 @@
 
 Runs the Markov chain pipeline (Phases 0-5) every 6 hours.
 Fine-tuning runs nightly on the Pi itself (Pythia-160M with LoRA,
-~75 min on Pi 4). Fine-tuned predictions are automatically blended
+~90 min on Pi 4). Fine-tuned predictions are automatically blended
 with Markov predictions.
 """
 
@@ -29,7 +29,7 @@ PYTHIA_PREDICTIONS_PATH = os.path.join('data', 'predictions', 'predictions_pythi
 class LocalPipeline:
     """Orchestrates the local Markov training pipeline.
 
-    Phases 0-5 run every 6 hours (~35 seconds):
+    Phases 0-5 run every 6 hours (~10 minutes on Pi 4):
       0. Social media refresh (Twitter import + Truth Social scrape)
       1. Train Markov chain
       2. Load terms

@@ -1,7 +1,7 @@
 """LLM fine-tuning with LoRA — runs on Pi (Pythia-160M) or Mac (larger models).
 
 PyTorch 2.x supports ARM64 (aarch64) Linux natively. Pythia-160M + LoRA uses
-~1.1GB RAM during training, completing in ~75 min on Pi 4. Gradient checkpointing
+~1.1GB RAM during training, completing in ~90 min on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM). Gradient checkpointing
 reduces RAM further at the cost of ~20% slower training.
 
 Default model: Pythia-160M (EleutherAI). All torch/transformers imports are lazy.
@@ -145,9 +145,10 @@ class GPT2FineTuner:
             return None
 
         try:
-            # Set lowest CPU priority
+            # Set reduced CPU priority (not lowest — os.nice(19) starves
+            # training when scheduler jobs are running concurrently)
             try:
-                os.nice(19)
+                os.nice(10)
             except (OSError, AttributeError):
                 pass
 
@@ -237,7 +238,7 @@ class GPT2FineTuner:
 
             global_step = 0
             best_loss = float('inf')
-            checkpoint_interval = 500
+            checkpoint_interval = 100
 
             # Try to resume from checkpoint
             resume_info = self._load_checkpoint()
@@ -283,8 +284,8 @@ class GPT2FineTuner:
                         optimizer.zero_grad()
                         global_step += 1
 
-                        # Progress update every 10 steps
-                        if global_step % 10 == 0:
+                        # Progress update every 5 steps
+                        if global_step % 5 == 0:
                             elapsed = time.time() - step_start
                             tok_per_sec = epoch_tokens / max(0.1, elapsed)
                             current_loss = epoch_loss / max(1, (i // batch_size + 1))

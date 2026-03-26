@@ -576,15 +576,16 @@ tr:hover{background:rgba(212,175,55,.06)}
     </template>
 
     <!-- RUNNING (Fine-tune via pi-status) -->
-    <template x-if="(!training || training.state==='idle') && piFtStatus?.training_status?.state==='training'">
+    <template x-if="(!training || training.state==='idle') && (piFtStatus?.training_status?.state==='training'||piFtStatus?.training_status?.state==='loading_model')">
       <div style="padding:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="spinner"></span>
-            <strong style="color:var(--gold)">FINE-TUNING IN PROGRESS</strong>
+            <strong style="color:var(--gold)" x-text="piFtStatus.training_status.state==='loading_model'?'LOADING MODEL':'FINE-TUNING IN PROGRESS'"></strong>
           </div>
-          <span class="badge active" x-text="'Epoch '+(piFtStatus.training_status.current_epoch||0)+'/'+piFtStatus.training_status.total_epochs"></span>
+          <span class="badge active" x-text="piFtStatus.training_status.current_epoch?'Epoch '+(piFtStatus.training_status.current_epoch||0)+'/'+piFtStatus.training_status.total_epochs:'Preparing'"></span>
         </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:10px;font-style:italic" x-text="piFtStatus.training_status.stage||''"></div>
         <div class="pbar" style="height:10px;margin-bottom:12px">
           <div class="fill" :style="'width:'+((piFtStatus.training_status.progress||0)*100)+'%;background:linear-gradient(90deg,#002868,#3B82F6)'"></div>
         </div>
@@ -1521,10 +1522,11 @@ function app(){return{
     this._pollInterval=setInterval(async()=>{
       await this.loadPipeline();
       // Auto-clear busy once backend confirms running, complete, or error
-      const running=this.training?.state==='running'||this.training?.state==='complete'||this.training?.state==='error'||this.piFtStatus?.training_status?.state==='training';
+      const ftState=this.piFtStatus?.training_status?.state||'idle';
+      const running=this.training?.state==='running'||this.training?.state==='complete'||this.training?.state==='error'||ftState==='training'||ftState==='loading_model';
       if(running)this.pipelineBusy=false;
       // Stop fast polling once idle again after completion
-      if(!this.pipelineBusy&&(!this.training||this.training.state==='idle'||this.training.state==='complete'||this.training.state==='error')&&this.piFtStatus?.training_status?.state!=='training'){
+      if(!this.pipelineBusy&&(!this.training||this.training.state==='idle'||this.training.state==='complete'||this.training.state==='error')&&ftState!=='training'&&ftState!=='loading_model'){
         clearInterval(this._pollInterval);this._pollInterval=null;
       }
     },3000);

@@ -94,7 +94,7 @@ class GPT2FineTuner:
         os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
 
         self._status = {
-            'state': 'idle',  # idle, training, complete, error, stopped
+            'state': 'idle',  # idle, loading_model, training, complete, error, stopped
             'stage': '',
             'progress': 0.0,
             'current_epoch': 0,
@@ -107,6 +107,7 @@ class GPT2FineTuner:
             'eta_seconds': None,
             'memory_mb': None,
             'error': None,
+            'heartbeat': None,  # ISO timestamp, updated every step
         }
         self._loss_history = []  # [(step, loss), ...]
         self._stop_requested = False
@@ -123,11 +124,12 @@ class GPT2FineTuner:
     def train(self) -> Optional[dict]:
         """Run full fine-tuning loop.
 
-        Loads corpus from DB, tokenizes, trains GPT-2 + LoRA with:
-        - os.nice(19) for lowest CPU priority
+        Loads corpus from DB, tokenizes, trains with LoRA:
+        - os.nice(10) for reduced CPU priority
         - batch_size=1, gradient_accumulation=configurable
-        - Progress updates every 10 steps
-        - Checkpoints every 500 steps
+        - Status updates every optimizer step (visible immediately in dashboard)
+        - Heartbeat timestamp for detecting hung training
+        - Checkpoints every 100 steps
         - Graceful stop via _stop_requested
 
         Returns result dict or None on failure.
@@ -145,8 +147,6 @@ class GPT2FineTuner:
             return None
 
         try:
-            # Set reduced CPU priority (not lowest — os.nice(19) starves
-            # training when scheduler jobs are running concurrently)
             try:
                 os.nice(10)
             except (OSError, AttributeError):
@@ -156,22 +156,46 @@ class GPT2FineTuner:
             self._loss_history = []
             start_time = time.time()
 
+            # Clear stale checkpoint from previous failed runs
+            stale_ckpt = os.path.join(CHECKPOINTS_DIR, 'checkpoint_latest.json')
+            if os.path.exists(stale_ckpt):
+                try:
+                    with open(stale_ckpt) as f:
+                        ckpt = json.load(f)
+                    # If checkpoint is older than 48 hours, it's from a crashed run
+                    saved = ckpt.get('saved_at', '')
+                    if saved:
+                        from datetime import datetime as dt
+                        age = (datetime.utcnow() - dt.fromisoformat(saved)).total_seconds()
+                        if age > 48 * 3600:
+                            os.remove(stale_ckpt)
+                            logger.info("Cleared stale checkpoint (>48h old)")
+                except Exception:
+                    os.remove(stale_ckpt)
+                    logger.info("Cleared corrupt checkpoint file")
+
             self._status.update(
-                state='training', stage='Loading corpus',
-                progress=0.0, error=None,
+                state='loading_model', stage='Loading corpus from DB',
+                progress=0.0, error=None, loss=None, best_loss=None,
+                eta_seconds=None, memory_mb=None, tokens_per_second=None,
+                current_step=0, current_epoch=0,
                 total_epochs=config.fine_tune_epochs,
+                heartbeat=datetime.utcnow().isoformat(),
             )
 
             # Phase 1: Load corpus
             corpus_texts = self._load_corpus()
             if not corpus_texts:
-                raise RuntimeError("No training texts found in DB")
+                raise RuntimeError("No training texts found in DB (need speeches with word_count >= 50)")
 
             logger.info(f"Fine-tuner: loaded {len(corpus_texts)} texts")
 
             # Phase 2: Tokenize
-            self._status.update(stage='Tokenizing', progress=0.05)
+            self._status.update(stage='Tokenizing corpus', progress=0.05,
+                                heartbeat=datetime.utcnow().isoformat())
             model_name = config.fine_tune_model
+
+            logger.info(f"Fine-tuner: loading tokenizer for {model_name}")
             tokenizer = AutoTokenizer.from_pretrained(model_name)
             if tokenizer.pad_token is None:
                 tokenizer.pad_token = tokenizer.eos_token
@@ -180,11 +204,9 @@ class GPT2FineTuner:
             all_input_ids = []
             for text in corpus_texts:
                 encoded = tokenizer.encode(text, add_special_tokens=True)
-                # Chunk into max_length sequences
                 for i in range(0, len(encoded), max_length):
                     chunk = encoded[i:i + max_length]
-                    if len(chunk) >= 64:  # skip very short chunks
-                        # Pad to max_length
+                    if len(chunk) >= 64:
                         chunk = chunk + [tokenizer.eos_token_id] * (max_length - len(chunk))
                         all_input_ids.append(chunk)
 
@@ -195,10 +217,25 @@ class GPT2FineTuner:
             random.shuffle(all_input_ids)
 
             # Phase 3: Load model + LoRA
-            self._status.update(stage=f'Loading {model_name} + LoRA', progress=0.1)
-            model = AutoModelForCausalLM.from_pretrained(model_name)
+            # This is the slow step — downloading/loading the model weights.
+            # On first run, HuggingFace downloads ~320MB. On Pi 4 this can take minutes.
+            self._status.update(
+                stage=f'Downloading & loading {model_name} (this takes a few minutes on Pi)',
+                progress=0.08, heartbeat=datetime.utcnow().isoformat(),
+            )
+            logger.info(f"Fine-tuner: loading model {model_name} — this may take several minutes on Pi")
 
-            # Auto-detect LoRA target modules based on model architecture
+            model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                low_cpu_mem_usage=True,  # reduces peak RAM during loading
+            )
+            logger.info(f"Fine-tuner: model loaded successfully")
+
+            self._status.update(
+                stage='Applying LoRA adapter', progress=0.12,
+                heartbeat=datetime.utcnow().isoformat(),
+            )
+
             target_modules = _detect_lora_targets(model)
             logger.info(f"Fine-tuner: detected LoRA targets: {target_modules}")
 
@@ -211,7 +248,6 @@ class GPT2FineTuner:
             )
             model = get_peft_model(model, lora_config)
 
-            # Enable gradient checkpointing to reduce RAM (~30% less at ~20% slower)
             if config.fine_tune_gradient_checkpointing:
                 try:
                     model.gradient_checkpointing_enable()
@@ -234,7 +270,8 @@ class GPT2FineTuner:
             grad_accum = config.fine_tune_grad_accum
             epochs = config.fine_tune_epochs
             total_steps = (len(all_input_ids) * epochs) // (batch_size * grad_accum)
-            self._status.update(total_steps=total_steps)
+            self._status.update(total_steps=total_steps, state='training',
+                                heartbeat=datetime.utcnow().isoformat())
 
             global_step = 0
             best_loss = float('inf')
@@ -253,7 +290,8 @@ class GPT2FineTuner:
             for epoch in range(start_epoch, epochs):
                 self._status.update(
                     current_epoch=epoch + 1,
-                    stage=f'Epoch {epoch + 1}/{epochs}',
+                    stage=f'Training — Epoch {epoch + 1}/{epochs}',
+                    heartbeat=datetime.utcnow().isoformat(),
                 )
 
                 random.shuffle(all_input_ids)
@@ -262,6 +300,8 @@ class GPT2FineTuner:
                 step_start = time.time()
 
                 optimizer.zero_grad()
+                accum_count = 0  # track accumulation steps directly
+
                 for i in range(0, len(all_input_ids), batch_size):
                     if self._stop_requested:
                         self._save_checkpoint(epoch, global_step, best_loss)
@@ -277,51 +317,52 @@ class GPT2FineTuner:
 
                     epoch_loss += outputs.loss.item()
                     epoch_tokens += input_ids.numel()
+                    accum_count += 1
 
-                    if (i // batch_size + 1) % grad_accum == 0:
+                    if accum_count >= grad_accum:
                         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                         optimizer.step()
                         optimizer.zero_grad()
+                        accum_count = 0
                         global_step += 1
 
-                        # Progress update every 5 steps
-                        if global_step % 5 == 0:
-                            elapsed = time.time() - step_start
-                            tok_per_sec = epoch_tokens / max(0.1, elapsed)
-                            current_loss = epoch_loss / max(1, (i // batch_size + 1))
+                        # Update status EVERY step — so dashboard always shows progress
+                        elapsed = time.time() - step_start
+                        tok_per_sec = epoch_tokens / max(0.1, elapsed)
+                        current_loss = epoch_loss / max(1, (i // batch_size + 1))
 
-                            if current_loss < best_loss:
-                                best_loss = current_loss
+                        if current_loss < best_loss:
+                            best_loss = current_loss
 
-                            self._loss_history.append((global_step, round(current_loss, 4)))
+                        self._loss_history.append((global_step, round(current_loss, 4)))
 
-                            # Memory (reuse singleton process handle)
-                            mem_mb = None
-                            try:
-                                if not hasattr(self, '_psutil_proc'):
-                                    import psutil
-                                    self._psutil_proc = psutil.Process()
-                                mem_mb = round(self._psutil_proc.memory_info().rss / (1024 * 1024))
-                            except Exception:
-                                pass
+                        mem_mb = None
+                        try:
+                            if not hasattr(self, '_psutil_proc'):
+                                import psutil
+                                self._psutil_proc = psutil.Process()
+                            mem_mb = round(self._psutil_proc.memory_info().rss / (1024 * 1024))
+                        except Exception:
+                            pass
 
-                            progress = global_step / max(1, total_steps)
-                            eta = (time.time() - start_time) / max(0.001, progress) * (1 - progress) if progress > 0.01 else None
+                        progress = global_step / max(1, total_steps)
+                        eta = (time.time() - start_time) / max(0.001, progress) * (1 - progress) if progress > 0.01 else None
 
-                            self._status.update(
-                                current_step=global_step,
-                                loss=round(current_loss, 4),
-                                best_loss=round(best_loss, 4),
-                                tokens_per_second=round(tok_per_sec, 1),
-                                memory_mb=mem_mb,
-                                progress=progress,
-                                eta_seconds=round(eta) if eta else None,
-                            )
+                        self._status.update(
+                            current_step=global_step,
+                            loss=round(current_loss, 4),
+                            best_loss=round(best_loss, 4),
+                            tokens_per_second=round(tok_per_sec, 1),
+                            memory_mb=mem_mb,
+                            progress=progress,
+                            eta_seconds=round(eta) if eta else None,
+                            heartbeat=datetime.utcnow().isoformat(),
+                        )
 
                         # Checkpoint every N steps
                         if global_step % checkpoint_interval == 0:
                             self._save_checkpoint(epoch, global_step, best_loss)
-                            logger.info(f"Checkpoint at step {global_step}, loss={epoch_loss / max(1, (i // batch_size + 1)):.4f}")
+                            logger.info(f"Checkpoint at step {global_step}, loss={current_loss:.4f}")
 
                 avg_epoch_loss = epoch_loss / max(1, len(all_input_ids) // batch_size)
                 logger.info(f"Epoch {epoch+1}/{epochs} complete: avg_loss={avg_epoch_loss:.4f}")

@@ -173,6 +173,57 @@ tr:hover{background:rgba(212,175,55,.06)}
 .btn.admin-only{position:relative;transition:all .3s}
 .btn.admin-only.locked{opacity:.45;pointer-events:none}
 .btn.admin-only.unlocked{opacity:1}
+
+/* Button variants */
+.btn.primary{background:linear-gradient(135deg,#BF0A30,#8B0000);color:white;border-color:#BF0A30}
+.btn.primary:hover{border-color:#FFD700;box-shadow:0 0 16px rgba(191,10,48,.4)}
+.btn.blue{background:linear-gradient(135deg,#002868,#1a5276);color:white;border-color:#3B82F6}
+.btn.blue:hover{border-color:#60a5fa;box-shadow:0 0 16px rgba(59,130,246,.4)}
+.btn.gold{background:linear-gradient(135deg,#B8860B,#D4AF37,#FFD700);color:#001a33;border-color:var(--gold)}
+.btn.gold:hover{box-shadow:0 0 20px rgba(255,215,0,.5)}
+.btn.gold.shine{animation:goldShine 3s ease-in-out infinite}
+@keyframes goldShine{0%,100%{box-shadow:0 0 8px rgba(255,215,0,.3)}50%{box-shadow:0 0 24px rgba(255,215,0,.6)}}
+
+/* Progress bar */
+.pbar{width:100%;background:rgba(42,74,110,.4);border-radius:6px;overflow:hidden;height:8px}
+.pbar .fill{height:100%;border-radius:6px;transition:width .5s ease-out}
+
+/* Spinner */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--dim);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* Alert boxes */
+.alert{padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:8px}
+.alert.success{background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.3);color:var(--green)}
+.alert.error{background:rgba(191,10,48,.1);border:1px solid rgba(191,10,48,.3);color:var(--red)}
+
+/* Pipeline action cards */
+.command-center{margin-bottom:24px}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:900px){.actions{grid-template-columns:1fr}}
+.action-card{background:linear-gradient(145deg,rgba(0,34,68,.9),rgba(0,51,102,.9));border:1px solid var(--border);border-radius:12px;padding:20px;transition:all .3s}
+.action-card:hover{border-color:var(--gold-dark);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.action-card h3{margin-bottom:6px}
+.action-card p{font-size:12px;color:var(--dim);line-height:1.5;margin-bottom:8px}
+.action-card .time{font-size:11px;color:var(--gold-mid);margin-bottom:10px;font-style:italic}
+
+/* Stars divider */
+.stars-divider{text-align:center;color:var(--gold-dark);font-size:14px;letter-spacing:12px;padding:16px 0;opacity:.6}
+
+/* Log entries */
+.log-entry{padding:4px 8px;font-size:11px;font-family:'Courier New',monospace;color:var(--dim);border-bottom:1px solid rgba(42,74,110,.2)}
+.log-entry .ts{color:var(--gold-dark);margin-right:8px}
+
+/* Fine-tune config grid */
+.ft-config-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:900px){.ft-config-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.ft-config-grid{grid-template-columns:repeat(2,1fr)}}
+.ft-param{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;text-align:center}
+.ft-param .param-label{font-size:9px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:4px}
+.ft-param .param-val{font-size:14px;font-weight:700;color:var(--white)}
+.ft-param input,.ft-param select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px;text-align:center}
+.ft-param input:focus,.ft-param select:focus{border-color:var(--gold);outline:none}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -429,7 +480,7 @@ tr:hover{background:rgba(212,175,55,.06)}
       <div class="action-card">
         <h3>Quick Pipeline</h3>
         <p>Markov chain training + Monte Carlo simulations. Fast predictions. <strong style="color:var(--gold)">Force bypasses threshold.</strong></p>
-        <div class="time">~10 minutes on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM)</div>
+        <div class="time" x-text="training?.last_run_durations?.quick ? 'Last run: '+fmtSec(training.last_run_durations.quick)+' on Pi 4' : '~35 seconds on Pi 4'"></div>
         <button class="btn primary admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&launchPipeline('quick')" :disabled="pipelineBusy" style="width:100%">
           <template x-if="pipelineBusy && pipelineOp==='quick'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
           <span x-text="pipelineBusy && pipelineOp==='quick'?'Running...':adminAuthed?'Run Pipeline':'Authorization Required'"></span>
@@ -438,7 +489,7 @@ tr:hover{background:rgba(212,175,55,.06)}
       <div class="action-card">
         <h3>Fine-Tune Only</h3>
         <p>Train Pythia-160M with LoRA on the Pi. Generates LLM-based Monte Carlo sims.</p>
-        <div class="time">~90 minutes on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM)</div>
+        <div class="time" x-text="training?.last_run_durations?.finetune ? 'Last run: '+fmtSec(training.last_run_durations.finetune)+' on Pi 4' : '~75 minutes on Pi 4'"></div>
         <button class="btn blue admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&launchPipeline('finetune')" :disabled="pipelineBusy" style="width:100%">
           <template x-if="pipelineBusy && pipelineOp==='finetune'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
           <span x-text="pipelineBusy && pipelineOp==='finetune'?'Training...':adminAuthed?'Start Fine-Tune':'Authorization Required'"></span>
@@ -447,7 +498,7 @@ tr:hover{background:rgba(212,175,55,.06)}
       <div class="action-card" style="border-color:var(--gold)">
         <h3>Full Pipeline</h3>
         <p><strong style="color:var(--gold)">THE BIG ONE.</strong> Fine-tunes the model, THEN runs the full Markov pipeline with Pythia blending. Maximum prediction power.</p>
-        <div class="time">~100 minutes total on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM)</div>
+        <div class="time" x-text="training?.last_run_durations?.full ? 'Last run: '+fmtSec(training.last_run_durations.full)+' on Pi 4' : '~80 minutes total on Pi 4'"></div>
         <button class="btn gold admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&launchPipeline('full')" :disabled="pipelineBusy" style="width:100%">
           <template x-if="pipelineBusy && pipelineOp==='full'"><span class="spinner" style="vertical-align:middle;margin-right:6px"></span></template>
           <span x-text="pipelineBusy && pipelineOp==='full'?'Running...':adminAuthed?'Launch Full Pipeline':'Authorization Required'"></span>
@@ -552,9 +603,9 @@ tr:hover{background:rgba(212,175,55,.06)}
     <table>
       <thead><tr><th>Job</th><th>Interval</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td style="color:var(--gold)">Full Pipeline</td><td>On demand</td><td>Fine-tune + Markov + blend (~100 min on Pi 4)</td></tr>
-        <tr><td style="color:var(--gold)">Local Pipeline</td><td>Every 6h</td><td>Markov chain + Monte Carlo (~10 min on Pi 4)</td></tr>
-        <tr><td style="color:var(--gold)">Pi Fine-Tune</td><td>2 AM ET</td><td>Pythia-160M LoRA training (~90 min on Pi 4)</td></tr>
+        <tr><td style="color:var(--gold)">Full Pipeline</td><td>On demand</td><td x-text="training?.last_run_durations?.full ? 'Fine-tune + Markov + blend (last: '+fmtSec(training.last_run_durations.full)+')' : 'Fine-tune + Markov + blend (~80 min on Pi 4)'"></td></tr>
+        <tr><td style="color:var(--gold)">Local Pipeline</td><td>Every 6h</td><td x-text="training?.last_run_durations?.quick ? 'Markov chain + Monte Carlo (last: '+fmtSec(training.last_run_durations.quick)+')' : 'Markov chain + Monte Carlo (~35 sec on Pi 4)'"></td></tr>
+        <tr><td style="color:var(--gold)">Pi Fine-Tune</td><td>2 AM ET</td><td x-text="training?.last_run_durations?.finetune ? 'Pythia-160M LoRA training (last: '+fmtSec(training.last_run_durations.finetune)+')' : 'Pythia-160M LoRA training (~75 min on Pi 4)'"></td></tr>
         <tr><td style="color:var(--gold)">Market Sync</td><td>Every 5m</td><td>Sync Kalshi market prices + detect new markets</td></tr>
         <tr><td style="color:var(--gold)">Predictions</td><td>Every 15m</td><td>7-signal ensemble (incl. social velocity)</td></tr>
         <tr><td style="color:var(--gold)">Trading Check</td><td>Every 5m</td><td>Check for trade opportunities</td></tr>
@@ -781,6 +832,31 @@ tr:hover{background:rgba(212,175,55,.06)}
 <div class="section" :class="{active:tab==='markets'}">
   <h1>Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
+
+  <!-- Market Charts -->
+  <div class="grid g2" style="margin-bottom:24px">
+    <div class="card">
+      <h3 style="margin-bottom:12px">Active Market Prices</h3>
+      <div style="position:relative;height:300px"><canvas id="activeMarketPricesChart"></canvas></div>
+      <template x-if="markets.filter(m=>(m.status==='active'||m.status==='open')&&m.yes_price!=null&&m.yes_price>0.01&&m.yes_price<0.99).length===0">
+        <div style="text-align:center;color:var(--dim);padding:20px;font-size:12px">No active markets with tradeable prices</div>
+      </template>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:12px">Weekly Resolutions (YES/NO)</h3>
+      <div style="position:relative;height:300px"><canvas id="weeklyResolutionChart"></canvas></div>
+      <template x-if="weeklyPayouts.length===0">
+        <div style="text-align:center;color:var(--dim);padding:20px;font-size:12px">No resolved markets yet</div>
+      </template>
+    </div>
+  </div>
+
+  <template x-if="marketPriceHistory.length>0">
+    <div class="card" style="margin-bottom:24px">
+      <h3 style="margin-bottom:12px">Price Trends (Last 30 Days)</h3>
+      <div style="position:relative;height:300px"><canvas id="marketTrendsChart"></canvas></div>
+    </div>
+  </template>
 
   <h2>Active Markets</h2>
   <table>
@@ -1229,7 +1305,7 @@ function app(){return{
   ],
   health:false, pipelineMode:'',
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
-  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null,
+  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], _marketCharts:{},
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null, _accChart:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
@@ -1365,7 +1441,13 @@ function app(){return{
   async importTwitter(){await this.apiPost('/social-media/import-twitter')},
   async scrapeTruth(){await this.apiPost('/social-media/scrape-truth');setTimeout(()=>this.loadPipeline(),3000)},
 
-  async loadMarkets(){const d=await this.api('/markets');this.markets=Array.isArray(d)?d:[]},
+  async loadMarkets(){
+    const[d,wp,ph]=await Promise.all([this.api('/markets'),this.api('/markets/weekly-payouts?weeks=12'),this.api('/markets/price-history?days=30')]);
+    this.markets=Array.isArray(d)?d:[];
+    this.weeklyPayouts=Array.isArray(wp)?wp:[];
+    this.marketPriceHistory=Array.isArray(ph)?ph:[];
+    this.$nextTick(()=>{this.renderMarketCharts()});
+  },
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
 
   async loadTrading(){
@@ -1394,6 +1476,52 @@ function app(){return{
 
   async togglePaper(){await this.apiPut('/trading/config',{paper_mode:!this.botCfg.paper_mode});this.botCfg=await this.api('/trading/config')||this.botCfg},
   async toggleAutoTrade(){await this.apiPut('/trading/config',{auto_trade:!this.botCfg.auto_trade});this.botCfg=await this.api('/trading/config')||this.botCfg},
+
+  renderMarketCharts(){
+    // 1. Active market price trends
+    const tc=document.getElementById('marketTrendsChart');
+    if(tc&&this.marketPriceHistory.length>0){
+      if(this._marketCharts.trends)this._marketCharts.trends.destroy();
+      const colors=['#FFD700','#3B82F6','#2ecc71','#e74c3c','#9b59b6','#f39c12','#1abc9c','#e67e22','#00bcd4','#ff6b6b'];
+      // Build unified time labels from all market snapshots
+      const allTimes=new Set();
+      this.marketPriceHistory.forEach(m=>(m.points||[]).forEach(p=>{if(p.timestamp)allTimes.add(p.timestamp.substring(0,13))}));
+      const sortedTimes=[...allTimes].sort();
+      // Downsample if too many points
+      const maxLabels=60;
+      const step=Math.max(1,Math.floor(sortedTimes.length/maxLabels));
+      const labels=sortedTimes.filter((_,i)=>i%step===0);
+      const labelSet=new Set(labels);
+      const datasets=this.marketPriceHistory.map((m,i)=>{
+        const pts=m.points||[];
+        const timeMap={};pts.forEach(p=>{const k=p.timestamp?.substring(0,13);if(k)timeMap[k]=p.yes_price!=null?+(p.yes_price*100).toFixed(1):null});
+        return{label:m.ticker,data:labels.map(t=>timeMap[t]??null),borderColor:colors[i%colors.length],backgroundColor:'transparent',borderWidth:2,tension:.3,pointRadius:0,spanGaps:true};
+      });
+      this._marketCharts.trends=new Chart(tc,{type:'line',data:{labels:labels.map(t=>{const d=new Date(t);return(d.getMonth()+1)+'/'+d.getDate()}),datasets},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}},position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:12},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES Price (cents)',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
+    }
+    // 2. Weekly resolution chart (yes/no stacked bar)
+    const wc=document.getElementById('weeklyResolutionChart');
+    if(wc&&this.weeklyPayouts.length>0){
+      if(this._marketCharts.weekly)this._marketCharts.weekly.destroy();
+      const sorted=[...this.weeklyPayouts].sort((a,b)=>a.week.localeCompare(b.week));
+      const labels=sorted.map(w=>w.week.substring(5));
+      this._marketCharts.weekly=new Chart(wc,{type:'bar',data:{labels,datasets:[
+        {label:'YES',data:sorted.map(w=>w.yes_count),backgroundColor:'rgba(46,204,113,.7)',borderColor:'#2ecc71',borderWidth:1},
+        {label:'NO',data:sorted.map(w=>w.no_count),backgroundColor:'rgba(191,10,48,.7)',borderColor:'#BF0A30',borderWidth:1},
+      ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.3)'}},y:{stacked:true,title:{display:true,text:'Markets Resolved',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},stepSize:1},grid:{color:'rgba(42,74,110,.3)'}}}}});
+    }
+    // 3. Current active market prices (horizontal bar)
+    const ac=document.getElementById('activeMarketPricesChart');
+    if(ac){
+      if(this._marketCharts.active)this._marketCharts.active.destroy();
+      const active=this.markets.filter(m=>(m.status==='active'||m.status==='open')&&m.yes_price!=null&&m.yes_price>0.01&&m.yes_price<0.99).sort((a,b)=>(b.yes_price||0)-(a.yes_price||0));
+      if(active.length>0){
+        const labels=active.map(m=>(m.terms||[]).join(', ')||m.ticker);
+        const data=active.map(m=>+(m.yes_price*100).toFixed(0));
+        this._marketCharts.active=new Chart(ac,{type:'bar',data:{labels,datasets:[{label:'YES Price',data,backgroundColor:data.map(v=>v>=50?'rgba(46,204,113,.6)':'rgba(59,130,246,.6)'),borderColor:data.map(v=>v>=50?'#2ecc71':'#3B82F6'),borderWidth:1}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.x+'c'}}},scales:{x:{title:{display:true,text:'YES Price (cents)',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100},y:{ticks:{color:'#8a9bb5',font:{size:10}},grid:{display:false}}}}});
+      }
+    }
+  },
 
   renderAccuracyChart(){
     if(!this.accuracy||!this.accuracy.per_version||this.accuracy.per_version.length<2)return;

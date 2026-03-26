@@ -224,6 +224,54 @@ def get_weekly_payouts(weeks: int = 12):
         ]
 
 
+@app.get("/api/markets/price-history")
+def get_market_price_history(market_ids: str = '', days: int = 30):
+    """Get price history for active markets (for charting).
+
+    market_ids: comma-separated market IDs (empty = all active markets).
+    days: how far back to look.
+    """
+    from ..database.models import PriceSnapshot
+    with get_session() as session:
+        cutoff = datetime.now() - timedelta(days=days)
+
+        if market_ids:
+            ids = [int(x.strip()) for x in market_ids.split(',') if x.strip().isdigit()]
+        else:
+            active = session.query(Market).filter(Market.status.in_(['active', 'open'])).all()
+            ids = [m.id for m in active]
+
+        if not ids:
+            return []
+
+        snapshots = session.query(PriceSnapshot).filter(
+            PriceSnapshot.market_id.in_(ids),
+            PriceSnapshot.timestamp >= cutoff,
+        ).order_by(PriceSnapshot.timestamp).all()
+
+        # Group by market
+        from collections import defaultdict
+        by_market: dict = defaultdict(list)
+        market_tickers = {}
+        for s in snapshots:
+            by_market[s.market_id].append({
+                'timestamp': s.timestamp.isoformat() if s.timestamp else None,
+                'yes_price': s.yes_price,
+                'volume': s.volume,
+            })
+            if s.market_id not in market_tickers:
+                market_tickers[s.market_id] = s.market.kalshi_ticker if s.market else str(s.market_id)
+
+        return [
+            {
+                'market_id': mid,
+                'ticker': market_tickers.get(mid, ''),
+                'points': points,
+            }
+            for mid, points in by_market.items()
+        ]
+
+
 @app.post("/api/markets/sync")
 def sync_markets(background_tasks: BackgroundTasks):
     """Trigger market sync from Kalshi."""
@@ -1301,10 +1349,13 @@ def run_full_pipeline_endpoint(request: Request, background_tasks: BackgroundTas
 
     def _run_full():
         try:
+            import time as _time
+            _full_start = _time.time()
             logger.info("Full pipeline: starting fine-tuning...")
             _pipeline.run_fine_tuning()
             logger.info("Full pipeline: fine-tuning done, starting Markov pipeline...")
             _pipeline.run_full_pipeline(force=force)
+            _pipeline._last_run_durations['full'] = round(_time.time() - _full_start, 1)
             logger.info("Full pipeline: complete")
         except Exception as e:
             logger.error(f"Full pipeline failed: {e}")

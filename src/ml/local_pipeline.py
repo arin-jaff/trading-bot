@@ -52,6 +52,12 @@ class LocalPipeline:
             'current_version': self._get_current_version(),
             'error': None,
         }
+        # Track last run durations (seconds) for each pipeline type
+        self._last_run_durations = {
+            'quick': None,
+            'finetune': None,
+            'full': None,
+        }
 
     def get_status(self) -> dict:
         """Get pipeline status including trainer progress."""
@@ -92,6 +98,7 @@ class LocalPipeline:
 
         # Show whether Pythia predictions are available for blending
         status['pythia_predictions_available'] = os.path.exists(PYTHIA_PREDICTIONS_PATH)
+        status['last_run_durations'] = self._last_run_durations.copy()
 
         return status
 
@@ -240,13 +247,21 @@ class LocalPipeline:
             self._status['last_training_speech_count'] = current_count
 
             version = train_result['version']
+            completed_at = datetime.now()
             self._status.update(
                 state='complete',
                 stage=f'Pipeline complete — TrumpGPT v{version}',
                 progress=1.0,
-                completed_at=datetime.now().isoformat(),
+                completed_at=completed_at.isoformat(),
                 current_version=version,
             )
+            # Record duration for this run type
+            try:
+                started = datetime.fromisoformat(self._status['started_at'])
+                duration_secs = round((completed_at - started).total_seconds(), 1)
+                self._last_run_durations['quick'] = duration_secs
+            except Exception:
+                pass
             self._log_event(f'Pipeline complete — TrumpGPT v{version} ({pred_count} predictions from {train_result["corpus_size"]} speeches)')
             self._notify_completion(version, train_result, pred_count)
 
@@ -303,6 +318,7 @@ class LocalPipeline:
 
         self._log_event('Fine-tuning: starting Pi-native Pythia LoRA training...')
         self._status.update(stage='Fine-tuning Pythia (LoRA)', progress=0.0)
+        ft_start = datetime.now()
 
         try:
             fine_tuner = get_fine_tuner()
@@ -343,6 +359,10 @@ class LocalPipeline:
                         f'term predictions saved to {pred_path}'
                     )
 
+            # Record fine-tune duration
+            self._last_run_durations['finetune'] = round(
+                (datetime.now() - ft_start).total_seconds(), 1
+            )
             return train_result
 
         except Exception as e:

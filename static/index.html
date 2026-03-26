@@ -228,6 +228,15 @@ tr:hover{background:rgba(212,175,55,.06)}
 /* Market pills */
 .market-pill{background:linear-gradient(145deg,rgba(0,34,68,.9),rgba(0,51,102,.9));border:1px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;transition:all .25s;min-width:140px}
 .market-pill:hover{border-color:var(--gold-dark);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
+
+/* Loading overlay */
+.tab-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;text-align:center;animation:fadeIn .3s ease-out}
+.tab-loading .loading-seal{width:80px;height:80px;opacity:.15;animation:spin 20s linear infinite}
+.tab-loading .loading-bar{width:200px;height:3px;background:var(--bg3);border-radius:3px;margin:24px 0 20px;overflow:hidden;position:relative}
+.tab-loading .loading-bar::after{content:'';position:absolute;top:0;left:-50%;width:50%;height:100%;background:linear-gradient(90deg,transparent,var(--gold),transparent);animation:loadSlide 1.5s ease-in-out infinite}
+@keyframes loadSlide{0%{left:-50%}100%{left:100%}}
+.tab-loading .loading-quip{color:var(--gold-mid);font-size:14px;font-style:italic;max-width:400px;line-height:1.6}
+.tab-loading .loading-sub{color:var(--dim);font-size:11px;margin-top:12px;letter-spacing:1px;text-transform:uppercase}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -473,6 +482,13 @@ tr:hover{background:rgba(212,175,55,.06)}
 </div>
 
 <div class="section" :class="{active:tab==='pipeline'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='pipeline'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Warming up the Markov chain on the Pi 4...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='pipeline'">
   <h1>Pipeline Command Center</h1>
   <div class="sub">TrumpGPT training, fine-tuning, and simulation engine</div>
 
@@ -830,10 +846,18 @@ tr:hover{background:rgba(212,175,55,.06)}
       </div>
     </template>
   </div>
+  </div><!-- /pipeline content wrapper -->
 </div>
 
 <!-- MARKETS -->
 <div class="section" :class="{active:tab==='markets'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='markets'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Syncing Kalshi markets on the Pi 4...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='markets'">
   <h1>Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
 
@@ -841,7 +865,7 @@ tr:hover{background:rgba(212,175,55,.06)}
   <h2>Active Markets</h2>
   <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
     <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="'mc-'+m.ticker">
-      <div class="market-pill" @click="selectedMarket=(selectedMarket===m.ticker?null:m.ticker);$nextTick(()=>renderSelectedMarketChart())"
+      <div class="market-pill" @click="if(selectedMarket===m.ticker){selectedMarket=null}else{selectedMarket=m.ticker;if(_marketCharts.selected){_marketCharts.selected.destroy();_marketCharts.selected=null}$nextTick(()=>renderSelectedMarketChart())}"
         :style="(m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:.5;':'')+(selectedMarket===m.ticker?'border-color:var(--gold);background:rgba(255,215,0,.08);box-shadow:0 0 12px rgba(255,215,0,.15)':'')">
         <div style="font-size:14px;font-weight:700;color:var(--white)" x-text="(m.terms&&m.terms.length>0)?m.terms.join(', '):m.ticker"></div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
@@ -858,44 +882,38 @@ tr:hover{background:rgba(212,175,55,.06)}
     <div style="text-align:center;color:var(--dim);padding:16px">No active markets</div>
   </template>
 
-  <!-- Expanded detail panel for selected market -->
-  <template x-if="selectedMarket">
-    <div class="card" style="margin-bottom:24px;border-color:var(--gold);animation:fadeIn .3s ease-out">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div>
-          <h3 style="margin:0;color:var(--gold)" x-text="selectedTermLabel()"></h3>
-          <div style="font-size:11px;color:var(--dim)" x-text="selectedMarket"></div>
-        </div>
-        <button class="btn" style="font-size:10px;padding:6px 14px" @click="selectedMarket=null">Close</button>
+  <!-- Expanded detail panel for selected market — uses x-show to keep canvas alive in DOM -->
+  <div class="card" x-show="selectedMarket" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" style="margin-bottom:24px;border-color:var(--gold);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div>
+        <h3 style="margin:0;color:var(--gold)" x-text="selectedTermLabel()"></h3>
+        <div style="font-size:11px;color:var(--dim)" x-text="selectedMarket"></div>
       </div>
+      <button class="btn" style="font-size:10px;padding:6px 14px" @click="selectedMarket=null">Close</button>
+    </div>
 
-      <!-- Resolution history dot timeline -->
-      <div style="margin-bottom:16px">
-        <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Weekly Resolution History</div>
-        <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
-          <template x-for="w in getTermHistory()" :key="w.week">
-            <div class="tip" :data-tip="w.week+': '+(w.result==='yes'?'YES — Said it':'NO — Did not say it')">
-              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;cursor:default;transition:all .2s;border:2px solid"
-                :style="w.result==='yes'?'background:rgba(46,204,113,.2);border-color:var(--green);color:var(--green)':'background:rgba(191,10,48,.2);border-color:var(--red);color:var(--red)'"
-                x-text="w.result==='yes'?'Y':'N'"></div>
-            </div>
-          </template>
-        </div>
-        <template x-if="getTermHistory().length===0">
-          <div style="font-size:11px;color:var(--dim);padding:8px 0">No resolution history for this term yet.</div>
-        </template>
-        <template x-if="getTermHistory().length>0">
-          <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--dim)">
-            <span>YES rate: <strong :style="'color:var(--green)'" x-text="Math.round(getTermHistory().filter(w=>w.result==='yes').length/getTermHistory().length*100)+'%'"></strong></span>
-            <span x-text="getTermHistory().filter(w=>w.result==='yes').length+'/'+getTermHistory().length+' weeks'"></span>
+    <!-- Resolution history dot timeline -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Weekly Resolution History</div>
+      <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
+        <template x-for="w in getTermHistory()" :key="w.week">
+          <div class="tip" :data-tip="w.week+': '+(w.result==='yes'?'YES — Said it':'NO — Did not say it')">
+            <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;cursor:default;transition:all .2s;border:2px solid"
+              :style="w.result==='yes'?'background:rgba(46,204,113,.2);border-color:var(--green);color:var(--green)':'background:rgba(191,10,48,.2);border-color:var(--red);color:var(--red)'"
+              x-text="w.result==='yes'?'Y':'N'"></div>
           </div>
         </template>
       </div>
-
-      <!-- Price history chart -->
-      <div style="position:relative;height:200px"><canvas id="selectedMarketChart"></canvas></div>
+      <div x-show="getTermHistory().length===0" style="font-size:11px;color:var(--dim);padding:8px 0">No resolution history for this term yet.</div>
+      <div x-show="getTermHistory().length>0" style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--dim)">
+        <span>YES rate: <strong :style="'color:var(--green)'" x-text="Math.round(getTermHistory().filter(w=>w.result==='yes').length/Math.max(1,getTermHistory().length)*100)+'%'"></strong></span>
+        <span x-text="getTermHistory().filter(w=>w.result==='yes').length+'/'+getTermHistory().length+' weeks'"></span>
+      </div>
     </div>
-  </template>
+
+    <!-- Price history chart — canvas always in DOM, Chart.js updates in-place -->
+    <div style="position:relative;height:200px"><canvas id="selectedMarketChart"></canvas></div>
+  </div>
 
   <div class="stars-divider">* * * * *</div>
 
@@ -918,10 +936,18 @@ tr:hover{background:rgba(212,175,55,.06)}
   <template x-if="markets.filter(m=>m.status!=='active'&&m.status!=='open').length===0">
     <div style="text-align:center;color:var(--dim);padding:16px">No resolved markets yet</div>
   </template>
+  </div><!-- /markets content wrapper -->
 </div>
 
 <!-- PREDICTIONS -->
 <div class="section" :class="{active:tab==='predictions'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='predictions'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Running 7-signal ensemble predictor...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='predictions'">
   <h1>Predictions</h1>
   <div class="sub">Model probability vs market price - sorted by edge</div>
   <table>
@@ -939,10 +965,18 @@ tr:hover{background:rgba(212,175,55,.06)}
       </template>
     </tbody>
   </table>
+  </div><!-- /predictions content wrapper -->
 </div>
 
 <!-- TRADING -->
 <div class="section" :class="{active:tab==='trading'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='trading'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Connecting to Kalshi trading API...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='trading'">
   <h1>Trading</h1>
 
   <div class="grid g2" style="margin-bottom:14px">
@@ -1001,10 +1035,18 @@ tr:hover{background:rgba(212,175,55,.06)}
   <template x-if="trades.length===0">
     <div style="text-align:center;color:var(--dim);padding:20px">No trades yet. <template x-if="!botCfg.auto_trade"><span>Enable auto-trading above to start.</span></template></div>
   </template>
+  </div><!-- /trading content wrapper -->
 </div>
 
 <!-- HEALTH -->
 <div class="section" :class="{active:tab==='health'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='health'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Checking all systems on the Pi 4...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='health'">
   <h1>Health Checks</h1>
   <div class="sub">Autonomous system monitoring - all services and APIs</div>
 
@@ -1103,13 +1145,18 @@ tr:hover{background:rgba(212,175,55,.06)}
       </div>
     </div>
   </template>
-  <template x-if="!healthDetail">
-    <div style="text-align:center;color:var(--dim);padding:30px">Loading health checks...</div>
-  </template>
+  </div><!-- /health content wrapper -->
 </div>
 
 <!-- SYSTEM -->
 <div class="section" :class="{active:tab==='system'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='system'">
+    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
+    <div class="loading-bar"></div>
+    <div class="loading-quip" x-text="_loadingQuip"></div>
+    <div class="loading-sub">Reading Pi 4 hardware sensors...</div>
+  </div>
+  <div x-show="!isTabLoading()||tab!=='system'">
   <h1>System</h1>
   <div class="sub">Raspberry Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM) hardware + model versions</div>
 
@@ -1222,6 +1269,7 @@ tr:hover{background:rgba(212,175,55,.06)}
   <template x-if="versions.length===0">
     <div style="color:var(--dim);text-align:center;padding:16px">No model versions yet.</div>
   </template>
+  </div><!-- /system content wrapper -->
 </div>
 
 <!-- TRUMPGPT -->
@@ -1337,7 +1385,25 @@ function app(){return{
   ftConfig:{}, ftConfigDirty:false,
   equityCurve:{starting_balance:100,current_value:100,cash:100,unrealized:0,positions_count:0,points:[]},
   _tabFetchedAt:{},  // timestamps of last successful fetch per tab
+  _tabLoading:{},    // true while a tab is fetching data for the first time
   _tabTTL:{home:20000,pipeline:10000,markets:30000,predictions:30000,trading:20000,health:30000,system:30000,trumpgpt:999999},
+  _loadingQuip:'',
+  loadingQuips:[
+    "Crunching numbers on the Raspberry Pi. Believe me, nobody crunches numbers like this Pi.",
+    "The Pi 4 is working very hard. Harder than any Pi in history, frankly.",
+    "Loading tremendous amounts of data. The most data ever loaded.",
+    "Our little Pi is doing calculations that would make NASA jealous. Probably.",
+    "Hold on \u2014 the Pi is running 2,000 Monte Carlo simulations. That's a lot of Carlos.",
+    "The Raspberry Pi sends its regards. It's a very small computer doing very big things.",
+    "Running predictions on a $35 computer. The art of the deal.",
+    "Asking the Markov chain what Trump will say next. Even Trump doesn't know yet.",
+    "The Pi 4 has 8GB of RAM. More RAM than most of Congress has brain cells.",
+    "Fetching market data from Kalshi. Wall Street wishes they had this kind of edge.",
+    "Processing speech transcripts. So many words. The best words.",
+    "Loading \u2014 the Pi is single-threaded but tremendously motivated.",
+    "Cross-referencing Truth Social posts with Markov chains. Nobody's ever done this before.",
+    "One moment \u2014 the Pi is doing complicated math. Very complicated. Very legal. Very cool.",
+  ],
   idleQuips:[
     "TrumpGPT is at Mar-a-Lago golfing right now. Tremendous course.",
     "TrumpGPT is eating a beautiful chocolate cake. The most beautiful.",
@@ -1392,6 +1458,8 @@ function app(){return{
 
   fmtSec(s){if(!s||s<0)return'-';const m=Math.floor(s/60),sec=Math.floor(s%60);return m>0?m+'m '+sec+'s':sec+'s'},
 
+  pickLoadingQuip(){return this.loadingQuips[Math.floor(Math.random()*this.loadingQuips.length)]},
+  isTabLoading(){return this._tabLoading[this.tab]&&!this._tabFetchedAt[this.tab]},
   async loadTab(force=false){
     location.hash=this.tab;
     // Skip if tab data is still fresh (unless forced)
@@ -1400,12 +1468,15 @@ function app(){return{
       const ttl=this._tabTTL[this.tab]||20000;
       if(Date.now()-lastFetch<ttl)return;
     }
+    // Show loading state only on first load of this tab (no data yet)
+    const firstLoad=!this._tabFetchedAt[this.tab];
+    if(firstLoad){this._tabLoading[this.tab]=true;this._loadingQuip=this.pickLoadingQuip()}
     try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode='local'}catch{this.health=false}
     const L={
       home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), markets:()=>this.loadMarkets(),
       predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), health:()=>this.loadHealth(), system:()=>this.loadSystem(),
     };
-    if(L[this.tab]){await L[this.tab]();this._tabFetchedAt[this.tab]=Date.now()}
+    if(L[this.tab]){await L[this.tab]();this._tabFetchedAt[this.tab]=Date.now();this._tabLoading[this.tab]=false}
   },
 
   async loadHome(){
@@ -1467,8 +1538,8 @@ function app(){return{
     this.markets=Array.isArray(d)?d:[];
     this.weeklyPayouts=Array.isArray(wp)?wp:[];
     this.marketPriceHistory=Array.isArray(ph)?ph:[];
-    // If a market is selected, refresh its detail chart
-    if(this.selectedMarket)setTimeout(()=>this.renderSelectedMarketChart(),50);
+    // Update chart in-place if a market is selected (canvas stays in DOM via x-show)
+    if(this.selectedMarket&&this._marketCharts.selected)this.renderSelectedMarketChart();
   },
   selectedTermLabel(){
     const m=this.markets.find(x=>x.ticker===this.selectedMarket);
@@ -1490,14 +1561,29 @@ function app(){return{
     return history;
   },
   renderSelectedMarketChart(){
-    const c=document.getElementById('selectedMarketChart');if(!c)return;
-    if(this._marketCharts.selected)this._marketCharts.selected.destroy();
+    const c=document.getElementById('selectedMarketChart');
+    if(!c)return;
     const ph=this.marketPriceHistory.find(m=>m.ticker===this.selectedMarket);
-    if(!ph||!ph.points||ph.points.length===0)return;
+    if(!ph||!ph.points||ph.points.length===0){
+      // No data — destroy existing chart if any
+      if(this._marketCharts.selected){this._marketCharts.selected.destroy();this._marketCharts.selected=null}
+      return;
+    }
     const pts=ph.points;
     const labels=pts.map(p=>{const d=new Date(p.timestamp);return(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':00'});
     const data=pts.map(p=>p.yes_price!=null?+(p.yes_price*100).toFixed(1):null);
-    this._marketCharts.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pts.length>40?0:2,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
+    const pr=pts.length>40?0:2;
+    // Update in-place if chart already exists for this canvas
+    if(this._marketCharts.selected){
+      const ch=this._marketCharts.selected;
+      ch.data.labels=labels;
+      ch.data.datasets[0].data=data;
+      ch.data.datasets[0].pointRadius=pr;
+      ch.update('none');
+      return;
+    }
+    // First render — create chart
+    this._marketCharts.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pr,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
   },
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
 

@@ -31,6 +31,9 @@ class LiveSpeechMonitor:
         self._callbacks: list[Callable] = []
         self._detected_terms: dict[str, int] = {}
         self._current_event: Optional[dict] = None
+        self._compiled_patterns: list[tuple] = []  # [(term_name, compiled_regex), ...]
+        self._patterns_built_at: float = 0.0
+        self._last_yt_search: float = 0.0  # rate-limit YouTube API calls
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
@@ -111,11 +114,42 @@ class LiveSpeechMonitor:
 
         return ' '.join(texts) if texts else None
 
+    def _has_upcoming_event(self, within_minutes: int = 30) -> bool:
+        """Check if any scheduled TrumpEvent starts within the given window."""
+        now = datetime.utcnow()
+        from datetime import timedelta
+        window = now + timedelta(minutes=within_minutes)
+        try:
+            with get_session() as session:
+                count = session.query(TrumpEvent).filter(
+                    TrumpEvent.start_time.isnot(None),
+                    TrumpEvent.start_time <= window,
+                    TrumpEvent.start_time >= now - timedelta(hours=3),
+                ).count()
+                return count > 0
+        except Exception:
+            return False
+
     def _check_youtube_live(self) -> Optional[str]:
-        """Check YouTube for live Trump streams."""
+        """Check YouTube for live Trump streams.
+
+        Rate-limited: only calls the YouTube search API once per 5 minutes,
+        and only when a scheduled event is within 30 minutes (or already
+        underway). This keeps usage well under the 10,000 daily quota.
+        """
         api_key = os.getenv('YOUTUBE_API_KEY')
         if not api_key:
             return None
+
+        # Gate: skip unless an event is near
+        if not self._has_upcoming_event(within_minutes=30):
+            return None
+
+        # Rate-limit: at most once per 5 minutes (vs every 15s before)
+        now_ts = time.time()
+        if now_ts - self._last_yt_search < 300:
+            return None
+        self._last_yt_search = now_ts
 
         try:
             search_url = 'https://www.googleapis.com/youtube/v3/search'
@@ -250,30 +284,44 @@ class LiveSpeechMonitor:
             'started_at': event.start_time.isoformat() if event.start_time else None,
         }
 
-    def _analyze_live_text(self, text: str):
-        """Analyze live text for tracked terms."""
-        text_lower = text.lower()
+    def _build_term_patterns(self):
+        """Pre-compile regex patterns for all tracked terms.
+
+        Rebuilds every 10 minutes to pick up new terms without
+        recompiling on every 15-second analysis cycle.
+        """
+        if time.time() - self._patterns_built_at < 600:
+            return  # patterns are fresh enough
 
         with get_session() as session:
             terms = session.query(Term).all()
-
+            patterns = []
             for term in terms:
                 search_terms = [term.normalized_term]
                 if term.is_compound and term.sub_terms:
                     search_terms = term.sub_terms
-
                 for st in search_terms:
-                    pattern = r'\b' + re.escape(st) + r'\b'
-                    matches = re.findall(pattern, text_lower)
-                    if matches:
-                        count = len(matches)
-                        self._detected_terms[term.term] = (
-                            self._detected_terms.get(term.term, 0) + count
-                        )
+                    compiled = re.compile(r'\b' + re.escape(st) + r'\b')
+                    patterns.append((term.term, compiled))
+            self._compiled_patterns = patterns
+            self._patterns_built_at = time.time()
+            logger.debug(f"Compiled {len(patterns)} term patterns for live monitor")
 
-                        # Notify callbacks
-                        for cb in self._callbacks:
-                            try:
-                                cb(term.term, count, 'live', datetime.utcnow())
-                            except Exception as e:
-                                logger.debug(f"Callback error: {e}")
+    def _analyze_live_text(self, text: str):
+        """Analyze live text for tracked terms using pre-compiled patterns."""
+        self._build_term_patterns()
+        text_lower = text.lower()
+
+        for term_name, pattern in self._compiled_patterns:
+            matches = pattern.findall(text_lower)
+            if matches:
+                count = len(matches)
+                self._detected_terms[term_name] = (
+                    self._detected_terms.get(term_name, 0) + count
+                )
+
+                for cb in self._callbacks:
+                    try:
+                        cb(term_name, count, 'live', datetime.utcnow())
+                    except Exception as e:
+                        logger.debug(f"Callback error: {e}")

@@ -64,9 +64,12 @@ class TermPredictor:
         with get_session() as session:
             terms = session.query(Term).all()
 
+            # Batch-prefetch all SQL data upfront (~5 queries instead of ~1600)
+            prefetched = self._prefetch_data(session, terms, event)
+
             for term in terms:
                 try:
-                    pred = self._predict_term(session, term, event)
+                    pred = self._predict_term(session, term, event, prefetched)
                     predictions.append(pred)
                 except Exception as e:
                     logger.error(f"Prediction failed for term '{term.term}': {e}")
@@ -130,23 +133,140 @@ class TermPredictor:
             logger.debug(f"No Monte Carlo predictions available: {e}")
             self._monte_carlo_predictions = {}
 
+    def _prefetch_data(self, session, terms, event: Optional[dict] = None) -> dict:
+        """Batch-fetch all SQL data needed by scoring functions.
+
+        Reduces ~1,600 queries (8 per term × 200 terms) to ~5 bulk queries.
+        """
+        import math
+        from collections import defaultdict
+        now = datetime.utcnow()
+
+        data = {}
+
+        # ── Global counts (used by frequency, temporal) ──────────────
+        data['total_speeches'] = session.query(Speech).filter(
+            Speech.is_processed == True
+        ).count()
+
+        data['recent_speeches_90d'] = session.query(Speech).filter(
+            Speech.is_processed == True,
+            Speech.date >= now - timedelta(days=90),
+        ).count()
+
+        # ── Date poisoning check (used by temporal) ──────────────────
+        total_with_dates = session.query(Speech).filter(
+            Speech.date.isnot(None)
+        ).count()
+        data['dates_poisoned'] = False
+        if total_with_dates > 0:
+            from sqlalchemy import func as sa_func
+            most_common = session.query(
+                sa_func.date(Speech.date),
+                sa_func.count(Speech.id),
+            ).filter(
+                Speech.date.isnot(None)
+            ).group_by(
+                sa_func.date(Speech.date)
+            ).order_by(sa_func.count(Speech.id).desc()).first()
+            if most_common and most_common[1] / total_with_dates > 0.30:
+                data['dates_poisoned'] = True
+
+        # ── All TermOccurrence+Speech joins (used by frequency, temporal, confidence) ─
+        all_occs = session.query(
+            TermOccurrence.term_id,
+            TermOccurrence.count,
+            TermOccurrence.speech_id,
+            Speech.date,
+            Speech.speech_type,
+        ).join(Speech).filter(
+            Speech.date.isnot(None),
+        ).all()
+
+        # Group by term_id
+        occs_by_term = defaultdict(list)
+        for term_id, count, speech_id, date, speech_type in all_occs:
+            occs_by_term[term_id].append({
+                'count': count,
+                'speech_id': speech_id,
+                'date': date,
+                'speech_type': speech_type,
+            })
+        data['occs_by_term'] = occs_by_term
+
+        # ── Trend: this-week and past-4-weeks sums per term ──────────
+        this_week_cutoff = now - timedelta(days=7)
+        past_4w_start = now - timedelta(days=35)
+
+        this_week_rows = session.query(
+            TermOccurrence.term_id,
+            func.sum(TermOccurrence.count),
+        ).join(Speech).filter(
+            Speech.date >= this_week_cutoff,
+        ).group_by(TermOccurrence.term_id).all()
+        data['trend_this_week'] = {tid: total for tid, total in this_week_rows}
+
+        past_4w_rows = session.query(
+            TermOccurrence.term_id,
+            func.sum(TermOccurrence.count),
+        ).join(Speech).filter(
+            Speech.date >= past_4w_start,
+            Speech.date < this_week_cutoff,
+        ).group_by(TermOccurrence.term_id).all()
+        data['trend_past_4w'] = {tid: total for tid, total in past_4w_rows}
+
+        # ── Event correlation: per-type speech counts + per-term counts ─
+        if event and event.get('event_type'):
+            event_type = event['event_type'].lower()
+            data['event_type_total'] = session.query(Speech).filter_by(
+                speech_type=event_type, is_processed=True
+            ).count()
+
+            event_occs = session.query(
+                TermOccurrence.term_id,
+                func.count(TermOccurrence.id),
+            ).join(Speech).filter(
+                Speech.speech_type == event_type,
+            ).group_by(TermOccurrence.term_id).all()
+            data['event_occs_by_term'] = {tid: cnt for tid, cnt in event_occs}
+        else:
+            data['event_type_total'] = 0
+            data['event_occs_by_term'] = {}
+
+        # ── Confidence: occurrence counts + latest date per term ─────
+        occ_counts = session.query(
+            TermOccurrence.term_id,
+            func.count(TermOccurrence.id),
+        ).group_by(TermOccurrence.term_id).all()
+        data['occ_counts'] = {tid: cnt for tid, cnt in occ_counts}
+
+        latest_dates = session.query(
+            TermOccurrence.term_id,
+            func.max(Speech.date),
+        ).join(Speech).group_by(TermOccurrence.term_id).all()
+        data['latest_date_by_term'] = {tid: dt for tid, dt in latest_dates}
+
+        logger.debug(f"Prefetched prediction data: {len(occs_by_term)} terms with occurrences")
+        return data
+
     def _predict_term(self, session, term: Term,
-                      event: Optional[dict] = None) -> dict:
+                      event: Optional[dict] = None,
+                      prefetched: Optional[dict] = None) -> dict:
         """Generate a combined prediction for a single term."""
         scores = {}
 
         # 1. Frequency-based probability
-        scores['frequency'] = self._frequency_score(session, term)
+        scores['frequency'] = self._frequency_score(session, term, prefetched)
 
         # 2. Temporal patterns (1B: gated on data quality)
-        scores['temporal'] = self._temporal_score(session, term, event)
+        scores['temporal'] = self._temporal_score(session, term, event, prefetched)
 
         # 3. Trend momentum
-        scores['trend'] = self._trend_score(session, term)
+        scores['trend'] = self._trend_score(session, term, prefetched)
 
         # 4. Event-type correlation
         scores['event_correlation'] = self._event_correlation_score(
-            session, term, event
+            session, term, event, prefetched
         )
 
         # 5. Monte Carlo prediction (local Markov chain or Colab LLM)
@@ -179,7 +299,7 @@ class TermPredictor:
         probability = max(0.0, min(1.0, probability))
 
         # Confidence based on data availability (1D: fixed threshold)
-        confidence = self._calculate_confidence(session, term)
+        confidence = self._calculate_confidence(session, term, prefetched)
 
         return {
             'term_id': term.id,
@@ -190,7 +310,8 @@ class TermPredictor:
             'model_name': 'ensemble_v2',
         }
 
-    def _frequency_score(self, session, term: Term) -> float:
+    def _frequency_score(self, session, term: Term,
+                         prefetched: Optional[dict] = None) -> float:
         """Score based on how often the term appears across speeches.
 
         Uses recency-weighted frequency: recent mentions count more than
@@ -200,49 +321,47 @@ class TermPredictor:
         import math
         now = datetime.utcnow()
 
-        # Get all occurrences with speech dates
-        occs = session.query(TermOccurrence, Speech).join(Speech).filter(
-            TermOccurrence.term_id == term.id,
-            Speech.date.isnot(None),
-        ).all()
+        occs = prefetched['occs_by_term'].get(term.id, []) if prefetched else None
+        if occs is None:
+            # Fallback to per-term query if no prefetched data
+            rows = session.query(TermOccurrence, Speech).join(Speech).filter(
+                TermOccurrence.term_id == term.id,
+                Speech.date.isnot(None),
+            ).all()
+            occs = [{'count': o.count, 'date': s.date} for o, s in rows]
 
         if not occs:
             return 0.1  # low score when never seen
 
-        total_speeches = session.query(Speech).filter(
-            Speech.is_processed == True
-        ).count()
-
+        total_speeches = prefetched['total_speeches'] if prefetched else (
+            session.query(Speech).filter(Speech.is_processed == True).count()
+        )
         if total_speeches == 0:
             return 0.5
 
-        # Recency-weighted count: each occurrence is weighted by
-        # exp(-days_ago / half_life).  Half-life of 60 days means
-        # a mention 60 days ago counts half as much as one today.
         HALF_LIFE_DAYS = 60
         decay = math.log(2) / HALF_LIFE_DAYS
 
         weighted_count = 0.0
-        raw_count = 0
-        for occ, speech in occs:
-            days_ago = max(0, (now - speech.date).days)
+        for occ in occs:
+            days_ago = max(0, (now - occ['date']).days)
             weight = math.exp(-decay * days_ago)
-            weighted_count += occ.count * weight
-            raw_count += occ.count
+            weighted_count += occ['count'] * weight
 
-        # Normalize: compare to what a term mentioned in every recent
-        # speech would score
-        recent_speeches = session.query(Speech).filter(
-            Speech.is_processed == True,
-            Speech.date >= now - timedelta(days=90),
-        ).count()
+        recent_speeches = prefetched['recent_speeches_90d'] if prefetched else (
+            session.query(Speech).filter(
+                Speech.is_processed == True,
+                Speech.date >= now - timedelta(days=90),
+            ).count()
+        )
         max_expected = max(1, recent_speeches)
 
         score = weighted_count / max_expected
         return min(1.0, score)
 
     def _temporal_score(self, session, term: Term,
-                        event: Optional[dict] = None) -> Optional[float]:
+                        event: Optional[dict] = None,
+                        prefetched: Optional[dict] = None) -> Optional[float]:
         """Score based on temporal patterns (day of week, time of year).
 
         1B: Gate out poisoned data — if >30% of speeches have dates clustering
@@ -253,32 +372,34 @@ class TermPredictor:
         current_dow = now.weekday()
         current_month = now.month
 
-        # 1B: Check for date poisoning — detect any single date with suspiciously
-        # many speeches (from batch scrapes that defaulted to datetime.now())
-        total_speeches = session.query(Speech).filter(
-            Speech.date.isnot(None)
-        ).count()
-
-        if total_speeches > 0:
-            from sqlalchemy import func as sa_func
-            # Find the most common date (by day)
-            most_common = session.query(
-                sa_func.date(Speech.date),
-                sa_func.count(Speech.id),
-            ).filter(
-                Speech.date.isnot(None)
-            ).group_by(
-                sa_func.date(Speech.date)
-            ).order_by(sa_func.count(Speech.id).desc()).first()
-
-            if most_common and most_common[1] / total_speeches > 0.30:
-                # A single date has >30% of all speeches — dates are poisoned
+        # 1B: Check for date poisoning (prefetched or computed once)
+        if prefetched:
+            if prefetched['dates_poisoned']:
                 return None
+        else:
+            total_speeches = session.query(Speech).filter(
+                Speech.date.isnot(None)
+            ).count()
+            if total_speeches > 0:
+                from sqlalchemy import func as sa_func
+                most_common = session.query(
+                    sa_func.date(Speech.date),
+                    sa_func.count(Speech.id),
+                ).filter(
+                    Speech.date.isnot(None)
+                ).group_by(
+                    sa_func.date(Speech.date)
+                ).order_by(sa_func.count(Speech.id).desc()).first()
+                if most_common and most_common[1] / total_speeches > 0.30:
+                    return None
 
         # Get historical occurrences with speech dates
-        occs = session.query(TermOccurrence, Speech).join(Speech).filter(
-            TermOccurrence.term_id == term.id
-        ).all()
+        occs = prefetched['occs_by_term'].get(term.id, []) if prefetched else None
+        if occs is None:
+            rows = session.query(TermOccurrence, Speech).join(Speech).filter(
+                TermOccurrence.term_id == term.id
+            ).all()
+            occs = [{'count': o.count, 'date': s.date} for o, s in rows]
 
         if not occs:
             return 0.5
@@ -286,10 +407,10 @@ class TermPredictor:
         # Day-of-week analysis
         dow_counts = [0] * 7
         total = 0
-        for occ, speech in occs:
-            if speech.date:
-                dow_counts[speech.date.weekday()] += occ.count
-                total += occ.count
+        for occ in occs:
+            if occ['date']:
+                dow_counts[occ['date'].weekday()] += occ['count']
+                total += occ['count']
 
         if total > 0:
             dow_score = dow_counts[current_dow] / max(1, total) * 7
@@ -298,9 +419,9 @@ class TermPredictor:
 
         # Month analysis (seasonal patterns)
         month_counts = [0] * 12
-        for occ, speech in occs:
-            if speech.date:
-                month_counts[speech.date.month - 1] += occ.count
+        for occ in occs:
+            if occ['date']:
+                month_counts[occ['date'].month - 1] += occ['count']
 
         if total > 0:
             month_score = month_counts[current_month - 1] / max(1, total) * 12
@@ -309,7 +430,8 @@ class TermPredictor:
 
         return min(1.0, (dow_score + month_score) / 2)
 
-    def _trend_score(self, session, term: Term) -> float:
+    def _trend_score(self, session, term: Term,
+                     prefetched: Optional[dict] = None) -> float:
         """Score based on recent trend direction and weekly acceleration.
 
         Combines two signals:
@@ -322,39 +444,39 @@ class TermPredictor:
         # Base: sigmoid mapping of 30-day trend
         base_score = 1 / (1 + math.exp(-trend))
 
-        # Weekly acceleration: if we have occurrence data, check week-over-week
+        # Weekly acceleration: use prefetched data or fall back to per-term query
         try:
-            now = datetime.utcnow()
-            # This week (last 7 days)
-            this_week = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
-                TermOccurrence.term_id == term.id,
-                Speech.date >= now - timedelta(days=7),
-            ).scalar() or 0
-
-            # Past 4 weeks average (days 7-35)
-            past_4w = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
-                TermOccurrence.term_id == term.id,
-                Speech.date >= now - timedelta(days=35),
-                Speech.date < now - timedelta(days=7),
-            ).scalar() or 0
+            if prefetched:
+                this_week = prefetched['trend_this_week'].get(term.id, 0)
+                past_4w = prefetched['trend_past_4w'].get(term.id, 0)
+            else:
+                now = datetime.utcnow()
+                this_week = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                    TermOccurrence.term_id == term.id,
+                    Speech.date >= now - timedelta(days=7),
+                ).scalar() or 0
+                past_4w = session.query(func.sum(TermOccurrence.count)).join(Speech).filter(
+                    TermOccurrence.term_id == term.id,
+                    Speech.date >= now - timedelta(days=35),
+                    Speech.date < now - timedelta(days=7),
+                ).scalar() or 0
 
             weekly_avg = past_4w / 4.0 if past_4w > 0 else 0
 
             if weekly_avg > 0:
-                # Acceleration: how much above/below the weekly average
                 accel = (this_week - weekly_avg) / weekly_avg
-                accel_score = 1 / (1 + math.exp(-accel * 2))  # steeper sigmoid
+                accel_score = 1 / (1 + math.exp(-accel * 2))
             else:
                 accel_score = 0.6 if this_week > 0 else 0.4
 
-            # Blend: 60% base trend, 40% weekly acceleration
             return base_score * 0.6 + accel_score * 0.4
 
         except Exception:
             return base_score
 
     def _event_correlation_score(self, session, term: Term,
-                                  event: Optional[dict] = None) -> float:
+                                  event: Optional[dict] = None,
+                                  prefetched: Optional[dict] = None) -> float:
         """Score based on correlation between term and event type."""
         if not event:
             return 0.5
@@ -363,15 +485,17 @@ class TermPredictor:
         if not event_type:
             return 0.5
 
-        # Check historical: how often does this term appear in this event type?
-        matching_speeches = session.query(TermOccurrence).join(Speech).filter(
-            TermOccurrence.term_id == term.id,
-            Speech.speech_type == event_type
-        ).count()
-
-        total_event_type = session.query(Speech).filter_by(
-            speech_type=event_type, is_processed=True
-        ).count()
+        if prefetched:
+            total_event_type = prefetched['event_type_total']
+            matching_speeches = prefetched['event_occs_by_term'].get(term.id, 0)
+        else:
+            matching_speeches = session.query(TermOccurrence).join(Speech).filter(
+                TermOccurrence.term_id == term.id,
+                Speech.speech_type == event_type
+            ).count()
+            total_event_type = session.query(Speech).filter_by(
+                speech_type=event_type, is_processed=True
+            ).count()
 
         if total_event_type == 0:
             return 0.5
@@ -407,24 +531,26 @@ class TermPredictor:
 
         return None
 
-    def _calculate_confidence(self, session, term: Term) -> float:
+    def _calculate_confidence(self, session, term: Term,
+                              prefetched: Optional[dict] = None) -> float:
         """Calculate confidence level based on data quality and quantity.
 
         1D fix: lowered threshold from 50 to 20 occurrences for max data confidence.
         Most terms have <20 occurrences, so the old threshold capped confidence
         at 0.3-0.4 and filtered out valid trades.
         """
-        occurrence_count = session.query(TermOccurrence).filter_by(
-            term_id=term.id
-        ).count()
+        if prefetched:
+            occurrence_count = prefetched['occ_counts'].get(term.id, 0)
+            latest = prefetched['latest_date_by_term'].get(term.id)
+        else:
+            occurrence_count = session.query(TermOccurrence).filter_by(
+                term_id=term.id
+            ).count()
+            latest = session.query(func.max(Speech.date)).join(TermOccurrence).filter(
+                TermOccurrence.term_id == term.id
+            ).scalar()
 
-        # More data points -> higher confidence (1D: /20 instead of /50)
         data_confidence = min(1.0, occurrence_count / 20)
-
-        # Recency: more recent data -> higher confidence
-        latest = session.query(func.max(Speech.date)).join(TermOccurrence).filter(
-            TermOccurrence.term_id == term.id
-        ).scalar()
 
         if latest:
             days_ago = (datetime.utcnow() - latest).days

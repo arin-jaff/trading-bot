@@ -838,25 +838,17 @@ tr:hover{background:rgba(212,175,55,.06)}
     <div class="card">
       <h3 style="margin-bottom:12px">Active Market Prices</h3>
       <div style="position:relative;height:300px"><canvas id="activeMarketPricesChart"></canvas></div>
-      <template x-if="markets.filter(m=>(m.status==='active'||m.status==='open')&&m.yes_price!=null&&m.yes_price>0.01&&m.yes_price<0.99).length===0">
-        <div style="text-align:center;color:var(--dim);padding:20px;font-size:12px">No active markets with tradeable prices</div>
-      </template>
     </div>
     <div class="card">
       <h3 style="margin-bottom:12px">Weekly Resolutions (YES/NO)</h3>
       <div style="position:relative;height:300px"><canvas id="weeklyResolutionChart"></canvas></div>
-      <template x-if="weeklyPayouts.length===0">
-        <div style="text-align:center;color:var(--dim);padding:20px;font-size:12px">No resolved markets yet</div>
-      </template>
     </div>
   </div>
 
-  <template x-if="marketPriceHistory.length>0">
-    <div class="card" style="margin-bottom:24px">
-      <h3 style="margin-bottom:12px">Price Trends (Last 30 Days)</h3>
-      <div style="position:relative;height:300px"><canvas id="marketTrendsChart"></canvas></div>
-    </div>
-  </template>
+  <div class="card" style="margin-bottom:24px">
+    <h3 style="margin-bottom:12px">Price Trends (Last 30 Days)</h3>
+    <div style="position:relative;height:300px"><canvas id="marketTrendsChart"></canvas></div>
+  </div>
 
   <h2>Active Markets</h2>
   <table>
@@ -1446,7 +1438,7 @@ function app(){return{
     this.markets=Array.isArray(d)?d:[];
     this.weeklyPayouts=Array.isArray(wp)?wp:[];
     this.marketPriceHistory=Array.isArray(ph)?ph:[];
-    this.$nextTick(()=>{this.renderMarketCharts()});
+    setTimeout(()=>{this.renderMarketCharts()},100);
   },
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
 

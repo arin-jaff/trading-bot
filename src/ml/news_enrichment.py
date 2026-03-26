@@ -29,6 +29,7 @@ class NewsEnricher:
     def __init__(self):
         self._cache: Dict[str, float] = {}
         self._cache_timestamp: float = 0.0
+        self._quota_backoff_until: float = 0.0  # don't retry until this time
         self._api_key: str = os.getenv('GEMINI_API_KEY', '')
         self._load_disk_cache()
 
@@ -57,6 +58,9 @@ class NewsEnricher:
             logger.warning(f"Failed to save news cache to disk: {e}")
 
     def _is_cache_valid(self) -> bool:
+        # If in quota backoff, treat cache as valid to stop retrying
+        if time.time() < self._quota_backoff_until:
+            return True
         if not self._cache:
             return False
         return (time.time() - self._cache_timestamp) < self.CACHE_TTL_SECONDS
@@ -119,7 +123,8 @@ class NewsEnricher:
         except Exception as e:
             error_str = str(e)
             if '429' in error_str or 'quota' in error_str.lower():
-                logger.warning("Gemini quota hit - will retry next cycle. Using existing cache.")
+                self._quota_backoff_until = time.time() + 3600  # back off 1 hour
+                logger.warning("Gemini quota hit - backing off 1 hour. Using existing cache.")
             else:
                 logger.warning(f"Gemini API call failed: {e}")
             return self._cache

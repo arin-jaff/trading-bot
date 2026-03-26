@@ -224,6 +224,10 @@ tr:hover{background:rgba(212,175,55,.06)}
 .ft-param .param-val{font-size:14px;font-weight:700;color:var(--white)}
 .ft-param input,.ft-param select{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:4px 6px;border-radius:4px;font-size:12px;text-align:center}
 .ft-param input:focus,.ft-param select:focus{border-color:var(--gold);outline:none}
+
+/* Market pills */
+.market-pill{background:linear-gradient(145deg,rgba(0,34,68,.9),rgba(0,51,102,.9));border:1px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;transition:all .25s;min-width:140px}
+.market-pill:hover{border-color:var(--gold-dark);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -833,51 +837,76 @@ tr:hover{background:rgba(212,175,55,.06)}
   <h1>Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
 
-  <!-- Market Charts -->
-  <div class="grid g2" style="margin-bottom:24px">
-    <div class="card">
-      <h3 style="margin-bottom:12px">Active Market Prices</h3>
-      <div style="position:relative;height:300px"><canvas id="activeMarketPricesChart"></canvas></div>
-    </div>
-    <div class="card">
-      <h3 style="margin-bottom:12px">Weekly Resolutions (YES/NO)</h3>
-      <div style="position:relative;height:300px"><canvas id="weeklyResolutionChart"></canvas></div>
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:24px">
-    <h3 style="margin-bottom:12px">Price Trends (Last 30 Days)</h3>
-    <div style="position:relative;height:300px"><canvas id="marketTrendsChart"></canvas></div>
-  </div>
-
+  <!-- Active Markets — clickable cards -->
   <h2>Active Markets</h2>
-  <table>
-    <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Status</th><th>Closes</th></tr></thead>
-    <tbody>
-      <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="m.ticker">
-        <tr :style="m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:0.5':''">
-          <td style="color:var(--gold);font-size:11px" x-text="m.ticker"></td>
-          <td x-text="(m.terms||[]).join(', ')"></td>
-          <td :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--text)')" x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></td>
-          <td x-text="m.volume||0"></td>
-          <td><span class="badge" :class="m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':'active'" x-text="m.display_status||m.status"></span></td>
-          <td style="font-size:10px" x-text="m.close_time?m.close_time.substring(5,16):'-'"></td>
-        </tr>
-      </template>
-    </tbody>
-  </table>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+    <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="'mc-'+m.ticker">
+      <div class="market-pill" @click="selectedMarket=(selectedMarket===m.ticker?null:m.ticker);$nextTick(()=>renderSelectedMarketChart())"
+        :style="(m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:.5;':'')+(selectedMarket===m.ticker?'border-color:var(--gold);background:rgba(255,215,0,.08);box-shadow:0 0 12px rgba(255,215,0,.15)':'')">
+        <div style="font-size:14px;font-weight:700;color:var(--white)" x-text="(m.terms&&m.terms.length>0)?m.terms.join(', '):m.ticker"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="font-size:20px;font-weight:900;font-family:'Cinzel',serif"
+            :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--blue)')"
+            x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></span>
+          <span class="badge" :class="m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':'active'" x-text="m.display_status||m.status" style="font-size:8px"></span>
+        </div>
+        <div style="font-size:9px;color:var(--dim);margin-top:4px">Vol: <span x-text="m.volume||0"></span> · Closes <span x-text="m.close_time?m.close_time.substring(5,10):'-'"></span></div>
+      </div>
+    </template>
+  </div>
   <template x-if="markets.filter(m=>m.status==='active'||m.status==='open').length===0">
     <div style="text-align:center;color:var(--dim);padding:16px">No active markets</div>
   </template>
 
-  <h2 style="margin-top:28px">Resolved Markets</h2>
+  <!-- Expanded detail panel for selected market -->
+  <template x-if="selectedMarket">
+    <div class="card" style="margin-bottom:24px;border-color:var(--gold);animation:fadeIn .3s ease-out">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div>
+          <h3 style="margin:0;color:var(--gold)" x-text="selectedTermLabel()"></h3>
+          <div style="font-size:11px;color:var(--dim)" x-text="selectedMarket"></div>
+        </div>
+        <button class="btn" style="font-size:10px;padding:6px 14px" @click="selectedMarket=null">Close</button>
+      </div>
+
+      <!-- Resolution history dot timeline -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Weekly Resolution History</div>
+        <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
+          <template x-for="w in getTermHistory()" :key="w.week">
+            <div class="tip" :data-tip="w.week+': '+(w.result==='yes'?'YES — Said it':'NO — Did not say it')">
+              <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;cursor:default;transition:all .2s;border:2px solid"
+                :style="w.result==='yes'?'background:rgba(46,204,113,.2);border-color:var(--green);color:var(--green)':'background:rgba(191,10,48,.2);border-color:var(--red);color:var(--red)'"
+                x-text="w.result==='yes'?'Y':'N'"></div>
+            </div>
+          </template>
+        </div>
+        <template x-if="getTermHistory().length===0">
+          <div style="font-size:11px;color:var(--dim);padding:8px 0">No resolution history for this term yet.</div>
+        </template>
+        <template x-if="getTermHistory().length>0">
+          <div style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--dim)">
+            <span>YES rate: <strong :style="'color:var(--green)'" x-text="Math.round(getTermHistory().filter(w=>w.result==='yes').length/getTermHistory().length*100)+'%'"></strong></span>
+            <span x-text="getTermHistory().filter(w=>w.result==='yes').length+'/'+getTermHistory().length+' weeks'"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- Price history chart -->
+      <div style="position:relative;height:200px"><canvas id="selectedMarketChart"></canvas></div>
+    </div>
+  </template>
+
+  <div class="stars-divider">* * * * *</div>
+
+  <!-- Resolved Markets (compact) -->
+  <h2>Resolved Markets</h2>
   <table>
-    <thead><tr><th>Ticker</th><th>Term(s)</th><th>YES</th><th>Volume</th><th>Result</th><th>Closed</th></tr></thead>
+    <thead><tr><th>Term(s)</th><th>Last Price</th><th>Volume</th><th>Result</th><th>Closed</th></tr></thead>
     <tbody>
       <template x-for="m in markets.filter(m=>m.status!=='active'&&m.status!=='open')" :key="m.ticker">
         <tr style="opacity:0.7">
-          <td style="color:var(--dim);font-size:11px" x-text="m.ticker"></td>
-          <td x-text="(m.terms||[]).join(', ')"></td>
+          <td x-text="(m.terms||[]).join(', ')||m.ticker"></td>
           <td :style="'color:'+(m.display_status==='Yes'?'var(--green)':m.display_status==='No'?'var(--red)':'var(--dim)')" x-text="m.yes_price!=null?(m.yes_price*100).toFixed(0)+'c':'-'"></td>
           <td x-text="m.volume||0"></td>
           <td><span class="badge" :class="m.display_status==='Yes'?'yes':m.display_status==='No'?'no':'closed'" x-text="m.display_status||m.status"></span></td>
@@ -1297,7 +1326,7 @@ function app(){return{
   ],
   health:false, pipelineMode:'',
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
-  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], _marketCharts:{},
+  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], _marketCharts:{}, selectedMarket:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
   versions:[], hw:null, pipelineLog:[], accuracy:null, _accChart:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
@@ -1438,7 +1467,37 @@ function app(){return{
     this.markets=Array.isArray(d)?d:[];
     this.weeklyPayouts=Array.isArray(wp)?wp:[];
     this.marketPriceHistory=Array.isArray(ph)?ph:[];
-    setTimeout(()=>{this.renderMarketCharts()},100);
+    // If a market is selected, refresh its detail chart
+    if(this.selectedMarket)setTimeout(()=>this.renderSelectedMarketChart(),50);
+  },
+  selectedTermLabel(){
+    const m=this.markets.find(x=>x.ticker===this.selectedMarket);
+    return m?(m.terms&&m.terms.length>0?m.terms.join(', '):m.ticker):'';
+  },
+  getTermHistory(){
+    // Build resolution history for the selected market's terms across all weeks
+    const m=this.markets.find(x=>x.ticker===this.selectedMarket);
+    if(!m||!m.terms||!m.terms.length)return[];
+    const terms=m.terms.map(t=>t.toLowerCase());
+    const sorted=[...this.weeklyPayouts].sort((a,b)=>a.week.localeCompare(b.week));
+    const history=[];
+    sorted.forEach(w=>{
+      const yesHit=(w.yes_terms||[]).some(t=>terms.includes(t.toLowerCase()));
+      const noHit=(w.no_terms||[]).some(t=>terms.includes(t.toLowerCase()));
+      if(yesHit)history.push({week:w.week,result:'yes'});
+      else if(noHit)history.push({week:w.week,result:'no'});
+    });
+    return history;
+  },
+  renderSelectedMarketChart(){
+    const c=document.getElementById('selectedMarketChart');if(!c)return;
+    if(this._marketCharts.selected)this._marketCharts.selected.destroy();
+    const ph=this.marketPriceHistory.find(m=>m.ticker===this.selectedMarket);
+    if(!ph||!ph.points||ph.points.length===0)return;
+    const pts=ph.points;
+    const labels=pts.map(p=>{const d=new Date(p.timestamp);return(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':00'});
+    const data=pts.map(p=>p.yes_price!=null?+(p.yes_price*100).toFixed(1):null);
+    this._marketCharts.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pts.length>40?0:2,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
   },
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
 
@@ -1468,52 +1527,6 @@ function app(){return{
 
   async togglePaper(){await this.apiPut('/trading/config',{paper_mode:!this.botCfg.paper_mode});this.botCfg=await this.api('/trading/config')||this.botCfg},
   async toggleAutoTrade(){await this.apiPut('/trading/config',{auto_trade:!this.botCfg.auto_trade});this.botCfg=await this.api('/trading/config')||this.botCfg},
-
-  renderMarketCharts(){
-    // 1. Active market price trends
-    const tc=document.getElementById('marketTrendsChart');
-    if(tc&&this.marketPriceHistory.length>0){
-      if(this._marketCharts.trends)this._marketCharts.trends.destroy();
-      const colors=['#FFD700','#3B82F6','#2ecc71','#e74c3c','#9b59b6','#f39c12','#1abc9c','#e67e22','#00bcd4','#ff6b6b'];
-      // Build unified time labels from all market snapshots
-      const allTimes=new Set();
-      this.marketPriceHistory.forEach(m=>(m.points||[]).forEach(p=>{if(p.timestamp)allTimes.add(p.timestamp.substring(0,13))}));
-      const sortedTimes=[...allTimes].sort();
-      // Downsample if too many points
-      const maxLabels=60;
-      const step=Math.max(1,Math.floor(sortedTimes.length/maxLabels));
-      const labels=sortedTimes.filter((_,i)=>i%step===0);
-      const labelSet=new Set(labels);
-      const datasets=this.marketPriceHistory.map((m,i)=>{
-        const pts=m.points||[];
-        const timeMap={};pts.forEach(p=>{const k=p.timestamp?.substring(0,13);if(k)timeMap[k]=p.yes_price!=null?+(p.yes_price*100).toFixed(1):null});
-        return{label:m.ticker,data:labels.map(t=>timeMap[t]??null),borderColor:colors[i%colors.length],backgroundColor:'transparent',borderWidth:2,tension:.3,pointRadius:0,spanGaps:true};
-      });
-      this._marketCharts.trends=new Chart(tc,{type:'line',data:{labels:labels.map(t=>{const d=new Date(t);return(d.getMonth()+1)+'/'+d.getDate()}),datasets},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}},position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:12},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES Price (cents)',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
-    }
-    // 2. Weekly resolution chart (yes/no stacked bar)
-    const wc=document.getElementById('weeklyResolutionChart');
-    if(wc&&this.weeklyPayouts.length>0){
-      if(this._marketCharts.weekly)this._marketCharts.weekly.destroy();
-      const sorted=[...this.weeklyPayouts].sort((a,b)=>a.week.localeCompare(b.week));
-      const labels=sorted.map(w=>w.week.substring(5));
-      this._marketCharts.weekly=new Chart(wc,{type:'bar',data:{labels,datasets:[
-        {label:'YES',data:sorted.map(w=>w.yes_count),backgroundColor:'rgba(46,204,113,.7)',borderColor:'#2ecc71',borderWidth:1},
-        {label:'NO',data:sorted.map(w=>w.no_count),backgroundColor:'rgba(191,10,48,.7)',borderColor:'#BF0A30',borderWidth:1},
-      ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}}}},scales:{x:{stacked:true,ticks:{color:'#4a5a70',font:{size:9}},grid:{color:'rgba(42,74,110,.3)'}},y:{stacked:true,title:{display:true,text:'Markets Resolved',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},stepSize:1},grid:{color:'rgba(42,74,110,.3)'}}}}});
-    }
-    // 3. Current active market prices (horizontal bar)
-    const ac=document.getElementById('activeMarketPricesChart');
-    if(ac){
-      if(this._marketCharts.active)this._marketCharts.active.destroy();
-      const active=this.markets.filter(m=>(m.status==='active'||m.status==='open')&&m.yes_price!=null&&m.yes_price>0.01&&m.yes_price<0.99).sort((a,b)=>(b.yes_price||0)-(a.yes_price||0));
-      if(active.length>0){
-        const labels=active.map(m=>(m.terms||[]).join(', ')||m.ticker);
-        const data=active.map(m=>+(m.yes_price*100).toFixed(0));
-        this._marketCharts.active=new Chart(ac,{type:'bar',data:{labels,datasets:[{label:'YES Price',data,backgroundColor:data.map(v=>v>=50?'rgba(46,204,113,.6)':'rgba(59,130,246,.6)'),borderColor:data.map(v=>v>=50?'#2ecc71':'#3B82F6'),borderWidth:1}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.x+'c'}}},scales:{x:{title:{display:true,text:'YES Price (cents)',color:'var(--dim)'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100},y:{ticks:{color:'#8a9bb5',font:{size:10}},grid:{display:false}}}}});
-      }
-    }
-  },
 
   renderAccuracyChart(){
     if(!this.accuracy||!this.accuracy.per_version||this.accuracy.per_version.length<2)return;

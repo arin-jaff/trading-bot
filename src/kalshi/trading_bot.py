@@ -376,12 +376,20 @@ class TradingBot:
         """Log loss alert (email notifications limited to daily digest only)."""
         logger.warning(f"Loss alert: {reason}, P&L: ${pnl:+.2f}")
 
+    # Max sell orders per manage_positions() cycle to prevent burst rate-limiting
+    MAX_SELLS_PER_CYCLE = 5
+    SELL_DELAY_SECONDS = 1.0  # delay between consecutive sell orders
+
     def manage_positions(self) -> list[dict]:
         """Active position management: profit-taking and stop-loss (3B).
 
         Rules:
         - Take profit: if unrealized gain > 2x fee cost (>4c), sell 50%
         - Stop loss: if position down >15c from entry, sell to limit losses
+
+        Sell orders are rate-limited (1s apart, max 5 per cycle) to avoid
+        triggering Kalshi API rate limits during mass stop-loss events.
+        Stop-losses are prioritized over profit-taking.
         """
         actions = []
         try:
@@ -429,8 +437,6 @@ class TradingBot:
                         'current_price': current_price,
                         'unrealized': round(unrealized, 4),
                     })
-                    if self.auto_trade:
-                        self._execute_sell(ticker, last_trade.side, sell_qty, current_price)
 
                 # Stop loss: sell all if down >15c
                 elif unrealized < -0.15:
@@ -443,11 +449,31 @@ class TradingBot:
                         'current_price': current_price,
                         'unrealized': round(unrealized, 4),
                     })
-                    if self.auto_trade:
-                        self._execute_sell(ticker, last_trade.side, abs(qty), current_price)
 
         if actions:
             logger.info(f"Position management: {len(actions)} actions")
+
+        # Execute sells: stop-losses first, rate-limited, capped per cycle
+        if self.auto_trade:
+            import time as _time
+            # Prioritize stop-losses over profit-taking
+            actions.sort(key=lambda a: (0 if a['type'] == 'stop_loss' else 1, a['unrealized']))
+            executed = 0
+            for action in actions:
+                if executed >= self.MAX_SELLS_PER_CYCLE:
+                    logger.warning(
+                        f"Hit sell cap ({self.MAX_SELLS_PER_CYCLE}/cycle), "
+                        f"deferring {len(actions) - executed} remaining actions to next cycle"
+                    )
+                    break
+                if executed > 0:
+                    _time.sleep(self.SELL_DELAY_SECONDS)
+                self._execute_sell(
+                    action['ticker'], action['side'],
+                    action['quantity'], action['current_price'],
+                )
+                executed += 1
+
         return actions
 
     def _execute_sell(self, ticker: str, side: str, quantity: int, price: float):

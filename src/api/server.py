@@ -422,6 +422,12 @@ def get_portfolio():
     return trading_bot.get_portfolio_summary()
 
 
+@app.get("/api/trading/positions")
+def get_trading_positions():
+    """Get currently held positions with P&L."""
+    return trading_bot.get_positions_detail()
+
+
 @app.get("/api/trading/config")
 def get_bot_config():
     """Get trading bot configuration."""
@@ -437,6 +443,7 @@ class BotConfigUpdate(BaseModel):
     auto_trade: Optional[bool] = None
     paper_mode: Optional[bool] = None
     kelly_fraction: Optional[float] = None
+    yes_only: Optional[bool] = None
 
 
 @app.put("/api/trading/config")

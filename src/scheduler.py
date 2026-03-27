@@ -235,23 +235,31 @@ def _generate_predictions(predictor: TermPredictor):
 def _check_trading(bot: TradingBot):
     try:
         if bot.check_daily_loss_limit():
-            logger.warning("Daily loss limit reached, skipping trading check")
             return
 
         suggestions = bot.generate_suggestions()
-        if suggestions and bot.auto_trade:
-            from .alerts import alert_manager
-            for s in suggestions[:3]:  # max 3 auto-trades per cycle
-                result = bot.execute_trade(s, require_confirmation=False)
-                if result and result.get('status') in ('placed', 'paper_trade'):
-                    alert_manager.add_alert(
-                        'trade_signal',
-                        f"Trade: {result.get('side', '?').upper()} {result.get('ticker', '?')}",
-                        f"{result.get('side', '?').upper()} {result.get('quantity', 0)}x "
-                        f"{result.get('ticker', '?')} @ {result.get('price_cents', 0)}c",
-                        severity='warning',
-                        data=result,
-                    )
+        if not suggestions or not bot.auto_trade:
+            return
+
+        from .alerts import alert_manager
+        traded = 0
+        for s in suggestions:
+            if traded >= bot.MAX_TRADES_PER_CYCLE:
+                break
+            result = bot.execute_trade(s, require_confirmation=False)
+            if result and result.get('status') in ('placed', 'paper_trade'):
+                traded += 1
+                alert_manager.add_alert(
+                    'trade_signal',
+                    f"Trade: {result.get('side', '?').upper()} {result.get('ticker', '?')}",
+                    f"{result.get('side', '?').upper()} {result.get('quantity', 0)}x "
+                    f"{result.get('ticker', '?')} @ {result.get('price_cents', 0)}c",
+                    severity='warning',
+                    data=result,
+                )
+
+        if traded:
+            logger.info(f"Trading cycle: placed {traded} orders")
     except Exception as e:
         logger.error(f"Scheduled trading check failed: {e}")
 

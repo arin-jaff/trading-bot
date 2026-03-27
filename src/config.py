@@ -40,14 +40,14 @@ class AppConfig(BaseModel):
     monte_carlo_simulations: int = int(os.getenv('MONTE_CARLO_SIMULATIONS', '2000'))
     retrain_interval_hours: int = int(os.getenv('RETRAIN_INTERVAL_HOURS', '6'))
 
-    # Fine-tuning (runs on Pi nightly — Pythia-160M with LoRA)
+    # Fine-tuning (runs on Pi nightly — distilgpt2 82M with LoRA, ~2-3h on Pi 4)
     fine_tune_enabled: bool = os.getenv('FINE_TUNE_ENABLED', 'true').lower() == 'true'
-    fine_tune_model: str = os.getenv('FINE_TUNE_MODEL', 'EleutherAI/pythia-160m')
+    fine_tune_model: str = os.getenv('FINE_TUNE_MODEL', 'distilgpt2')
     fine_tune_lora_rank: int = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
-    fine_tune_epochs: int = int(os.getenv('FINE_TUNE_EPOCHS', '3'))
-    fine_tune_max_length: int = int(os.getenv('FINE_TUNE_MAX_LENGTH', '512'))
+    fine_tune_epochs: int = int(os.getenv('FINE_TUNE_EPOCHS', '1'))
+    fine_tune_max_length: int = int(os.getenv('FINE_TUNE_MAX_LENGTH', '256'))
     fine_tune_batch_size: int = int(os.getenv('FINE_TUNE_BATCH_SIZE', '1'))
-    fine_tune_grad_accum: int = int(os.getenv('FINE_TUNE_GRAD_ACCUM', '8'))
+    fine_tune_grad_accum: int = int(os.getenv('FINE_TUNE_GRAD_ACCUM', '16'))
     fine_tune_learning_rate: float = float(os.getenv('FINE_TUNE_LR', '5e-4'))
     fine_tune_mc_sims: int = int(os.getenv('FINE_TUNE_MC_SIMS', '200'))
     fine_tune_hour: int = int(os.getenv('FINE_TUNE_HOUR', '2'))  # 2 AM ET nightly

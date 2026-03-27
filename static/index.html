@@ -229,7 +229,7 @@ tr:hover{background:rgba(212,175,55,.06)}
 .market-pill{background:linear-gradient(145deg,rgba(0,34,68,.9),rgba(0,51,102,.9));border:1px solid var(--border);border-radius:12px;padding:14px 18px;cursor:pointer;transition:all .25s;min-width:140px}
 .market-pill:hover{border-color:var(--gold-dark);transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.4)}
 
-/* Loading overlay */
+/* Loading overlay — first visit */
 .tab-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;text-align:center;animation:fadeIn .3s ease-out}
 .tab-loading .loading-seal{width:80px;height:80px;opacity:.15;animation:spin 20s linear infinite}
 .tab-loading .loading-bar{width:200px;height:3px;background:var(--bg3);border-radius:3px;margin:24px 0 20px;overflow:hidden;position:relative}
@@ -237,6 +237,10 @@ tr:hover{background:rgba(212,175,55,.06)}
 @keyframes loadSlide{0%{left:-50%}100%{left:100%}}
 .tab-loading .loading-quip{color:var(--gold-mid);font-size:14px;font-style:italic;max-width:400px;line-height:1.6}
 .tab-loading .loading-sub{color:var(--dim);font-size:11px;margin-top:12px;letter-spacing:1px;text-transform:uppercase}
+/* Thin top refresh bar — shows on every data fetch including background refreshes */
+.refresh-bar{position:relative;width:100%;height:3px;background:transparent;overflow:hidden;margin-bottom:0;border-radius:2px;transition:opacity .3s}
+.refresh-bar.active{background:var(--bg3)}
+.refresh-bar.active::after{content:'';position:absolute;top:0;left:-40%;width:40%;height:100%;background:linear-gradient(90deg,transparent,var(--gold),var(--gold-mid),transparent);animation:loadSlide 1.2s ease-in-out infinite;border-radius:2px}
 </style>
 </head>
 <body x-data="app()" x-init="init()">
@@ -489,6 +493,7 @@ tr:hover{background:rgba(212,175,55,.06)}
     <div class="loading-sub">Warming up the Markov chain on the Pi 4...</div>
   </div>
   <div x-show="!isTabLoading()||tab!=='pipeline'">
+  <div class="refresh-bar" :class="{active:_tabRefreshing.pipeline&&_tabFetchedAt.pipeline}"></div>
   <h1>Pipeline Command Center</h1>
   <div class="sub">TrumpGPT training, fine-tuning, and simulation engine</div>
 
@@ -859,6 +864,7 @@ tr:hover{background:rgba(212,175,55,.06)}
     <div class="loading-sub">Syncing Kalshi markets on the Pi 4...</div>
   </div>
   <div x-show="!isTabLoading()||tab!=='markets'">
+  <div class="refresh-bar" :class="{active:_tabRefreshing.markets&&_tabFetchedAt.markets}"></div>
   <h1>Markets</h1>
   <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
 
@@ -866,7 +872,7 @@ tr:hover{background:rgba(212,175,55,.06)}
   <h2>Active Markets</h2>
   <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
     <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="'mc-'+m.ticker">
-      <div class="market-pill" @click="if(selectedMarket===m.ticker){selectedMarket=null}else{selectedMarket=m.ticker;if(_marketCharts.selected){_marketCharts.selected.destroy();_marketCharts.selected=null}$nextTick(()=>renderSelectedMarketChart())}"
+      <div class="market-pill" @click="if(selectedMarket===m.ticker){selectedMarket=null}else{selectedMarket=m.ticker;if(_chartStore.selected){_chartStore.selected.destroy();_chartStore.selected=null}$nextTick(()=>renderSelectedMarketChart())}"
         :style="(m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:.5;':'')+(selectedMarket===m.ticker?'border-color:var(--gold);background:rgba(255,215,0,.08);box-shadow:0 0 12px rgba(255,215,0,.15)':'')">
         <div style="font-size:14px;font-weight:700;color:var(--white)" x-text="(m.terms&&m.terms.length>0)?m.terms.join(', '):m.ticker"></div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
@@ -949,6 +955,7 @@ tr:hover{background:rgba(212,175,55,.06)}
     <div class="loading-sub">Running 7-signal ensemble predictor...</div>
   </div>
   <div x-show="!isTabLoading()||tab!=='predictions'">
+  <div class="refresh-bar" :class="{active:_tabRefreshing.predictions&&_tabFetchedAt.predictions}"></div>
   <h1>Predictions</h1>
   <div class="sub">Model probability vs market price - sorted by edge</div>
   <table>
@@ -1361,6 +1368,11 @@ tr:hover{background:rgba(212,175,55,.06)}
 </div>
 
 <script>
+// Chart.js instances stored OUTSIDE Alpine's reactive proxy.
+// Alpine wraps data in Proxy objects which breaks Chart.js internal
+// instanceof checks and causes charts to silently fail/disappear on re-render.
+const _chartStore = { selected: null, accuracy: null, portfolio: null, ftLoss: null };
+
 function app(){return{
   tab:location.hash.slice(1)||'home',
   tabs:[
@@ -1375,18 +1387,19 @@ function app(){return{
   ],
   health:false, pipelineMode:'',
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
-  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], _marketCharts:{}, selectedMarket:null,
+  suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], selectedMarket:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0},
-  versions:[], hw:null, pipelineLog:[], accuracy:null, _accChart:null,
+  versions:[], hw:null, pipelineLog:[], accuracy:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   piFtStatus:null, socialTrends:null, healthDetail:null,
-  pChart:null, pipelineBusy:false, pipelineOp:'', _pollInterval:null, homeLogs:[],
+  pipelineBusy:false, pipelineOp:'', _pollInterval:null, homeLogs:[],
   adminKey:'', adminAuthed:false, adminKeyInput:'', showKeyInput:false, keyShake:false,
   ftConfig:{}, ftConfigDirty:false,
   equityCurve:{starting_balance:100,current_value:100,cash:100,unrealized:0,positions_count:0,points:[]},
   _tabFetchedAt:{},  // timestamps of last successful fetch per tab
   _tabLoading:{},    // true while a tab is fetching data for the first time
+  _tabRefreshing:{}, // true during any data fetch (including background refreshes)
   _tabTTL:{home:20000,pipeline:10000,markets:30000,predictions:30000,trading:20000,health:30000,system:30000,trumpgpt:999999},
   _loadingQuip:'',
   loadingQuips:[
@@ -1472,12 +1485,13 @@ function app(){return{
     // Show loading state only on first load of this tab (no data yet)
     const firstLoad=!this._tabFetchedAt[this.tab];
     if(firstLoad){this._tabLoading[this.tab]=true;this._loadingQuip=this.pickLoadingQuip()}
+    this._tabRefreshing[this.tab]=true;
     try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode='local'}catch{this.health=false}
     const L={
       home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), markets:()=>this.loadMarkets(),
       predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), health:()=>this.loadHealth(), system:()=>this.loadSystem(),
     };
-    if(L[this.tab]){await L[this.tab]();this._tabFetchedAt[this.tab]=Date.now();this._tabLoading[this.tab]=false}
+    if(L[this.tab]){await L[this.tab]();this._tabFetchedAt[this.tab]=Date.now();this._tabLoading[this.tab]=false;this._tabRefreshing[this.tab]=false}
   },
 
   async loadHome(){
@@ -1541,7 +1555,7 @@ function app(){return{
     this.weeklyPayouts=Array.isArray(wp)?wp:[];
     this.marketPriceHistory=Array.isArray(ph)?ph:[];
     // Update chart in-place if a market is selected (canvas stays in DOM via x-show)
-    if(this.selectedMarket&&this._marketCharts.selected)this.renderSelectedMarketChart();
+    if(this.selectedMarket)this.$nextTick(()=>this.renderSelectedMarketChart());
   },
   selectedTermLabel(){
     const m=this.markets.find(x=>x.ticker===this.selectedMarket);
@@ -1564,28 +1578,28 @@ function app(){return{
   },
   renderSelectedMarketChart(){
     const c=document.getElementById('selectedMarketChart');
-    if(!c)return;
+    if(!c||!c.getContext)return;
     const ph=this.marketPriceHistory.find(m=>m.ticker===this.selectedMarket);
     if(!ph||!ph.points||ph.points.length===0){
-      // No data — destroy existing chart if any
-      if(this._marketCharts.selected){this._marketCharts.selected.destroy();this._marketCharts.selected=null}
+      if(_chartStore.selected){try{_chartStore.selected.destroy()}catch(e){}_chartStore.selected=null}
       return;
     }
     const pts=ph.points;
     const labels=pts.map(p=>{const d=new Date(p.timestamp);return(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':00'});
     const data=pts.map(p=>p.yes_price!=null?+(p.yes_price*100).toFixed(1):null);
     const pr=pts.length>40?0:2;
-    // Update in-place if chart already exists for this canvas
-    if(this._marketCharts.selected){
-      const ch=this._marketCharts.selected;
-      ch.data.labels=labels;
-      ch.data.datasets[0].data=data;
-      ch.data.datasets[0].pointRadius=pr;
-      ch.update('none');
+    // Update in-place if chart exists AND is bound to the same canvas element
+    if(_chartStore.selected&&_chartStore.selected.canvas===c){
+      _chartStore.selected.data.labels=labels;
+      _chartStore.selected.data.datasets[0].data=data;
+      _chartStore.selected.data.datasets[0].pointRadius=pr;
+      _chartStore.selected.update('none');
       return;
     }
-    // First render — create chart
-    this._marketCharts.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pr,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
+    // Destroy stale chart (canvas changed or different instance)
+    if(_chartStore.selected){try{_chartStore.selected.destroy()}catch(e){}_chartStore.selected=null}
+    // Create fresh chart on the canvas
+    _chartStore.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pr,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
   },
   async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
 
@@ -1624,8 +1638,8 @@ function app(){return{
     const labels=vd.map(v=>v.version);
     const hitData=vd.map(v=>+(v.hit_rate*100).toFixed(1));
     const brierData=vd.map(v=>+v.brier_score.toFixed(4));
-    if(this._accChart)this._accChart.destroy();
-    this._accChart=new Chart(c,{type:'line',data:{labels,datasets:[
+    if(_chartStore.accuracy){try{_chartStore.accuracy.destroy()}catch(e){}_chartStore.accuracy=null}
+    _chartStore.accuracy=new Chart(c,{type:'line',data:{labels,datasets:[
       {label:'Hit Rate %',data:hitData,borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y'},
       {label:'Brier Score',data:brierData,borderColor:'#FF3B3B',backgroundColor:'rgba(255,59,59,.08)',fill:false,tension:.3,pointRadius:3,borderWidth:2,yAxisID:'y1'},
     ]},options:{responsive:true,plugins:{legend:{labels:{color:'#8a9bb5',font:{size:10}}}},scales:{
@@ -1639,14 +1653,14 @@ function app(){return{
     const c=document.getElementById('portfolioChart');if(!c)return;
     const pts=this.equityCurve.points||[];
     if(pts.length===0){
-      if(this.pChart){this.pChart.destroy();this.pChart=null}
+      if(_chartStore.portfolio){try{_chartStore.portfolio.destroy()}catch(e){}_chartStore.portfolio=null}
       return;
     }
     const labels=pts.map(p=>p.date?(p.date).substring(5,10):'start');
     const data=pts.map(p=>p.value);
     const baseVal=this.equityCurve.starting_balance||100;
-    if(this.pChart)this.pChart.destroy();
-    this.pChart=new Chart(c,{type:'line',data:{labels,datasets:[
+    if(_chartStore.portfolio){try{_chartStore.portfolio.destroy()}catch(e){}_chartStore.portfolio=null}
+    _chartStore.portfolio=new Chart(c,{type:'line',data:{labels,datasets:[
       {data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pts.length>30?0:2,borderWidth:2},
       {data:pts.map(()=>baseVal),borderColor:'rgba(255,255,255,.15)',borderDash:[4,4],borderWidth:1,pointRadius:0,fill:false},
     ]},

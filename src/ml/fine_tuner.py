@@ -1,10 +1,11 @@
-"""LLM fine-tuning with LoRA — runs on Pi (Pythia-160M) or Mac (larger models).
+"""LLM fine-tuning with LoRA — runs on Pi (distilgpt2 82M) or Mac (larger models).
 
-PyTorch 2.x supports ARM64 (aarch64) Linux natively. Pythia-160M + LoRA uses
-~1.1GB RAM during training, completing in ~90 min on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM). Gradient checkpointing
-reduces RAM further at the cost of ~20% slower training.
+PyTorch 2.x supports ARM64 (aarch64) Linux natively. distilgpt2 + LoRA uses
+~0.6GB RAM during training, completing in ~2-3h on Pi 4 (4-core ARM Cortex-A72 @ 1.8GHz, 4GB RAM).
+6 transformer layers (vs Pythia-160M's 12) = ~2x faster forward/backward passes.
+Gradient checkpointing reduces RAM further at the cost of ~20% slower training.
 
-Default model: Pythia-160M (EleutherAI). All torch/transformers imports are lazy.
+Default model: distilgpt2 (HuggingFace). All torch/transformers imports are lazy.
 """
 
 import os

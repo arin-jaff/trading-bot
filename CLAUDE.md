@@ -6,7 +6,7 @@ A fully automated trading system that predicts which words/phrases Donald Trump 
 
 Runs autonomously on a Raspberry Pi 4. The core loop: **scrape speeches + tweets + Truth Social → train Markov chain → Monte Carlo simulate → predict term probabilities → trade on Kalshi**.
 
-Fine-tunes **Pythia-410M** (EleutherAI, 410M params) with LoRA on Mac, automatically downloads the DB and pushes predictions back to Pi via API — no SSH/SCP needed. Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
+Fine-tunes **distilgpt2** (HuggingFace, 82M params) with LoRA on Pi natively, completing in ~2-3h on Raspberry Pi 4 (6 transformer layers vs Pythia-160M's 12). Corpus includes ~56K historical tweets (auto-imported on first run), live Truth Social posts (scraped every 2 hours via Mastodon API), live Twitter/X posts (scraped via Nitter RSS), and 10 speech transcript sources.
 
 > See [OPTIMIZATION.md](OPTIMIZATION.md) for the full changelog of the v2 optimization pass (fee-aware Kelly, Gemini news enrichment, correlation matrix, position management, and more).
 
@@ -88,7 +88,7 @@ src/
 
   ml/
     markov_trainer.py       # MarkovChainTrainer — local Markov chain + Monte Carlo
-    fine_tuner.py           # GPT2FineTuner — Pi-native Pythia-410M LoRA fine-tuning
+    fine_tuner.py           # GPT2FineTuner — Pi-native distilgpt2 (82M) LoRA fine-tuning
     local_pipeline.py       # LocalPipeline — 8-phase pipeline (Markov + optional fine-tune)
     predictor.py            # TermPredictor — weighted ensemble (6 signals)
     news_enrichment.py      # NewsEnricher — Gemini 2.0 Flash Lite current events

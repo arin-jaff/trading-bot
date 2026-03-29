@@ -3,6 +3,9 @@
 import os
 import json
 import time
+import subprocess
+import sys
+import gc
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
@@ -109,16 +112,6 @@ async def startup():
 
 @app.get("/api/markets")
 def get_markets(status: Optional[str] = None):
-    """Get all tracked markets.
-
-    Returns markets sorted: active/open first (by close_time asc),
-    then resolved/closed (by close_time desc — most recent first).
-
-    Adds display_status field:
-    - Active markets at 1c/99c: 'Virtually Certain' / 'Virtually Dead'
-    - Resolved markets: 'Yes' / 'No' based on result
-    - Otherwise: the raw status
-    """
     cache_key = f'markets:{status or "all"}'
     def _fetch_markets():
         return _get_markets_uncached(status)
@@ -132,7 +125,6 @@ def _get_markets_uncached(status: Optional[str] = None):
             query = query.filter(Market.status == status)
         all_markets = query.all()
 
-        # Split into active and resolved, sort separately
         active = []
         resolved = []
         for m in all_markets:
@@ -149,7 +141,6 @@ def _get_markets_uncached(status: Optional[str] = None):
             is_active = m.status in ('active', 'open')
             is_resolved = m.result in ('yes', 'no')
 
-            # Determine display status
             if is_resolved:
                 display_status = 'Yes' if m.result == 'yes' else 'No'
             elif is_active and yes_price is not None:
@@ -183,16 +174,13 @@ def _get_markets_uncached(status: Optional[str] = None):
 
 @app.get("/api/markets/weekly-payouts")
 def get_weekly_payouts(weeks: int = 12):
-    """Get weekly payout data — which terms resolved yes/no each week."""
     from collections import defaultdict
     with get_session() as session:
-        # Get all settled markets with results
         settled = session.query(Market).filter(
             Market.result.in_(['yes', 'no']),
             Market.close_time.isnot(None),
         ).all()
 
-        # Group by week
         weekly: dict = defaultdict(lambda: {'yes': [], 'no': []})
         for m in settled:
             week_start = m.close_time - timedelta(days=m.close_time.weekday())
@@ -207,7 +195,6 @@ def get_weekly_payouts(weeks: int = 12):
                 'volume': m.volume,
             })
 
-        # Sort by week descending, limit to N weeks
         sorted_weeks = sorted(weekly.items(), key=lambda x: x[0], reverse=True)[:weeks]
 
         return [
@@ -226,11 +213,6 @@ def get_weekly_payouts(weeks: int = 12):
 
 @app.get("/api/markets/price-history")
 def get_market_price_history(market_ids: str = '', days: int = 30):
-    """Get price history for active markets (for charting).
-
-    market_ids: comma-separated market IDs (empty = all active markets).
-    days: how far back to look.
-    """
     from ..database.models import PriceSnapshot
     with get_session() as session:
         cutoff = datetime.now() - timedelta(days=days)
@@ -249,7 +231,6 @@ def get_market_price_history(market_ids: str = '', days: int = 30):
             PriceSnapshot.timestamp >= cutoff,
         ).order_by(PriceSnapshot.timestamp).all()
 
-        # Group by market
         from collections import defaultdict
         by_market: dict = defaultdict(list)
         market_tickers = {}
@@ -274,7 +255,6 @@ def get_market_price_history(market_ids: str = '', days: int = 30):
 
 @app.post("/api/markets/sync")
 def sync_markets(background_tasks: BackgroundTasks):
-    """Trigger market sync from Kalshi."""
     background_tasks.add_task(_run_market_sync)
     return {"status": "sync started"}
 
@@ -297,19 +277,16 @@ def _run_market_sync():
 
 @app.get("/api/terms")
 def get_terms():
-    """Get all tracked terms with stats."""
     return market_sync.get_all_terms()
 
 
 @app.get("/api/terms/{term_id}/history")
 def get_term_history(term_id: int, days: int = 365):
-    """Get term usage time series."""
     return term_analyzer.get_term_time_series(term_id, days)
 
 
 @app.get("/api/terms/report")
 def get_term_report():
-    """Get full term frequency report."""
     return term_analyzer.get_term_frequency_report()
 
 
@@ -317,7 +294,6 @@ def get_term_report():
 
 @app.post("/api/speeches/scrape")
 def scrape_speeches(background_tasks: BackgroundTasks):
-    """Trigger speech scraping from all sources."""
     background_tasks.add_task(_run_speech_scrape)
     return {"status": "scraping started"}
 
@@ -337,7 +313,6 @@ def _run_speech_scrape():
 
 @app.get("/api/speeches/stats")
 def get_speech_stats():
-    """Get speech collection statistics."""
     return _cached('speeches_stats', 120, _get_speech_stats_uncached)
 
 
@@ -360,20 +335,17 @@ def _get_speech_stats_uncached():
 
 @app.get("/api/events")
 def get_events(days: int = 30):
-    """Get upcoming Trump events."""
     return event_tracker.get_upcoming_events(days)
 
 
 @app.get("/api/events/live")
 def get_live_events():
-    """Get currently live events."""
     event_tracker.check_and_update_live_status()
     return event_tracker.get_live_events()
 
 
 @app.post("/api/events/update")
 def update_events(background_tasks: BackgroundTasks):
-    """Trigger event discovery."""
     background_tasks.add_task(event_tracker.update_events)
     return {"status": "event update started"}
 
@@ -382,13 +354,11 @@ def update_events(background_tasks: BackgroundTasks):
 
 @app.get("/api/predictions")
 def get_predictions():
-    """Get latest predictions for all terms."""
     return predictor.predict_all_terms()
 
 
 @app.post("/api/predictions/generate")
 def generate_predictions(background_tasks: BackgroundTasks):
-    """Trigger new prediction generation."""
     background_tasks.add_task(_run_predictions)
     return {"status": "prediction generation started"}
 
@@ -403,6 +373,9 @@ def _run_predictions():
         invalidate_cache('model_status')
         _update_job('predictions', f'Done: {len(preds)} predictions generated', done=True)
         logger.info(f"Generated {len(preds)} predictions")
+        
+        # Aggressive GC collection post-prediction
+        gc.collect()
     except Exception as e:
         _update_job('predictions', '', done=True, error=str(e))
         logger.error(f"Prediction generation failed: {e}")
@@ -412,25 +385,21 @@ def _run_predictions():
 
 @app.get("/api/trading/suggestions")
 def get_suggestions():
-    """Get trading suggestions."""
     return _cached('trading_suggestions', 120, trading_bot.generate_suggestions)
 
 
 @app.get("/api/trading/portfolio")
 def get_portfolio():
-    """Get portfolio summary."""
     return trading_bot.get_portfolio_summary()
 
 
 @app.get("/api/trading/positions")
 def get_trading_positions():
-    """Get currently held positions with P&L."""
     return trading_bot.get_positions_detail()
 
 
 @app.get("/api/trading/config")
 def get_bot_config():
-    """Get trading bot configuration."""
     return trading_bot.get_config()
 
 
@@ -448,7 +417,6 @@ class BotConfigUpdate(BaseModel):
 
 @app.put("/api/trading/config")
 def update_bot_config(config: BotConfigUpdate):
-    """Update trading bot configuration."""
     updates = {k: v for k, v in config.dict().items() if v is not None}
     trading_bot.update_config(**updates)
     return trading_bot.get_config()
@@ -463,7 +431,6 @@ class TradeRequest(BaseModel):
 
 @app.post("/api/trading/execute")
 def execute_trade(req: TradeRequest):
-    """Execute a trade."""
     suggestion = {
         'market_ticker': req.market_ticker,
         'suggested_side': req.side,
@@ -480,7 +447,6 @@ def execute_trade(req: TradeRequest):
 
 @app.post("/api/kalshi/login")
 def kalshi_login():
-    """Login to Kalshi."""
     success = kalshi_client.login()
     if success:
         return {"status": "logged in", "member_id": kalshi_client.member_id}
@@ -491,7 +457,6 @@ def kalshi_login():
 
 @app.post("/api/system/full-refresh")
 def full_refresh(background_tasks: BackgroundTasks):
-    """Run full data refresh: sync markets, scrape speeches, update events, generate predictions."""
     background_tasks.add_task(_full_refresh)
     return {"status": "full refresh started"}
 
@@ -513,6 +478,7 @@ def _full_refresh():
         predictor.save_predictions(preds)
         _update_job('full_refresh', f'Done: {len(preds)} predictions', progress=6, total=6, done=True)
         logger.info("Full refresh complete")
+        gc.collect()
     except Exception as e:
         _update_job('full_refresh', '', done=True, error=str(e))
         logger.error(f"Full refresh failed: {e}")
@@ -522,31 +488,25 @@ def _full_refresh():
 
 @app.post("/api/live/start")
 def start_live_monitoring():
-    """Start live speech monitoring."""
     live_monitor.start_monitoring()
     return {"status": "monitoring started"}
 
 
 @app.post("/api/live/stop")
 def stop_live_monitoring():
-    """Stop live speech monitoring."""
     live_monitor.stop_monitoring()
     return {"status": "monitoring stopped"}
 
 
 @app.get("/api/live/status")
 def get_live_status():
-    """Get live monitoring status."""
     return live_monitor.get_live_status()
 
-
-# --- ML Model endpoints ---
 
 # --- Admin endpoints ---
 
 @app.post("/api/admin/verify")
 async def verify_admin(request: Request):
-    """Verify admin key for dashboard launch key."""
     data = await request.json()
     key = data.get('key', '')
     expected = app_config.admin_key or app_config.kalshi_api_key
@@ -559,25 +519,21 @@ async def verify_admin(request: Request):
 
 @app.get("/api/pipeline/status")
 def get_pipeline_status():
-    """Get the status of the automated training pipeline."""
     return {'pipeline': _pipeline.get_status(), 'mode': 'local'}
 
 
 @app.get("/api/pipeline/training-status")
 def get_training_status():
-    """Get real-time training progress for GUI polling."""
     return _pipeline.get_status()
 
 
 @app.get("/api/pipeline/log")
 def get_pipeline_log(limit: int = 50):
-    """Get recent pipeline log entries."""
     return _pipeline.get_log(limit)
 
 
 @app.post("/api/pipeline/run")
 def run_pipeline(request: Request, background_tasks: BackgroundTasks, force: bool = False):
-    """Trigger the training pipeline. force=true bypasses retrain threshold (requires admin key)."""
     if force:
         _require_admin(request)
     _pipeline.run_pipeline_async(force=force)
@@ -588,14 +544,12 @@ def run_pipeline(request: Request, background_tasks: BackgroundTasks, force: boo
 
 @app.get("/api/jobs/status")
 def get_job_statuses():
-    """Get status of all background jobs."""
     with _job_lock:
         return dict(_job_status)
 
 
 @app.get("/api/jobs/status/{job_name}")
 def get_job_status(job_name: str):
-    """Get status of a specific background job."""
     with _job_lock:
         return _job_status.get(job_name, {'step': 'idle', 'done': True})
 
@@ -603,21 +557,17 @@ def get_job_status(job_name: str):
 # --- Alert endpoints ---
 
 @app.get("/api/alerts")
-def get_alerts(limit: int = 50, alert_type: Optional[str] = None,
-               unread_only: bool = False):
-    """Get recent alerts."""
+def get_alerts(limit: int = 50, alert_type: Optional[str] = None, unread_only: bool = False):
     return alert_manager.get_recent_alerts(limit, alert_type, unread_only)
 
 
 @app.get("/api/alerts/count")
 def get_unread_count():
-    """Get unread alert count."""
     return {"unread": alert_manager.get_unread_count()}
 
 
 @app.post("/api/alerts/{alert_id}/read")
 def mark_alert_read(alert_id: int):
-    """Mark an alert as read."""
     alert_manager.mark_read(alert_id)
     return {"status": "ok"}
 
@@ -626,7 +576,6 @@ def mark_alert_read(alert_id: int):
 
 @app.get("/api/config/status")
 def get_config_status():
-    """Get configuration status."""
     return app_config.get_status()
 
 
@@ -634,12 +583,10 @@ def get_config_status():
 
 @app.get("/api/model/status")
 def get_model_status():
-    """Get TrumpGPT model status: weights, terms, scenario info, last run."""
     return _cached('model_status', 60, _get_model_status_uncached)
 
 
 def _get_model_status_uncached():
-    # Load latest predictions file for metadata
     pred_dir = os.path.join('data', 'predictions')
     latest_path = os.path.join(pred_dir, 'predictions_latest.json')
     pred_meta = {}
@@ -650,15 +597,12 @@ def _get_model_status_uncached():
             pred_meta = json.load(f)
         term_predictions = pred_meta.get('term_predictions', [])
 
-    # Ensemble weights from the local predictor
     ensemble_weights = predictor.model_weights
 
-    # Count terms in DB
     with get_session() as session:
         total_terms = session.query(Term).count()
         total_predictions = session.query(TermPrediction).count()
 
-    # What a new iteration would bring
     from ..database.models import Speech
     with get_session() as session:
         new_speeches = session.query(Speech).filter(
@@ -666,7 +610,6 @@ def _get_model_status_uncached():
             Speech.created_at >= datetime.utcnow() - timedelta(days=1),
         ).count()
 
-    # Get active model version
     with get_session() as session:
         active_model = session.query(ModelVersion).filter_by(
             is_active=True
@@ -716,13 +659,6 @@ def _get_model_status_uncached():
 
 @app.get("/api/predictions/final")
 def get_final_predictions():
-    """Get final combined predictions for upcoming markets.
-
-    Blends:
-    - Historical market results (what he said vs didn't)
-    - TrumpGPT Monte Carlo predictions
-    - Local ensemble predictor
-    """
     return _cached('predictions_final', 180, _get_final_predictions_uncached)
 
 
@@ -732,7 +668,6 @@ def _get_final_predictions_uncached():
     from ..database.models import Speech, TermOccurrence
 
     with get_session() as session:
-        # Get active markets
         active_markets = session.query(Market).filter(
             Market.status.in_(['active', 'open'])
         ).order_by(Market.close_time).all()
@@ -740,10 +675,8 @@ def _get_final_predictions_uncached():
         if not active_markets:
             return []
 
-        # Historical data: for each term, how often has he said it?
         total_processed = session.query(Speech).filter_by(is_processed=True).count()
 
-        # Batch: get all TermOccurrence counts in 2 queries instead of N*2
         occ_counts = dict(
             session.query(TermOccurrence.term_id, func.count())
             .group_by(TermOccurrence.term_id).all()
@@ -753,7 +686,6 @@ def _get_final_predictions_uncached():
             .group_by(TermOccurrence.term_id).all()
         )
 
-        # Get latest ensemble predictions
         ensemble_preds = {}
         try:
             all_preds = predictor.predict_all_terms()
@@ -761,7 +693,6 @@ def _get_final_predictions_uncached():
         except Exception as e:
             logger.warning(f"Ensemble predictions failed: {e}")
 
-        # Load Monte Carlo predictions from file
         mc_preds = {}
         try:
             mc_path = os.path.join('data', 'predictions', 'predictions_latest.json')
@@ -772,7 +703,6 @@ def _get_final_predictions_uncached():
         except Exception:
             pass
 
-        # Historical settled results for context
         settled = session.query(Market).filter(
             Market.result.in_(['yes', 'no'])
         ).all()
@@ -786,30 +716,25 @@ def _get_final_predictions_uncached():
             for term in market.terms:
                 norm = term.normalized_term.lower().strip()
 
-                # Historical stats (from batched queries)
                 occ_count = occ_counts.get(term.id, 0)
                 speeches_with_term = speech_counts.get(term.id, 0)
                 hist_rate = speeches_with_term / max(1, total_processed)
 
-                # Past market outcomes for this term
                 hist = historical_results.get(norm, {'yes': 0, 'no': 0})
                 past_yes = hist['yes']
                 past_no = hist['no']
                 past_total = past_yes + past_no
                 historical_market_rate = past_yes / max(1, past_total) if past_total > 0 else None
 
-                # Ensemble prediction
                 ens = ensemble_preds.get(norm, {})
                 ensemble_prob = ens.get('probability')
                 component_scores = ens.get('component_scores', {})
 
-                # Monte Carlo prediction
                 mc = mc_preds.get(norm, {})
                 mc_prob = mc.get('probability')
                 recency_weight = mc.get('recency_weight', 1.0)
                 by_scenario = mc.get('by_scenario', {})
 
-                # Final blended probability
                 signals = []
                 if ensemble_prob is not None:
                     signals.append(('ensemble', ensemble_prob, 0.5))
@@ -853,7 +778,6 @@ def _get_final_predictions_uncached():
 
 @app.get("/api/system/hardware")
 def get_hardware_status():
-    """Get Raspberry Pi / system hardware metrics."""
     return _cached('system_hardware', 15, _get_hardware_uncached)
 
 
@@ -861,7 +785,6 @@ def _get_hardware_uncached():
     import psutil
     import platform
 
-    # CPU, RAM, disk
     cpu_percent = psutil.cpu_percent(interval=0)
     ram = psutil.virtual_memory()
     disk = psutil.disk_usage('/')
@@ -869,7 +792,6 @@ def _get_hardware_uncached():
     boot_time = datetime.fromtimestamp(psutil.boot_time())
     uptime_hours = (datetime.utcnow() - boot_time).total_seconds() / 3600
 
-    # Temperature (Pi-specific via vcgencmd, fallback for other platforms)
     temperature = None
     try:
         import subprocess
@@ -880,7 +802,6 @@ def _get_hardware_uncached():
             temp_str = result.stdout.strip()  # "temp=52.0'C"
             temperature = float(temp_str.split('=')[1].split("'")[0])
     except Exception:
-        # Try psutil sensors as fallback
         try:
             temps = psutil.sensors_temperatures()
             if temps:
@@ -910,9 +831,7 @@ def _get_hardware_uncached():
 
 
 @app.get("/api/trades/history")
-def get_trade_history(page: int = 1, per_page: int = 50,
-                      status: Optional[str] = None):
-    """Get paginated trade history with P&L."""
+def get_trade_history(page: int = 1, per_page: int = 50, status: Optional[str] = None):
     with get_session() as session:
         query = session.query(Trade).join(Market)
         if status and status != 'all':
@@ -923,7 +842,6 @@ def get_trade_history(page: int = 1, per_page: int = 50,
             (page - 1) * per_page
         ).limit(per_page).all()
 
-        # Summary stats
         all_trades = session.query(Trade).all()
         filled = [t for t in all_trades if t.pnl is not None]
         wins = [t for t in filled if (t.pnl or 0) > 0]
@@ -969,11 +887,6 @@ def get_trade_history(page: int = 1, per_page: int = 50,
 
 @app.get("/api/trading/equity-curve")
 def get_equity_curve(starting_balance: float = 100.0):
-    """Compute portfolio equity curve from trade history.
-
-    Tracks cash + mark-to-market of open positions at each trade event.
-    Paper trades start at the given starting_balance (default $100).
-    """
     with get_session() as session:
         trades = session.query(Trade).filter(
             Trade.status.in_(['filled', 'paper'])
@@ -991,7 +904,6 @@ def get_equity_curve(starting_balance: float = 100.0):
                 'points': [{'date': now, 'value': starting_balance}],
             }
 
-        # Preload all markets referenced by trades
         market_ids = {t.market_id for t in trades if t.market_id}
         markets = {}
         if market_ids:
@@ -999,7 +911,6 @@ def get_equity_curve(starting_balance: float = 100.0):
                 markets[m.id] = m
 
         def _mtm(positions):
-            """Mark-to-market: value of all open positions at current prices."""
             total = 0.0
             for mid, pos in positions.items():
                 m = markets.get(mid)
@@ -1017,7 +928,7 @@ def get_equity_curve(starting_balance: float = 100.0):
             return total
 
         cash = starting_balance
-        positions = {}  # market_id -> {side, qty}
+        positions = {}
         points = []
 
         for t in trades:
@@ -1053,7 +964,6 @@ def get_equity_curve(starting_balance: float = 100.0):
 
 
 def _get_version_accuracy(session, model_version_id: int) -> Optional[dict]:
-    """Compute accuracy for a specific model version from tagged predictions."""
     from ..database.models import TermPrediction
     preds = session.query(TermPrediction).filter(
         TermPrediction.model_version_id == model_version_id,
@@ -1072,7 +982,6 @@ def _get_version_accuracy(session, model_version_id: int) -> Optional[dict]:
 
 @app.get("/api/model/versions")
 def get_model_versions():
-    """Get all model version records."""
     return _cached('model_versions', 300, _get_model_versions_uncached)
 
 
@@ -1107,7 +1016,6 @@ def _get_model_versions_uncached():
 
 _social_importer = None
 
-
 def _get_social_importer():
     global _social_importer
     if _social_importer is None:
@@ -1118,7 +1026,6 @@ def _get_social_importer():
 
 @app.post("/api/social-media/import-twitter")
 def import_twitter(background_tasks: BackgroundTasks):
-    """Download and import Trump Twitter archive."""
     importer = _get_social_importer()
     background_tasks.add_task(_run_twitter_import, importer)
     return {"status": "Twitter import started"}
@@ -1137,7 +1044,6 @@ class TruthImportRequest(BaseModel):
 
 @app.post("/api/social-media/import-truth")
 def import_truth_social(req: TruthImportRequest, background_tasks: BackgroundTasks):
-    """Import Truth Social posts from a JSON dump."""
     importer = _get_social_importer()
     background_tasks.add_task(_run_truth_import, importer, req.file_path)
     return {"status": "Truth Social import started"}
@@ -1152,7 +1058,6 @@ def _run_truth_import(importer, file_path: str):
 
 @app.post("/api/social-media/scrape-truth")
 def scrape_truth_social(background_tasks: BackgroundTasks):
-    """Scrape latest Truth Social posts via RSS/API (no file needed)."""
     importer = _get_social_importer()
     background_tasks.add_task(_run_truth_scrape, importer)
     return {"status": "Truth Social scrape started"}
@@ -1168,23 +1073,19 @@ def _run_truth_scrape(importer):
 
 @app.get("/api/social-media/import-status")
 def get_import_status():
-    """Get social media import progress."""
     importer = _get_social_importer()
     return importer.get_status()
 
 
 @app.get("/api/social-media/stats")
 def get_social_media_stats():
-    """Get social media corpus statistics."""
     importer = _get_social_importer()
     return importer.get_stats()
 
 
 @app.get("/api/social-media/recent-posts")
 def get_recent_social_posts(limit: int = 5):
-    """Get the most recent social media posts from the DB."""
     from ..database.models import Speech
-
     with get_session() as session:
         posts = session.query(Speech).filter(
             Speech.speech_type == 'social_media',
@@ -1206,7 +1107,6 @@ def get_recent_social_posts(limit: int = 5):
 
 @app.get("/api/fine-tune/pythia-status")
 def get_pythia_status():
-    """Check if Pythia predictions are available on disk."""
     pythia_path = os.path.join('data', 'predictions', 'predictions_pythia.json')
     if os.path.exists(pythia_path):
         mtime = os.path.getmtime(pythia_path)
@@ -1224,7 +1124,6 @@ def get_pythia_status():
 
 @app.get("/api/fine-tune/pi-status")
 def get_pi_fine_tune_status():
-    """Get Pi-native fine-tuning status and configuration."""
     result = {
         "enabled": app_config.fine_tune_enabled,
         "model": app_config.fine_tune_model,
@@ -1238,7 +1137,6 @@ def get_pi_fine_tune_status():
         "loss_history": [],
     }
 
-    # Check PyTorch availability
     try:
         import torch
         result["pytorch_available"] = True
@@ -1246,7 +1144,6 @@ def get_pi_fine_tune_status():
     except ImportError:
         pass
 
-    # Check fine-tuner status if available
     try:
         from ..ml.fine_tuner import get_fine_tuner
         fine_tuner = get_fine_tuner()
@@ -1261,7 +1158,6 @@ def get_pi_fine_tune_status():
 
 @app.post("/api/fine-tune/start")
 def start_pi_fine_tuning(request: Request, background_tasks: BackgroundTasks, force: bool = False):
-    """Manually trigger Pi fine-tuning. force=true requires admin key."""
     if force:
         _require_admin(request)
     if not app_config.fine_tune_enabled and not force:
@@ -1276,7 +1172,6 @@ def start_pi_fine_tuning(request: Request, background_tasks: BackgroundTasks, fo
 
 @app.post("/api/fine-tune/stop")
 def stop_pi_fine_tuning():
-    """Stop running Pi fine-tuning."""
     try:
         from ..ml.fine_tuner import get_fine_tuner
         fine_tuner = get_fine_tuner()
@@ -1288,7 +1183,6 @@ def stop_pi_fine_tuning():
 
 @app.get("/api/fine-tune/config")
 def get_fine_tune_config():
-    """Get fine-tuning and pipeline configuration (public)."""
     return {
         "model": app_config.fine_tune_model,
         "epochs": app_config.fine_tune_epochs,
@@ -1321,7 +1215,6 @@ class FineTuneConfigUpdate(BaseModel):
 
 @app.put("/api/fine-tune/config")
 def update_fine_tune_config(update: FineTuneConfigUpdate, request: Request):
-    """Update fine-tuning configuration (admin only)."""
     _require_admin(request)
 
     field_map = {
@@ -1348,42 +1241,36 @@ def update_fine_tune_config(update: FineTuneConfigUpdate, request: Request):
 
 @app.post("/api/pipeline/full")
 def run_full_pipeline_endpoint(request: Request, background_tasks: BackgroundTasks, force: bool = False):
-    """Run fine-tuning then predictions pipeline back-to-back. force=true bypasses threshold."""
+    """Run fine-tuning then predictions pipeline back-to-back in an isolated process to prevent GIL locking API."""
     if force:
         _require_admin(request)
     if not app_config.fine_tune_enabled and not force:
         raise HTTPException(status_code=400, detail="Fine-tuning disabled")
 
-    def _run_full():
+    def _run_full_isolated():
         try:
             import time as _time
             _full_start = _time.time()
-            logger.info("Full pipeline: starting fine-tuning...")
-            _pipeline.run_fine_tuning()
-            logger.info("Full pipeline: fine-tuning done, starting Markov pipeline...")
-            _pipeline.run_full_pipeline(force=force)
+            logger.info("Full pipeline: starting in isolated process...")
+            
+            # Offloading PyTorch processing to isolated OS process prevents API hanging
+            cmd = f"from src.ml.local_pipeline import LocalPipeline; p = LocalPipeline(); p.run_fine_tuning(); p.run_full_pipeline(force={force})"
+            subprocess.run([sys.executable, "-c", cmd], check=True)
+            
             _pipeline._last_run_durations['full'] = round(_time.time() - _full_start, 1)
-            logger.info("Full pipeline: complete")
+            logger.info("Full pipeline: isolated process complete")
+            
+            # Reclaim any memory local to this thread 
+            gc.collect()
         except Exception as e:
-            logger.error(f"Full pipeline failed: {e}")
+            logger.error(f"Full pipeline isolated process failed: {e}")
 
-    background_tasks.add_task(_run_full)
-    return {"status": "Full pipeline started (fine-tune → predictions)", "force": force}
+    background_tasks.add_task(_run_full_isolated)
+    return {"status": "Full pipeline started in isolated process (fine-tune → predictions)", "force": force}
 
 
 @app.post("/api/fine-tune/upload-predictions")
 async def upload_pythia_predictions(request: Request):
-    """Receive Pythia predictions JSON from Mac after fine-tuning.
-
-    Requires X-API-Key header matching KALSHI_API_KEY for basic auth.
-
-    Usage from Mac:
-        curl -X POST http://<pi-ip>:8000/api/fine-tune/upload-predictions \
-             -H "Content-Type: application/json" \
-             -H "X-API-Key: <your-kalshi-api-key>" \
-             -d @data/predictions/predictions_pythia.json
-    """
-    # Basic auth: check shared secret
     api_key = request.headers.get('X-API-Key', '')
     expected = app_config.kalshi_api_key
     if expected and api_key != expected:
@@ -1413,13 +1300,6 @@ async def upload_pythia_predictions(request: Request):
 
 @app.get("/api/fine-tune/download-db")
 def download_db(request: Request):
-    """Download the SQLite database for fine-tuning on Mac.
-
-    Requires X-API-Key header matching KALSHI_API_KEY for basic auth.
-
-    Usage from Mac:
-        curl -H "X-API-Key: <key>" http://<pi-ip>:8000/api/fine-tune/download-db -o data/trading_bot.db
-    """
     api_key = request.headers.get('X-API-Key', '')
     expected = app_config.kalshi_api_key
     if expected and api_key != expected:
@@ -1450,7 +1330,6 @@ _trumpgpt_trainer = None
 
 @app.post("/api/trumpgpt/generate")
 def generate_trumpgpt(req: PromptRequest):
-    """Generate text from TrumpGPT Markov chain."""
     global _trumpgpt_trainer
     temp = max(0.3, min(2.0, req.temperature))
 
@@ -1478,7 +1357,6 @@ def generate_trumpgpt(req: PromptRequest):
 
 @app.get("/api/model/accuracy")
 def get_model_accuracy():
-    """1C: Get prediction accuracy metrics against settled markets."""
     return _cached('model_accuracy', 300, predictor.evaluate_accuracy)
 
 
@@ -1495,12 +1373,9 @@ def health_check():
 
 @app.get("/api/system/health-detailed")
 def detailed_health_check():
-    """Comprehensive health check for autonomous monitoring."""
     import psutil
-
     checks = {}
 
-    # Database
     try:
         with get_session() as session:
             from ..database.models import Speech, Market, Term
@@ -1513,12 +1388,10 @@ def detailed_health_check():
     except Exception as e:
         checks['database'] = {'status': 'error', 'error': str(e)}
 
-    # Kalshi API
     checks['kalshi'] = {
         'configured': bool(app_config.kalshi_api_key),
     }
 
-    # Fine-tuning
     ft_check = {
         'enabled': app_config.fine_tune_enabled,
         'model': app_config.fine_tune_model,
@@ -1532,7 +1405,6 @@ def detailed_health_check():
         pass
     checks['fine_tuning'] = ft_check
 
-    # Social media
     try:
         from ..scraper.social_media_importer import SocialMediaImporter
         importer = SocialMediaImporter()
@@ -1540,7 +1412,6 @@ def detailed_health_check():
     except Exception as e:
         checks['social_media'] = {'error': str(e)}
 
-    # Social trends
     try:
         from ..ml.social_media_analyzer import social_media_analyzer
         trends = social_media_analyzer.get_all_trends()
@@ -1551,12 +1422,10 @@ def detailed_health_check():
     except Exception as e:
         checks['social_trends'] = {'error': str(e)}
 
-    # Email
     checks['email'] = {
         'configured': app_config.validate_email(),
     }
 
-    # Disk space
     disk = psutil.disk_usage('/')
     checks['disk'] = {
         'used_gb': round(disk.used / (1024**3), 2),
@@ -1565,7 +1434,6 @@ def detailed_health_check():
         'warning': disk.percent > 85,
     }
 
-    # RAM
     ram = psutil.virtual_memory()
     checks['memory'] = {
         'used_gb': round(ram.used / (1024**3), 2),
@@ -1574,7 +1442,6 @@ def detailed_health_check():
         'warning': ram.percent > 85,
     }
 
-    # Predictions freshness
     pred_path = os.path.join('data', 'predictions', 'predictions_latest.json')
     if os.path.exists(pred_path):
         age_hours = (time.time() - os.path.getmtime(pred_path)) / 3600
@@ -1600,11 +1467,9 @@ def detailed_health_check():
 
 @app.get("/api/social-media/trends")
 def get_social_trends():
-    """Get social media trending term scores."""
     try:
         from ..ml.social_media_analyzer import social_media_analyzer
         trends = social_media_analyzer.get_all_trends()
-        # Sort by score descending
         sorted_scores = sorted(
             trends['scores'].items(),
             key=lambda x: x[1], reverse=True
@@ -1625,7 +1490,6 @@ def get_social_trends():
 
 @app.get("/")
 def serve_dashboard():
-    """Serve the HTML dashboard at root."""
     return FileResponse(os.path.join('static', 'index.html'))
 
 

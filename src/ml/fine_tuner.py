@@ -15,6 +15,7 @@ import math
 import re
 import random
 import threading
+import gc
 from datetime import datetime
 from typing import Optional
 from loguru import logger
@@ -55,27 +56,17 @@ DEFAULT_SCENARIO_WEIGHTS = {
 
 
 def _detect_lora_targets(model) -> list[str]:
-    """Auto-detect the right LoRA target module names for any causal LM.
-
-    Different architectures use different names for their attention projections:
-    - GPT-2: 'c_attn' (fused QKV)
-    - Pythia / GPT-NeoX: 'query_key_value' (fused QKV)
-    - Llama / Qwen / Phi: 'q_proj', 'v_proj' (separate)
-    - OPT: 'q_proj', 'v_proj'
-    """
     module_names = {name for name, _ in model.named_modules()}
 
-    # Check candidates in order of specificity
     for candidate in [
-        ['query_key_value'],          # Pythia, GPT-NeoX, BLOOM
-        ['c_attn'],                   # GPT-2
-        ['q_proj', 'v_proj'],         # Llama, Qwen, OPT, Phi
-        ['qkv_proj'],                 # Some merged QKV variants
+        ['query_key_value'],          
+        ['c_attn'],                   
+        ['q_proj', 'v_proj'],         
+        ['qkv_proj'],                 
     ]:
         if all(any(c in name for name in module_names) for c in candidate):
             return candidate
 
-    # Fallback: find any linear layers with 'attn' in the name
     attn_linears = [
         name.split('.')[-1] for name, mod in model.named_modules()
         if 'attn' in name.lower() and hasattr(mod, 'weight')
@@ -95,7 +86,7 @@ class GPT2FineTuner:
         os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
 
         self._status = {
-            'state': 'idle',  # idle, loading_model, training, complete, error, stopped
+            'state': 'idle', 
             'stage': '',
             'progress': 0.0,
             'current_epoch': 0,
@@ -108,9 +99,9 @@ class GPT2FineTuner:
             'eta_seconds': None,
             'memory_mb': None,
             'error': None,
-            'heartbeat': None,  # ISO timestamp, updated every step
+            'heartbeat': None, 
         }
-        self._loss_history = []  # [(step, loss), ...]
+        self._loss_history = [] 
         self._stop_requested = False
         self._model = None
         self._tokenizer = None
@@ -123,18 +114,6 @@ class GPT2FineTuner:
         return [{'step': s, 'loss': l} for s, l in self._loss_history]
 
     def train(self) -> Optional[dict]:
-        """Run full fine-tuning loop.
-
-        Loads corpus from DB, tokenizes, trains with LoRA:
-        - os.nice(10) for reduced CPU priority
-        - batch_size=1, gradient_accumulation=configurable
-        - Status updates every optimizer step (visible immediately in dashboard)
-        - Heartbeat timestamp for detecting hung training
-        - Checkpoints every 100 steps
-        - Graceful stop via _stop_requested
-
-        Returns result dict or None on failure.
-        """
         if not self._lock.acquire(blocking=False):
             return {'status': 'already_running'}
 
@@ -153,7 +132,6 @@ class GPT2FineTuner:
             except (OSError, AttributeError):
                 pass
 
-            # Optimize PyTorch for Pi 4's 4-core ARM CPU
             torch.set_num_threads(4)
             os.environ.setdefault('OMP_NUM_THREADS', '4')
 
@@ -161,13 +139,11 @@ class GPT2FineTuner:
             self._loss_history = []
             start_time = time.time()
 
-            # Clear stale checkpoint from previous failed runs
             stale_ckpt = os.path.join(CHECKPOINTS_DIR, 'checkpoint_latest.json')
             if os.path.exists(stale_ckpt):
                 try:
                     with open(stale_ckpt) as f:
                         ckpt = json.load(f)
-                    # If checkpoint is older than 48 hours, it's from a crashed run
                     saved = ckpt.get('saved_at', '')
                     if saved:
                         from datetime import datetime as dt
@@ -218,7 +194,6 @@ class GPT2FineTuner:
             if not all_input_ids:
                 raise RuntimeError("Tokenization produced no training sequences")
 
-            # Cap training chunks to keep training time manageable on Pi 4
             random.shuffle(all_input_ids)
             max_chunks = config.fine_tune_max_chunks
             if len(all_input_ids) > max_chunks:
@@ -229,10 +204,10 @@ class GPT2FineTuner:
                 all_input_ids = all_input_ids[:max_chunks]
 
             logger.info(f"Fine-tuner: {len(all_input_ids)} training sequences of length {max_length}")
+            del corpus_texts
+            gc.collect() # Release raw text memory before loading model weights
 
             # Phase 3: Load model + LoRA
-            # This is the slow step — downloading/loading the model weights.
-            # On first run, HuggingFace downloads ~320MB. On Pi 4 this can take minutes.
             self._status.update(
                 stage=f'Downloading & loading {model_name} (this takes a few minutes on Pi)',
                 progress=0.08, heartbeat=datetime.utcnow().isoformat(),
@@ -241,7 +216,7 @@ class GPT2FineTuner:
 
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                low_cpu_mem_usage=True,  # reduces peak RAM during loading
+                low_cpu_mem_usage=True, 
             )
             logger.info(f"Fine-tuner: model loaded successfully")
 
@@ -296,7 +271,6 @@ class GPT2FineTuner:
             best_loss = float('inf')
             checkpoint_interval = 100
 
-            # Try to resume from checkpoint
             resume_info = self._load_checkpoint()
             start_epoch = 0
             if resume_info:
@@ -319,7 +293,7 @@ class GPT2FineTuner:
                 step_start = time.time()
 
                 optimizer.zero_grad()
-                accum_count = 0  # track accumulation steps directly
+                accum_count = 0 
 
                 for i in range(0, len(all_input_ids), batch_size):
                     if self._stop_requested:
@@ -345,7 +319,6 @@ class GPT2FineTuner:
                         accum_count = 0
                         global_step += 1
 
-                        # Update status EVERY step — so dashboard always shows progress
                         elapsed = time.time() - step_start
                         tok_per_sec = epoch_tokens / max(0.1, elapsed)
                         current_loss = epoch_loss / max(1, (i // batch_size + 1))
@@ -378,7 +351,6 @@ class GPT2FineTuner:
                             heartbeat=datetime.utcnow().isoformat(),
                         )
 
-                        # Checkpoint every N steps
                         if global_step % checkpoint_interval == 0:
                             self._save_checkpoint(epoch, global_step, best_loss)
                             logger.info(f"Checkpoint at step {global_step}, loss={current_loss:.4f}")
@@ -386,25 +358,41 @@ class GPT2FineTuner:
                 avg_epoch_loss = epoch_loss / max(1, len(all_input_ids) // batch_size)
                 logger.info(f"Epoch {epoch+1}/{epochs} complete: avg_loss={avg_epoch_loss:.4f}")
 
-            # Phase 5: Save final adapter
-            self._status.update(stage='Saving adapter', progress=0.95)
+            # Phase 5: Save final adapter & Export ONNX
+            self._status.update(stage='Saving adapter & Exporting to ONNX', progress=0.95)
             adapter_path = os.path.join(ADAPTERS_DIR, 'adapter_latest')
+            
+            logger.info("Merging LoRA weights into base model for inference speed...")
+            model = model.merge_and_unload()
             model.save_pretrained(adapter_path)
             tokenizer.save_pretrained(adapter_path)
+            
+            # Export to ONNX for 2-5x faster inference on Pi CPU
+            try:
+                from optimum.onnxruntime import ORTModelForCausalLM
+                logger.info("Exporting merged model to ONNX format...")
+                onnx_path = os.path.join(ADAPTERS_DIR, 'onnx_model_latest')
+                ort_model = ORTModelForCausalLM.from_pretrained(adapter_path, export=True)
+                ort_model.save_pretrained(onnx_path)
+                tokenizer.save_pretrained(onnx_path)
+                logger.info("ONNX export complete. Inference will now use ONNX.")
+            except ImportError:
+                logger.warning("optimum[onnxruntime] not installed. Run: pip install optimum[onnxruntime]")
+            except Exception as e:
+                logger.warning(f"ONNX export failed (will fallback to PyTorch inference): {e}")
 
             training_duration = time.time() - start_time
 
-            # Create ModelVersion record
             version_str = self._next_version()
             with get_session() as session:
                 mv = ModelVersion(
                     version=version_str,
                     model_type='gpt2_lora',
                     corpus_size=len(corpus_texts),
-                    corpus_word_count=sum(len(t.split()) for t in corpus_texts),
+                    corpus_word_count=sum(len(t.split()) for t in corpus_texts) if 'corpus_texts' in locals() else 0,
                     training_duration_seconds=round(training_duration, 2),
                     artifact_path=adapter_path,
-                    is_active=False,  # Don't deactivate Markov model
+                    is_active=False,  
                     metrics={
                         'final_loss': round(avg_epoch_loss, 4),
                         'best_loss': round(best_loss, 4),
@@ -425,7 +413,6 @@ class GPT2FineTuner:
             result = {
                 'status': 'complete',
                 'version': version_str,
-                'corpus_size': len(corpus_texts),
                 'training_seconds': round(training_duration, 2),
                 'final_loss': round(avg_epoch_loss, 4),
                 'total_steps': global_step,
@@ -440,17 +427,11 @@ class GPT2FineTuner:
 
         finally:
             self._lock.release()
-            # Free memory
             self._model = None
             self._tokenizer = None
-            try:
-                import gc
-                gc.collect()
-            except Exception:
-                pass
+            gc.collect()
 
     def stop_training(self):
-        """Request graceful stop of training. Saves checkpoint."""
         self._stop_requested = True
         logger.info("Fine-tuning stop requested")
 
@@ -458,7 +439,6 @@ class GPT2FineTuner:
                         word_count: Optional[int] = None,
                         temperature: float = 1.0,
                         topic_bias: Optional[str] = None) -> str:
-        """Generate a simulated Trump speech using the fine-tuned GPT-2 model."""
         self._load_model()
         if not self._model or not self._tokenizer:
             return ""
@@ -468,13 +448,14 @@ class GPT2FineTuner:
         if topic_bias:
             prompt = f"{prompt} {topic_bias}"
 
-        return self._generate_text(prompt, target_words, temperature)
+        text = self._generate_text(prompt, target_words, temperature)
+        gc.collect()
+        return text
 
     def generate_from_prompt(self, prompt: str,
                              word_count: int = 500,
                              temperature: float = 1.0,
                              qa_mode: bool = False) -> str:
-        """Generate text from a user prompt, matching MarkovChainTrainer API."""
         self._load_model()
         if not self._model or not self._tokenizer:
             return ""
@@ -482,16 +463,13 @@ class GPT2FineTuner:
         if qa_mode:
             prompt = f"Question: {prompt}\nTrump's answer:"
 
-        return self._generate_text(prompt, word_count, temperature)
+        text = self._generate_text(prompt, word_count, temperature)
+        gc.collect()
+        return text
 
     def run_monte_carlo(self, terms: list[str],
                         num_simulations: Optional[int] = None,
                         scenario_weights: Optional[dict] = None) -> dict:
-        """Run Monte Carlo simulations using GPT-2 for term prediction.
-
-        Returns predictions in the same format as MarkovChainTrainer.run_monte_carlo().
-        Uses fewer simulations by default (GPT-2 on CPU is slow).
-        """
         self._load_model()
         if not self._model or not self._tokenizer:
             return {}
@@ -499,7 +477,6 @@ class GPT2FineTuner:
         num_sims = num_simulations or config.fine_tune_mc_sims
         weights = scenario_weights or DEFAULT_SCENARIO_WEIGHTS
 
-        # Normalize term patterns
         term_patterns = {}
         for term in terms:
             normalized = term.lower().strip()
@@ -509,7 +486,6 @@ class GPT2FineTuner:
         term_stats = {t: {'speeches_containing': 0, 'total_mentions': 0}
                       for t in term_patterns}
 
-        # Per-scenario simulation counts
         scenario_sims = {}
         for scenario, weight in weights.items():
             scenario_sims[scenario] = max(1, int(num_sims * weight))
@@ -520,7 +496,6 @@ class GPT2FineTuner:
         total_words_generated = 0
 
         for scenario, n_sims in scenario_sims.items():
-            # Use shorter sims for GPT-2 on CPU + Poisson correction later
             word_count = min(500, SCENARIO_WORD_COUNTS.get(scenario, 500))
 
             for i in range(n_sims):
@@ -543,8 +518,11 @@ class GPT2FineTuner:
                         progress=sim_count / total_sims,
                         eta_seconds=round(eta, 1),
                     )
+                
+                # Cleanup mid-run to prevent progressive RAM leak
+                if sim_count % 50 == 0:
+                    gc.collect()
 
-        # Compute probabilities
         avg_words = total_words_generated / total_sims if total_sims > 0 else 500
         predictions = []
         for term_key, stats in term_stats.items():
@@ -564,6 +542,7 @@ class GPT2FineTuner:
         duration = time.time() - start_time
         logger.info(f"GPT-2 Monte Carlo: {total_sims} sims in {duration:.1f}s, {len(predictions)} terms")
 
+        gc.collect()
         return {
             'term_predictions': predictions,
             'simulation_params': {
@@ -576,31 +555,16 @@ class GPT2FineTuner:
             'discovered_phrases': [],
         }
 
-    # ── Private helpers ──
-
-    # Maximum training chunks to keep training under ~3 hours on Pi 4.
-    # Pi 4 processes ~2 samples/min for distilgpt2 LoRA at 256 tokens.
-    # 3000 chunks / 16 grad_accum = 187 optimizer steps × ~8 min = ~25 hours.
-    # 2000 chunks / 16 grad_accum = 125 steps × ~8 min = ~17 hours.
-    # To hit ~2-3 hours: need ~200-350 chunks → 12-22 steps.
-    # Compromise: 1500 chunks → 93 steps → ~12 hours (overnight).
     MAX_TRAINING_CHUNKS = 1500
 
     def _load_corpus(self) -> list[str]:
-        """Load training corpus from database.
-
-        Prioritizes recent speeches and actual transcripts over old tweets.
-        Caps total texts to keep training time manageable on Pi 4 (~3h target).
-        """
         with get_session() as session:
-            # Load real speeches first (higher quality), then social media
             speeches = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
                 Speech.word_count >= 50,
                 Speech.speech_type != 'social_media_daily',
             ).order_by(Speech.date.desc()).limit(500).all()
 
-            # Then add social media daily digests (sorted by recency)
             social = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
                 Speech.word_count >= 50,
@@ -617,40 +581,57 @@ class GPT2FineTuner:
             return all_texts
 
     def _load_model(self):
-        """Load GPT-2 base + latest LoRA adapter for inference."""
+        """Load ONNX optimized model (preferred) or GPT-2 base + LoRA adapter for inference."""
         if self._model is not None:
             return
 
+        onnx_path = os.path.join(ADAPTERS_DIR, 'onnx_model_latest')
         adapter_path = os.path.join(ADAPTERS_DIR, 'adapter_latest')
-        if not os.path.exists(adapter_path):
-            logger.warning("No fine-tuned GPT-2 adapter found")
-            return
 
         try:
-            import torch
-            from transformers import AutoTokenizer, AutoModelForCausalLM
-            from peft import PeftModel
-
-            self._status.update(stage='Loading model')
-            model_name = config.fine_tune_model
-            base_model = AutoModelForCausalLM.from_pretrained(model_name)
-            self._model = PeftModel.from_pretrained(base_model, adapter_path)
-            self._model.eval()
-            self._tokenizer = AutoTokenizer.from_pretrained(adapter_path)
-            logger.info(f"Loaded fine-tuned {model_name} + LoRA adapter")
+            from transformers import AutoTokenizer
+            
+            # Prefer ONNX for 2-5x faster inference
+            if os.path.exists(onnx_path):
+                self._status.update(stage='Loading ONNX model')
+                try:
+                    from optimum.onnxruntime import ORTModelForCausalLM
+                    self._model = ORTModelForCausalLM.from_pretrained(onnx_path)
+                    self._tokenizer = AutoTokenizer.from_pretrained(onnx_path)
+                    logger.info(f"Loaded optimized ONNX model from {onnx_path}")
+                except ImportError:
+                    logger.warning("optimum[onnxruntime] missing. Falling back to PyTorch model.")
+                    # Force fallback to PyTorch
+                    onnx_path = None
+                    
+            if not os.path.exists(onnx_path) and os.path.exists(adapter_path):
+                self._status.update(stage='Loading PyTorch model')
+                from transformers import AutoModelForCausalLM
+                from peft import PeftModel
+                model_name = config.fine_tune_model
+                base_model = AutoModelForCausalLM.from_pretrained(model_name)
+                self._model = PeftModel.from_pretrained(base_model, adapter_path)
+                self._model.eval()
+                self._tokenizer = AutoTokenizer.from_pretrained(adapter_path)
+                logger.info(f"Loaded PyTorch model {model_name} + LoRA adapter")
+                
+            elif not os.path.exists(onnx_path) and not os.path.exists(adapter_path):
+                logger.warning("No fine-tuned models found")
+                return
 
         except Exception as e:
-            logger.error(f"Failed to load GPT-2 model: {e}")
+            logger.error(f"Failed to load model: {e}")
             self._model = None
             self._tokenizer = None
+        finally:
+            gc.collect()
 
     def _generate_text(self, prompt: str, word_count: int,
                        temperature: float) -> str:
-        """Generate text using the loaded model."""
         import torch
 
         input_ids = self._tokenizer.encode(prompt, return_tensors='pt')
-        max_new_tokens = min(word_count * 2, 2048)  # rough word→token ratio
+        max_new_tokens = min(word_count * 2, 2048) 
 
         with torch.no_grad():
             output = self._model.generate(
@@ -666,14 +647,11 @@ class GPT2FineTuner:
 
         text = self._tokenizer.decode(output[0], skip_special_tokens=True)
 
-        # Remove the prompt prefix if present
         if text.startswith(prompt):
             text = text[len(prompt):].strip()
 
-        # Trim to target word count
         words = text.split()
         if len(words) > word_count:
-            # Find a sentence boundary near the target
             text = ' '.join(words[:word_count])
             last_period = text.rfind('.')
             if last_period > len(text) * 0.7:
@@ -682,12 +660,11 @@ class GPT2FineTuner:
         return text
 
     def _save_checkpoint(self, epoch: int, step: int, best_loss: float):
-        """Save training checkpoint for resumption."""
         checkpoint = {
             'epoch': epoch,
             'step': step,
             'best_loss': best_loss,
-            'loss_history': self._loss_history[-1000:],  # keep last 1000
+            'loss_history': self._loss_history[-1000:], 
             'saved_at': datetime.utcnow().isoformat(),
         }
         path = os.path.join(CHECKPOINTS_DIR, 'checkpoint_latest.json')
@@ -695,7 +672,6 @@ class GPT2FineTuner:
             json.dump(checkpoint, f)
 
     def _load_checkpoint(self) -> Optional[dict]:
-        """Load latest checkpoint for training resumption."""
         path = os.path.join(CHECKPOINTS_DIR, 'checkpoint_latest.json')
         if os.path.exists(path):
             try:
@@ -706,14 +682,13 @@ class GPT2FineTuner:
         return None
 
     def _next_version(self) -> str:
-        """Get next version string for GPT-2 model."""
         with get_session() as session:
             latest = session.query(ModelVersion).filter_by(
                 model_type='gpt2_lora'
             ).order_by(ModelVersion.created_at.desc()).first()
 
         if not latest:
-            return '2.0.0'  # Start GPT-2 versions at 2.x
+            return '2.0.0'
 
         parts = latest.version.split('.')
         if len(parts) == 3:
@@ -722,12 +697,11 @@ class GPT2FineTuner:
         return '2.0.0'
 
     def has_trained_model(self) -> bool:
-        """Check if a fine-tuned adapter exists."""
         adapter_path = os.path.join(ADAPTERS_DIR, 'adapter_latest')
-        return os.path.exists(adapter_path)
+        onnx_path = os.path.join(ADAPTERS_DIR, 'onnx_model_latest')
+        return os.path.exists(adapter_path) or os.path.exists(onnx_path)
 
 
-# Module-level singleton so status is shared across API calls and training
 _singleton = None
 
 def get_fine_tuner() -> GPT2FineTuner:

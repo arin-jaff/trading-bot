@@ -169,7 +169,11 @@ class GPT2FineTuner:
             if not corpus_texts:
                 raise RuntimeError("No training texts found in DB (need speeches with word_count >= 50)")
 
-            logger.info(f"Fine-tuner: loaded {len(corpus_texts)} texts")
+            # [FIX]: Store lengths BEFORE deleting the raw text array
+            corpus_size = len(corpus_texts)
+            corpus_word_count = sum(len(t.split()) for t in corpus_texts)
+            
+            logger.info(f"Fine-tuner: loaded {corpus_size} texts")
 
             # Phase 2: Tokenize
             self._status.update(stage='Tokenizing corpus', progress=0.05,
@@ -269,6 +273,7 @@ class GPT2FineTuner:
 
             global_step = 0
             best_loss = float('inf')
+            avg_epoch_loss = 0.0 # [FIX]: Initialize default in case of instant completion
             checkpoint_interval = 100
 
             resume_info = self._load_checkpoint()
@@ -388,8 +393,8 @@ class GPT2FineTuner:
                 mv = ModelVersion(
                     version=version_str,
                     model_type='gpt2_lora',
-                    corpus_size=len(corpus_texts),
-                    corpus_word_count=sum(len(t.split()) for t in corpus_texts) if 'corpus_texts' in locals() else 0,
+                    corpus_size=corpus_size, # [FIX]: Use stored size
+                    corpus_word_count=corpus_word_count, # [FIX]: Use stored count
                     training_duration_seconds=round(training_duration, 2),
                     artifact_path=adapter_path,
                     is_active=False,  

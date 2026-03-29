@@ -43,15 +43,16 @@ class AppConfig(BaseModel):
     # Fine-tuning (runs on Pi nightly — distilgpt2 82M with LoRA, ~2-3h on Pi 4)
     fine_tune_enabled: bool = os.getenv('FINE_TUNE_ENABLED', 'true').lower() == 'true'
     fine_tune_model: str = os.getenv('FINE_TUNE_MODEL', 'distilgpt2')
-    fine_tune_lora_rank: int = int(os.getenv('FINE_TUNE_LORA_RANK', '16'))
+    fine_tune_lora_rank: int = int(os.getenv('FINE_TUNE_LORA_RANK', '8'))
     fine_tune_epochs: int = int(os.getenv('FINE_TUNE_EPOCHS', '1'))
-    fine_tune_max_length: int = int(os.getenv('FINE_TUNE_MAX_LENGTH', '256'))
+    fine_tune_max_length: int = int(os.getenv('FINE_TUNE_MAX_LENGTH', '128'))
     fine_tune_batch_size: int = int(os.getenv('FINE_TUNE_BATCH_SIZE', '1'))
-    fine_tune_grad_accum: int = int(os.getenv('FINE_TUNE_GRAD_ACCUM', '16'))
+    fine_tune_grad_accum: int = int(os.getenv('FINE_TUNE_GRAD_ACCUM', '8'))
     fine_tune_learning_rate: float = float(os.getenv('FINE_TUNE_LR', '5e-4'))
     fine_tune_mc_sims: int = int(os.getenv('FINE_TUNE_MC_SIMS', '200'))
+    fine_tune_max_chunks: int = int(os.getenv('FINE_TUNE_MAX_CHUNKS', '1500'))
     fine_tune_hour: int = int(os.getenv('FINE_TUNE_HOUR', '2'))  # 2 AM ET nightly
-    fine_tune_gradient_checkpointing: bool = os.getenv('FINE_TUNE_GRAD_CKPT', 'true').lower() == 'true'
+    fine_tune_gradient_checkpointing: bool = os.getenv('FINE_TUNE_GRAD_CKPT', 'false').lower() == 'true'
 
     # Social media analysis
     social_media_scrape_minutes: int = int(os.getenv('SOCIAL_MEDIA_SCRAPE_MINUTES', '30'))

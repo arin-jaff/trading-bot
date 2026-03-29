@@ -1,3 +1,11 @@
+# Data
+data/models/*.pkl
+data/models/*.json
+data/exports/*.json
+data/exports/*.jsonl
+predictions_*.json
+simulated_speeches.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

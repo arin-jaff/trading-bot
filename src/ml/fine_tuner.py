@@ -153,6 +153,10 @@ class GPT2FineTuner:
             except (OSError, AttributeError):
                 pass
 
+            # Optimize PyTorch for Pi 4's 4-core ARM CPU
+            torch.set_num_threads(4)
+            os.environ.setdefault('OMP_NUM_THREADS', '4')
+
             self._stop_requested = False
             self._loss_history = []
             start_time = time.time()
@@ -214,8 +218,17 @@ class GPT2FineTuner:
             if not all_input_ids:
                 raise RuntimeError("Tokenization produced no training sequences")
 
-            logger.info(f"Fine-tuner: {len(all_input_ids)} training sequences of length {max_length}")
+            # Cap training chunks to keep training time manageable on Pi 4
             random.shuffle(all_input_ids)
+            max_chunks = config.fine_tune_max_chunks
+            if len(all_input_ids) > max_chunks:
+                logger.info(
+                    f"Fine-tuner: capping {len(all_input_ids)} chunks to "
+                    f"{max_chunks} (Pi 4 training time limit)"
+                )
+                all_input_ids = all_input_ids[:max_chunks]
+
+            logger.info(f"Fine-tuner: {len(all_input_ids)} training sequences of length {max_length}")
 
             # Phase 3: Load model + LoRA
             # This is the slow step — downloading/loading the model weights.
@@ -271,6 +284,11 @@ class GPT2FineTuner:
             grad_accum = config.fine_tune_grad_accum
             epochs = config.fine_tune_epochs
             total_steps = (len(all_input_ids) * epochs) // (batch_size * grad_accum)
+            logger.info(
+                f"Fine-tuner: {total_steps} optimizer steps "
+                f"({len(all_input_ids)} chunks, batch={batch_size}, "
+                f"accum={grad_accum}, epochs={epochs})"
+            )
             self._status.update(total_steps=total_steps, state='training',
                                 heartbeat=datetime.utcnow().isoformat())
 
@@ -560,18 +578,43 @@ class GPT2FineTuner:
 
     # ── Private helpers ──
 
+    # Maximum training chunks to keep training under ~3 hours on Pi 4.
+    # Pi 4 processes ~2 samples/min for distilgpt2 LoRA at 256 tokens.
+    # 3000 chunks / 16 grad_accum = 187 optimizer steps × ~8 min = ~25 hours.
+    # 2000 chunks / 16 grad_accum = 125 steps × ~8 min = ~17 hours.
+    # To hit ~2-3 hours: need ~200-350 chunks → 12-22 steps.
+    # Compromise: 1500 chunks → 93 steps → ~12 hours (overnight).
+    MAX_TRAINING_CHUNKS = 1500
+
     def _load_corpus(self) -> list[str]:
         """Load training corpus from database.
 
-        Uses word_count >= 50 to include social_media_daily digests.
-        Includes both processed and unprocessed speeches for maximum corpus.
+        Prioritizes recent speeches and actual transcripts over old tweets.
+        Caps total texts to keep training time manageable on Pi 4 (~3h target).
         """
         with get_session() as session:
+            # Load real speeches first (higher quality), then social media
             speeches = session.query(Speech).filter(
                 Speech.transcript.isnot(None),
                 Speech.word_count >= 50,
-            ).all()
-            return [s.transcript for s in speeches if s.transcript]
+                Speech.speech_type != 'social_media_daily',
+            ).order_by(Speech.date.desc()).limit(500).all()
+
+            # Then add social media daily digests (sorted by recency)
+            social = session.query(Speech).filter(
+                Speech.transcript.isnot(None),
+                Speech.word_count >= 50,
+                Speech.speech_type == 'social_media_daily',
+            ).order_by(Speech.date.desc()).limit(500).all()
+
+            all_texts = [s.transcript for s in speeches if s.transcript]
+            all_texts += [s.transcript for s in social if s.transcript]
+
+            logger.info(
+                f"Fine-tuner corpus: {len(speeches)} speeches + "
+                f"{len(social)} social digests = {len(all_texts)} texts"
+            )
+            return all_texts
 
     def _load_model(self):
         """Load GPT-2 base + latest LoRA adapter for inference."""

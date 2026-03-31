@@ -20,6 +20,7 @@ from ..database.models import Term, Market, TrumpEvent, Trade, TermPrediction, M
 from ..kalshi.client import KalshiClient
 from ..kalshi.market_sync import MarketSync
 from ..kalshi.trading_bot import TradingBot
+from ..kalshi.weekly_portfolio import WeeklyPortfolioManager
 from ..scraper.speech_scraper import SpeechScraper
 from ..scraper.term_analyzer import TermAnalyzer
 from ..scraper.event_tracker import EventTracker
@@ -95,6 +96,7 @@ term_analyzer = TermAnalyzer()
 event_tracker = EventTracker()
 predictor = TermPredictor()
 trading_bot = TradingBot(kalshi_client, predictor)
+portfolio_mgr = WeeklyPortfolioManager(kalshi_client, predictor)
 live_monitor = LiveSpeechMonitor()
 
 # Pipeline
@@ -1484,6 +1486,194 @@ def get_social_trends():
         }
     except Exception as e:
         return {'error': str(e), 'trends': []}
+
+
+# --- Weekly Portfolio endpoints ---
+
+@app.get("/api/portfolio/summary")
+def get_portfolio_summary():
+    return _cached('portfolio_summary', 30, portfolio_mgr.get_portfolio_summary)
+
+
+@app.get("/api/portfolio/current")
+def get_current_allocation():
+    return portfolio_mgr.get_current_allocation() or {}
+
+
+@app.get("/api/portfolio/positions")
+def get_portfolio_positions():
+    return portfolio_mgr.get_positions()
+
+
+@app.get("/api/portfolio/pending")
+def get_pending_trades(allocation_id: Optional[int] = None):
+    return portfolio_mgr.get_pending_trades(allocation_id)
+
+
+@app.get("/api/portfolio/history")
+def get_allocation_history(limit: int = 12):
+    return portfolio_mgr.get_allocation_history(limit)
+
+
+@app.get("/api/portfolio/allocation/{allocation_id}/trades")
+def get_allocation_trades(allocation_id: int):
+    return portfolio_mgr.get_all_trades_for_allocation(allocation_id)
+
+
+@app.post("/api/portfolio/generate")
+def generate_allocation(request: Request, background_tasks: BackgroundTasks):
+    _require_admin(request)
+
+    def _gen():
+        try:
+            result = portfolio_mgr.generate_current_week_allocation()
+            invalidate_cache('portfolio_summary')
+            if result:
+                logger.info(f"Generated allocation: {result.get('trade_count', 0)} trades")
+        except Exception as e:
+            logger.error(f"Allocation generation failed: {e}")
+
+    background_tasks.add_task(_gen)
+    return {"status": "Allocation generation started"}
+
+
+@app.post("/api/portfolio/trade/{trade_id}/approve")
+def approve_pending_trade(trade_id: int, request: Request):
+    _require_admin(request)
+    result = portfolio_mgr.approve_trade(trade_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    invalidate_cache('portfolio_summary')
+    # Execute immediately after approval
+    portfolio_mgr.execute_approved_trades()
+    return result
+
+
+@app.post("/api/portfolio/trade/{trade_id}/reject")
+def reject_pending_trade(trade_id: int, request: Request):
+    _require_admin(request)
+    result = portfolio_mgr.reject_trade(trade_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    if 'error' in result:
+        raise HTTPException(status_code=400, detail=result['error'])
+    invalidate_cache('portfolio_summary')
+    return result
+
+
+@app.post("/api/portfolio/approve-all")
+def approve_all_trades(request: Request, allocation_id: Optional[int] = None):
+    _require_admin(request)
+    count = portfolio_mgr.approve_all_pending(allocation_id)
+    invalidate_cache('portfolio_summary')
+    # Execute immediately
+    portfolio_mgr.execute_approved_trades()
+    return {"approved": count}
+
+
+@app.post("/api/portfolio/reject-all")
+def reject_all_trades(request: Request, allocation_id: Optional[int] = None):
+    _require_admin(request)
+    count = portfolio_mgr.reject_all_pending(allocation_id)
+    invalidate_cache('portfolio_summary')
+    return {"rejected": count}
+
+
+class PortfolioConfigUpdate(BaseModel):
+    auto_approve: Optional[bool] = None
+    paper_mode: Optional[bool] = None
+    max_positions: Optional[int] = None
+    min_edge: Optional[float] = None
+    min_confidence: Optional[float] = None
+    kelly_fraction: Optional[float] = None
+
+
+@app.get("/api/portfolio/config")
+def get_portfolio_config():
+    return portfolio_mgr.get_config()
+
+
+@app.put("/api/portfolio/config")
+def update_portfolio_config(cfg: PortfolioConfigUpdate, request: Request):
+    _require_admin(request)
+    updates = {k: v for k, v in cfg.dict().items() if v is not None}
+    portfolio_mgr.update_config(**updates)
+    invalidate_cache('portfolio_summary')
+    return portfolio_mgr.get_config()
+
+
+# --- TrumpGPT status + recency endpoints ---
+
+@app.get("/api/trumpgpt/status")
+def get_trumpgpt_status():
+    return _cached('trumpgpt_status', 60, _get_trumpgpt_status_uncached)
+
+
+def _get_trumpgpt_status_uncached():
+    # Model info
+    with get_session() as session:
+        active_model = session.query(ModelVersion).filter_by(
+            is_active=True
+        ).order_by(ModelVersion.created_at.desc()).first()
+
+        model_info = None
+        if active_model:
+            model_info = {
+                'version': active_model.version,
+                'model_type': active_model.model_type,
+                'corpus_size': active_model.corpus_size,
+                'corpus_word_count': active_model.corpus_word_count,
+                'training_duration': active_model.training_duration_seconds,
+                'simulation_count': active_model.simulation_count,
+                'prediction_count': active_model.prediction_count,
+                'metrics': active_model.metrics,
+                'trained_at': active_model.created_at.isoformat() if active_model.created_at else None,
+            }
+
+    # Sample speeches
+    samples = []
+    try:
+        global _trumpgpt_trainer
+        if _trumpgpt_trainer is None:
+            from ..ml.markov_trainer import MarkovChainTrainer
+            _trumpgpt_trainer = MarkovChainTrainer(order=app_config.markov_order)
+        for scenario in ['rally', 'press_conference', 'social_media']:
+            text = _trumpgpt_trainer.generate_speech(
+                scenario_type=scenario, word_count=80, temperature=1.0
+            )
+            if text:
+                samples.append({
+                    'scenario': scenario,
+                    'text': text[:400],
+                    'word_count': len(text.split()),
+                })
+    except Exception as e:
+        logger.debug(f"Sample generation failed: {e}")
+
+    # Fine-tune status
+    ft_status = None
+    try:
+        from ..ml.fine_tuner import get_fine_tuner
+        fine_tuner = get_fine_tuner()
+        ft_status = fine_tuner.get_status()
+    except Exception:
+        pass
+
+    return {
+        'model': model_info,
+        'samples': samples,
+        'fine_tune_status': ft_status,
+        'fine_tune_model': app_config.fine_tune_model,
+        'fine_tune_enabled': app_config.fine_tune_enabled,
+    }
+
+
+@app.get("/api/trumpgpt/recency-terms")
+def get_recency_terms():
+    """Get per-term recency bias breakdown for the dashboard."""
+    return _cached('recency_terms', 120, predictor.get_recency_breakdown)
 
 
 # --- Static frontend ---

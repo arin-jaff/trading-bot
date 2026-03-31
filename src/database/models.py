@@ -247,6 +247,72 @@ class ModelVersion(Base):
     )
 
 
+class WeeklyAllocation(Base):
+    """A weekly portfolio allocation cycle.
+
+    Each week the bot generates a set of suggested trades (PendingTrades).
+    The user approves/rejects them. Approved trades get executed.
+    At week end, contracts settle and P&L is recorded.
+    """
+    __tablename__ = 'weekly_allocations'
+
+    id = Column(Integer, primary_key=True)
+    week_start = Column(DateTime, nullable=False)  # Monday 00:00 UTC
+    week_end = Column(DateTime, nullable=False)     # Sunday 23:59 UTC
+    bankroll = Column(Float, nullable=False)         # starting bankroll for the week
+    allocated_amount = Column(Float, default=0.0)    # total $ allocated to trades
+    settled_pnl = Column(Float)                      # P&L after settlements
+    status = Column(String(20), default='pending')   # pending, active, settled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    pending_trades = relationship('PendingTrade', back_populates='allocation', cascade='all, delete-orphan')
+
+    __table_args__ = (
+        Index('idx_weekly_alloc_status', 'status'),
+        Index('idx_weekly_alloc_week', 'week_start'),
+    )
+
+
+class PendingTrade(Base):
+    """A suggested trade awaiting user approval.
+
+    Lifecycle: pending -> approved/rejected -> executed/expired
+    """
+    __tablename__ = 'pending_trades'
+
+    id = Column(Integer, primary_key=True)
+    allocation_id = Column(Integer, ForeignKey('weekly_allocations.id'), nullable=False)
+    market_id = Column(Integer, ForeignKey('markets.id'), nullable=False)
+    term = Column(String(500), nullable=False)
+    side = Column(String(10), default='yes')          # always 'yes' for now
+    suggested_quantity = Column(Integer, nullable=False)
+    suggested_price = Column(Float, nullable=False)    # price at suggestion time
+    total_cost = Column(Float, nullable=False)         # qty * price
+    our_probability = Column(Float)                    # model prediction
+    edge = Column(Float)                               # predicted - market price
+    confidence = Column(Float)
+    recency_score = Column(Float)                      # market recency bias score
+    kelly_fraction = Column(Float)
+    status = Column(String(20), default='pending')     # pending, approved, rejected, executed, expired
+    approved_at = Column(DateTime)
+    executed_at = Column(DateTime)
+    execution_price = Column(Float)                    # actual fill price
+    trade_id = Column(Integer, ForeignKey('trades.id'), nullable=True)  # linked Trade after execution
+    reasoning = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    allocation = relationship('WeeklyAllocation', back_populates='pending_trades')
+    market = relationship('Market')
+    trade = relationship('Trade', foreign_keys=[trade_id])
+
+    __table_args__ = (
+        Index('idx_pending_trade_status', 'status'),
+        Index('idx_pending_trade_alloc', 'allocation_id'),
+    )
+
+
 class BotConfig(Base):
     """Bot configuration and state."""
     __tablename__ = 'bot_config'

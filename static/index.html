@@ -297,7 +297,7 @@ tr:hover{background:rgba(212,175,55,.06)}
         Scrapes Trump speeches, Truth Social, and X. Trains a Markov chain + fine-tunes Pythia-160M natively with LoRA. Runs Monte Carlo simulations to predict his next words, then trades automatically on <a href="https://kalshi.com" target="_blank" style="text-decoration:underline;">Kalshi</a>. 
       </p>
       <div style="display:flex; gap:16px;">
-        <button class="btn primary" @click="tab='trading';loadTab(true)" style="background:linear-gradient(135deg,#BF0A30,#8B0000); color:white; border-color:#BF0A30;">View Portfolio</button>
+        <button class="btn primary" @click="tab='portfolio';loadTab(true)" style="background:linear-gradient(135deg,#BF0A30,#8B0000); color:white; border-color:#BF0A30;">View Portfolio</button>
         <a href="https://github.com/arin-jaff/trading-bot" target="_blank" class="btn" style="display:inline-flex; align-items:center; gap:8px;">
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           View Source
@@ -855,228 +855,184 @@ tr:hover{background:rgba(212,175,55,.06)}
   </div><!-- /pipeline content wrapper -->
 </div>
 
-<!-- MARKETS -->
-<div class="section" :class="{active:tab==='markets'}">
-  <div class="tab-loading" x-show="isTabLoading()&&tab==='markets'">
+<!-- PORTFOLIO -->
+<div class="section" :class="{active:tab==='portfolio'}">
+  <div class="tab-loading" x-show="isTabLoading()&&tab==='portfolio'">
     <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
     <div class="loading-bar"></div>
     <div class="loading-quip" x-text="_loadingQuip"></div>
-    <div class="loading-sub">Syncing Kalshi markets on the Pi 4...</div>
+    <div class="loading-sub">Loading weekly portfolio from the Pi 4...</div>
   </div>
-  <div x-show="!isTabLoading()||tab!=='markets'">
-  <div class="refresh-bar" :class="{active:_tabRefreshing.markets&&_tabFetchedAt.markets}"></div>
-  <h1>Markets</h1>
-  <div class="sub" x-text="markets.length+' Kalshi Trump Mentions markets'"></div>
-
-  <!-- Active Markets — clickable cards -->
-  <h2>Active Markets</h2>
-  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
-    <template x-for="m in markets.filter(m=>m.status==='active'||m.status==='open')" :key="'mc-'+m.ticker">
-      <div class="market-pill" @click="if(selectedMarket===m.ticker){selectedMarket=null}else{selectedMarket=m.ticker;if(_chartStore.selected){_chartStore.selected.destroy();_chartStore.selected=null}$nextTick(()=>renderSelectedMarketChart())}"
-        :style="(m.display_status==='Virtually Certain'||m.display_status==='Virtually Dead'?'opacity:.5;':'')+(selectedMarket===m.ticker?'border-color:var(--gold);background:rgba(255,215,0,.08);box-shadow:0 0 12px rgba(255,215,0,.15)':'')">
-        <div style="font-size:14px;font-weight:700;color:var(--white)" x-text="(m.terms&&m.terms.length>0)?m.terms.join(', '):m.ticker"></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-          <span style="font-size:20px;font-weight:900;font-family:'Cinzel',serif"
-            :style="'color:'+(m.yes_price>=0.99?'var(--green)':m.yes_price<=0.01?'var(--red)':m.yes_price>0.5?'var(--green)':'var(--blue)')"
-            x-text="m.yes_price!=null?(m.yes_price>=0.99?'99c':m.yes_price<=0.01?'1c':(m.yes_price*100).toFixed(0)+'c'):'-'"></span>
-          <span class="badge" :class="m.display_status==='Virtually Certain'?'yes':m.display_status==='Virtually Dead'?'no':'active'" x-text="m.display_status||m.status" style="font-size:8px"></span>
-        </div>
-        <div style="font-size:9px;color:var(--dim);margin-top:4px">Vol: <span x-text="m.volume||0"></span> · Closes <span x-text="m.close_time?m.close_time.substring(5,10):'-'"></span></div>
-      </div>
-    </template>
-  </div>
-  <template x-if="markets.filter(m=>m.status==='active'||m.status==='open').length===0">
-    <div style="text-align:center;color:var(--dim);padding:16px">No active markets</div>
-  </template>
-
-  <!-- Expanded detail panel for selected market — uses x-show to keep canvas alive in DOM -->
-  <div class="card" x-show="selectedMarket" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" style="margin-bottom:24px;border-color:var(--gold);">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div>
-        <h3 style="margin:0;color:var(--gold)" x-text="selectedTermLabel()"></h3>
-        <div style="font-size:11px;color:var(--dim)" x-text="selectedMarket"></div>
-      </div>
-      <button class="btn" style="font-size:10px;padding:6px 14px" @click="selectedMarket=null">Close</button>
-    </div>
-
-    <!-- Resolution history dot timeline -->
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;color:var(--dim);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px">Weekly Resolution History</div>
-      <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap">
-        <template x-for="w in getTermHistory()" :key="w.week">
-          <div class="tip" :data-tip="w.week+': '+(w.result==='yes'?'YES — Said it':'NO — Did not say it')">
-            <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;cursor:default;transition:all .2s;border:2px solid"
-              :style="w.result==='yes'?'background:rgba(46,204,113,.2);border-color:var(--green);color:var(--green)':'background:rgba(191,10,48,.2);border-color:var(--red);color:var(--red)'"
-              x-text="w.result==='yes'?'Y':'N'"></div>
-          </div>
-        </template>
-      </div>
-      <div x-show="getTermHistory().length===0" style="font-size:11px;color:var(--dim);padding:8px 0">No resolution history for this term yet.</div>
-      <div x-show="getTermHistory().length>0" style="display:flex;gap:12px;margin-top:8px;font-size:10px;color:var(--dim)">
-        <span>YES rate: <strong :style="'color:var(--green)'" x-text="Math.round(getTermHistory().filter(w=>w.result==='yes').length/Math.max(1,getTermHistory().length)*100)+'%'"></strong></span>
-        <span x-text="getTermHistory().filter(w=>w.result==='yes').length+'/'+getTermHistory().length+' weeks'"></span>
-      </div>
-    </div>
-
-    <!-- Price history chart — canvas always in DOM, Chart.js updates in-place -->
-    <div style="position:relative;height:200px"><canvas id="selectedMarketChart"></canvas></div>
-  </div>
-
-  <div class="stars-divider">* * * * *</div>
-
-  <!-- Resolved Markets (compact) -->
-  <h2>Resolved Markets</h2>
-  <table>
-    <thead><tr><th>Term(s)</th><th>Last Price</th><th>Volume</th><th>Result</th><th>Closed</th></tr></thead>
-    <tbody>
-      <template x-for="m in markets.filter(m=>m.status!=='active'&&m.status!=='open')" :key="m.ticker">
-        <tr style="opacity:0.7">
-          <td x-text="(m.terms||[]).join(', ')||m.ticker"></td>
-          <td :style="'color:'+(m.display_status==='Yes'?'var(--green)':m.display_status==='No'?'var(--red)':'var(--dim)')" x-text="m.yes_price!=null?(m.yes_price*100).toFixed(0)+'c':'-'"></td>
-          <td x-text="m.volume||0"></td>
-          <td><span class="badge" :class="m.display_status==='Yes'?'yes':m.display_status==='No'?'no':'closed'" x-text="m.display_status||m.status"></span></td>
-          <td style="font-size:10px" x-text="m.close_time?m.close_time.substring(5,16):'-'"></td>
-        </tr>
-      </template>
-    </tbody>
-  </table>
-  <template x-if="markets.filter(m=>m.status!=='active'&&m.status!=='open').length===0">
-    <div style="text-align:center;color:var(--dim);padding:16px">No resolved markets yet</div>
-  </template>
-  </div><!-- /markets content wrapper -->
-</div>
-
-<!-- PREDICTIONS -->
-<div class="section" :class="{active:tab==='predictions'}">
-  <div class="tab-loading" x-show="isTabLoading()&&tab==='predictions'">
-    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
-    <div class="loading-bar"></div>
-    <div class="loading-quip" x-text="_loadingQuip"></div>
-    <div class="loading-sub">Running 7-signal ensemble predictor...</div>
-  </div>
-  <div x-show="!isTabLoading()||tab!=='predictions'">
-  <div class="refresh-bar" :class="{active:_tabRefreshing.predictions&&_tabFetchedAt.predictions}"></div>
-  <h1>Predictions</h1>
-  <div class="sub">Model probability vs market price - sorted by edge</div>
-  <table>
-    <thead><tr><th>Term</th><th>Market</th><th>Our Prob</th><th>Market</th><th>Edge</th><th>Side</th></tr></thead>
-    <tbody>
-      <template x-for="p in predictions" :key="p.market_ticker+p.term">
-        <tr>
-          <td style="color:var(--gold)" x-text="p.term"></td>
-          <td style="font-size:10px" x-text="p.market_ticker"></td>
-          <td x-text="(p.final_probability*100).toFixed(1)+'%'"></td>
-          <td x-text="p.market_yes_price!=null?(p.market_yes_price*100).toFixed(0)+'c':'-'"></td>
-          <td :style="'font-weight:bold;color:'+(p.edge>0?'var(--green)':'var(--red)')" x-text="(p.edge*100).toFixed(1)+'%'"></td>
-          <td><span class="badge" :class="p.edge>0?'yes':'no'" x-text="p.edge>0?'BUY YES':'BUY NO'"></span></td>
-        </tr>
-      </template>
-    </tbody>
-  </table>
-  </div><!-- /predictions content wrapper -->
-</div>
-
-<!-- TRADING -->
-<div class="section" :class="{active:tab==='trading'}">
-  <div class="tab-loading" x-show="isTabLoading()&&tab==='trading'">
-    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
-    <div class="loading-bar"></div>
-    <div class="loading-quip" x-text="_loadingQuip"></div>
-    <div class="loading-sub">Connecting to Kalshi trading API...</div>
-  </div>
-  <div x-show="!isTabLoading()||tab!=='trading'">
-  <div class="refresh-bar" :class="{active:_tabRefreshing.trading&&_tabFetchedAt.trading}"></div>
-  <h1>Trading</h1>
+  <div x-show="!isTabLoading()||tab!=='portfolio'">
+  <div class="refresh-bar" :class="{active:_tabRefreshing.portfolio&&_tabFetchedAt.portfolio}"></div>
+  <h1>Portfolio</h1>
+  <div class="sub">Weekly contract allocation — manual approval required</div>
 
   <!-- Portfolio summary cards -->
   <div class="grid g4" style="margin-bottom:20px">
     <div class="card" style="border-top:3px solid var(--gold)">
-      <div class="label">Portfolio Value</div>
-      <div class="val" x-text="'$'+(equityCurve.current_value||0).toFixed(2)"></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="'Cash: $'+(equityCurve.cash||0).toFixed(2)+' + Positions: $'+(equityCurve.unrealized||0).toFixed(2)"></div>
+      <div class="label">Bankroll</div>
+      <div class="val" x-text="'$'+(portfolioSummary.bankroll||0).toFixed(2)"></div>
+      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="portfolioSummary.paper_mode?'PAPER MODE':'LIVE TRADING'"></div>
     </div>
     <div class="card" style="border-top:3px solid var(--green)">
-      <div class="label">All-Time P&L</div>
-      <div class="val" :style="'color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></div>
+      <div class="label">Total P&L</div>
+      <div class="val" :style="'color:'+((portfolioSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(portfolioSummary.total_pnl||0).toFixed(2)"></div>
+      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="'Settled: $'+(portfolioSummary.total_settled_pnl||0).toFixed(2)+' + Unrealized: $'+(portfolioSummary.unrealized_pnl||0).toFixed(2)"></div>
     </div>
     <div class="card" style="border-top:3px solid var(--blue)">
-      <div class="label">Positions Held</div>
-      <div class="val" x-text="(heldPositions||[]).length"></div>
-      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="(heldPositions||[]).reduce((s,p)=>s+p.qty,0)+' total contracts'"></div>
+      <div class="label">Active Positions</div>
+      <div class="val" x-text="portfolioSummary.positions_count||0"></div>
+      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="'Week: '+(portfolioSummary.current_week_status||'none')"></div>
     </div>
     <div class="card" style="border-top:3px solid #B31942">
-      <div class="label">Trades Today</div>
-      <div class="val" x-text="(botCfg.trades_today||0)+' / '+(botCfg.max_trades_per_day||10)"></div>
+      <div class="label">Pending Trades</div>
+      <div class="val" :style="(portfolioSummary.pending_trades||0)>0?'color:var(--gold)':''" x-text="portfolioSummary.pending_trades||0"></div>
+      <div style="font-size:10px;color:var(--dim);margin-top:4px" x-text="portfolioSummary.auto_approve?'Auto-approve ON':'Manual approval'"></div>
     </div>
   </div>
 
-  <!-- Portfolio value chart -->
+  <!-- Portfolio equity chart -->
   <div class="card" style="margin-bottom:20px">
     <h3 style="margin-top:0;color:var(--white)">Portfolio Value Over Time</h3>
-    <div style="position:relative;height:200px"><canvas id="tradingPortfolioChart"></canvas></div>
+    <div style="position:relative;height:200px"><canvas id="portfolioEquityChart"></canvas></div>
   </div>
 
-  <!-- Currently held positions -->
-  <h2>Currently Held Positions</h2>
-  <div x-show="(heldPositions||[]).length>0">
-    <div style="display:flex;gap:12px;margin-bottom:12px;font-size:12px;color:var(--dim)">
-      <span>Total Cost: <strong style="color:var(--white)" x-text="'$'+(heldPositions||[]).reduce((s,p)=>s+p.cost_basis,0).toFixed(2)"></strong></span>
-      <span>Market Value: <strong style="color:var(--white)" x-text="'$'+(heldPositions||[]).reduce((s,p)=>s+p.current_value,0).toFixed(2)"></strong></span>
-      <span>Unrealized P&L: <strong :style="'color:'+((heldPositions||[]).reduce((s,p)=>s+p.unrealized_pnl,0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(heldPositions||[]).reduce((s,p)=>s+p.unrealized_pnl,0).toFixed(2)"></strong></span>
+  <!-- PENDING TRADES — The main approval UI -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <h2 style="margin:0">Pending Trades</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn gold admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&generateAllocation()" style="font-size:10px;padding:8px 14px">Generate Allocation</button>
+      <template x-if="pendingTrades.length>0">
+        <div style="display:flex;gap:6px">
+          <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" style="font-size:10px;padding:8px 14px;border-color:var(--green);color:var(--green)" @click="adminAuthed&&approveAll()">Approve All</button>
+          <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" style="font-size:10px;padding:8px 14px;border-color:var(--red);color:var(--red)" @click="adminAuthed&&rejectAll()">Reject All</button>
+        </div>
+      </template>
     </div>
+  </div>
+
+  <div x-show="pendingTrades.length>0">
     <table>
-      <thead><tr><th>Term(s)</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>P&L %</th><th>Closes</th></tr></thead>
+      <thead><tr><th>Term</th><th>Probability</th><th>Edge</th><th>Recency</th><th>Qty</th><th>Price</th><th>Cost</th><th>Actions</th></tr></thead>
       <tbody>
-        <template x-for="p in (heldPositions||[])" :key="p.ticker">
+        <template x-for="pt in pendingTrades" :key="pt.id">
           <tr>
             <td>
-              <div style="color:var(--gold);font-weight:bold;font-size:12px" x-text="p.terms&&p.terms.length?p.terms.join(', '):p.ticker"></div>
+              <div style="color:var(--gold);font-weight:bold;font-size:13px" x-text="pt.term"></div>
+              <div style="font-size:9px;color:var(--dim)" x-text="pt.ticker"></div>
+            </td>
+            <td style="font-weight:bold" x-text="pt.probability?(pt.probability*100).toFixed(1)+'%':'-'"></td>
+            <td :style="'font-weight:bold;color:'+(pt.edge>0?'var(--green)':'var(--red)')" x-text="pt.edge?(pt.edge*100).toFixed(1)+'%':'-'"></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:4px">
+                <div class="pbar" style="width:50px;height:6px"><div class="fill" :style="'width:'+((pt.recency_score||0.5)*100)+'%;background:'+(pt.recency_score>0.6?'var(--green)':pt.recency_score<0.4?'var(--red)':'var(--blue)')"></div></div>
+                <span style="font-size:10px" x-text="pt.recency_score?(pt.recency_score*100).toFixed(0)+'%':'-'"></span>
+              </div>
+            </td>
+            <td style="font-weight:bold" x-text="pt.quantity"></td>
+            <td x-text="pt.suggested_price?(pt.suggested_price*100).toFixed(0)+'c':'-'"></td>
+            <td x-text="'$'+pt.total_cost.toFixed(2)"></td>
+            <td style="white-space:nowrap">
+              <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" style="font-size:9px;padding:4px 10px;border-color:var(--green);color:var(--green);margin-right:4px" @click="adminAuthed&&approveTrade(pt.id)">Approve</button>
+              <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" style="font-size:9px;padding:4px 10px;border-color:var(--red);color:var(--red)" @click="adminAuthed&&rejectTrade(pt.id)">Reject</button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+  <div x-show="pendingTrades.length===0" style="text-align:center;color:var(--dim);padding:20px;border:1px dashed var(--border);border-radius:12px;margin-bottom:20px">
+    No pending trades. Click "Generate Allocation" to create this week's suggested trades.
+  </div>
+
+  <div class="stars-divider">* * * * *</div>
+
+  <!-- Currently held positions -->
+  <h2>Active Positions</h2>
+  <div x-show="portfolioPositions.length>0">
+    <div style="display:flex;gap:12px;margin-bottom:12px;font-size:12px;color:var(--dim)">
+      <span>Cost Basis: <strong style="color:var(--white)" x-text="'$'+portfolioPositions.reduce((s,p)=>s+p.cost_basis,0).toFixed(2)"></strong></span>
+      <span>Market Value: <strong style="color:var(--white)" x-text="'$'+portfolioPositions.reduce((s,p)=>s+p.current_value,0).toFixed(2)"></strong></span>
+      <span>Unrealized P&L: <strong :style="'color:'+(portfolioPositions.reduce((s,p)=>s+p.unrealized_pnl,0)>=0?'var(--green)':'var(--red)')" x-text="'$'+portfolioPositions.reduce((s,p)=>s+p.unrealized_pnl,0).toFixed(2)"></strong></span>
+    </div>
+    <table>
+      <thead><tr><th>Term</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&L</th><th>P&L %</th><th>Result</th><th>Closes</th></tr></thead>
+      <tbody>
+        <template x-for="p in portfolioPositions" :key="p.ticker">
+          <tr>
+            <td>
+              <div style="color:var(--gold);font-weight:bold;font-size:12px" x-text="p.term||p.ticker"></div>
               <div style="font-size:9px;color:var(--dim)" x-text="p.ticker"></div>
             </td>
-            <td><span class="badge" :class="p.side" x-text="p.side.toUpperCase()"></span></td>
             <td style="font-weight:bold" x-text="p.qty"></td>
-            <td x-text="(p.avg_entry*100).toFixed(0)+'c'"></td>
-            <td :style="'font-weight:bold;color:'+(p.current_price>p.avg_entry?'var(--green)':'var(--red)')" x-text="(p.current_price*100).toFixed(0)+'c'"></td>
+            <td x-text="(p.entry_price*100).toFixed(0)+'c'"></td>
+            <td :style="'font-weight:bold;color:'+(p.current_price>p.entry_price?'var(--green)':'var(--red)')" x-text="(p.current_price*100).toFixed(0)+'c'"></td>
             <td :style="'font-weight:bold;color:'+(p.unrealized_pnl>=0?'var(--green)':'var(--red)')" x-text="'$'+p.unrealized_pnl.toFixed(2)"></td>
             <td :style="'color:'+(p.unrealized_pct>=0?'var(--green)':'var(--red)')" x-text="(p.unrealized_pct>=0?'+':'')+p.unrealized_pct.toFixed(0)+'%'"></td>
+            <td>
+              <span x-show="p.market_result" class="badge" :class="p.market_result==='yes'?'yes':'no'" x-text="(p.market_result||'').toUpperCase()"></span>
+              <span x-show="!p.market_result" style="font-size:10px;color:var(--dim)">Open</span>
+            </td>
             <td style="font-size:10px" x-text="p.close_time?p.close_time.substring(5,16):'-'"></td>
           </tr>
         </template>
       </tbody>
     </table>
   </div>
-  <div x-show="!(heldPositions||[]).length" style="text-align:center;color:var(--dim);padding:20px">No positions currently held.</div>
+  <div x-show="portfolioPositions.length===0" style="text-align:center;color:var(--dim);padding:20px">No active positions.</div>
 
   <div class="stars-divider">* * * * *</div>
 
-  <!-- Bot config + controls -->
+  <!-- Config + Weekly History -->
   <div class="grid g2" style="margin-bottom:14px">
     <div class="card">
-      <h3 style="margin-top:0;color:var(--white)">Bot Config</h3>
-      <template x-for="[k,v] in Object.entries(botCfg).filter(([k])=>!['is_running'].includes(k))" :key="k">
+      <h3 style="margin-top:0;color:var(--white)">Portfolio Config</h3>
+      <template x-for="[k,v] in Object.entries(portfolioConfig)" :key="k">
         <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bg3)">
           <span style="font-size:11px" x-text="k.replace(/_/g,' ')"></span>
           <span style="font-size:11px;font-weight:bold" :style="'color:'+(typeof v==='boolean'?(v?'var(--green)':'var(--red)'):'var(--text)')" x-text="typeof v==='boolean'?(v?'ON':'OFF'):v"></span>
         </div>
       </template>
       <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&togglePaper()" x-text="adminAuthed?(botCfg.paper_mode?'Go Live':'Enable Paper'):'Locked'"></button>
-        <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&toggleAutoTrade()" x-text="adminAuthed?(botCfg.auto_trade?'Disable Auto':'Enable Auto'):'Locked'"></button>
-        <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&toggleYesOnly()" x-text="adminAuthed?(botCfg.yes_only?'Allow NO':'YES Only'):'Locked'"></button>
+        <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&togglePortfolioPaper()" x-text="adminAuthed?(portfolioConfig.paper_mode?'Go Live':'Enable Paper'):'Locked'"></button>
+        <button class="btn admin-only" :class="adminAuthed?'unlocked':'locked'" @click="adminAuthed&&togglePortfolioAutoApprove()" x-text="adminAuthed?(portfolioConfig.auto_approve?'Disable Auto-Approve':'Enable Auto-Approve'):'Locked'"></button>
       </div>
     </div>
     <div class="card">
-      <h3 style="margin-top:0;color:var(--white)">Trade Summary</h3>
-      <template x-if="tradeSummary">
-        <div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Total Trades</span><span style="font-weight:bold" x-text="tradeSummary.total_trades||0"></span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Win Rate</span><span style="font-weight:bold;color:var(--green)" x-text="((tradeSummary.win_rate||0)*100).toFixed(0)+'%'"></span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Total P&L</span><span style="font-weight:bold" :style="'color:'+((tradeSummary.total_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(tradeSummary.total_pnl||0).toFixed(2)"></span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Avg Size</span><span x-text="(tradeSummary.avg_trade_size||0).toFixed(0)+' contracts'"></span></div>
-        </div>
-      </template>
+      <h3 style="margin-top:0;color:var(--white)">Weekly Performance</h3>
+      <div x-show="(portfolioSummary.weeks_traded||0)>0">
+        <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Weeks Traded</span><span style="font-weight:bold" x-text="portfolioSummary.weeks_traded||0"></span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Winning Weeks</span><span style="font-weight:bold;color:var(--green)" x-text="portfolioSummary.winning_weeks||0"></span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Win Rate</span><span style="font-weight:bold;color:var(--green)" x-text="(portfolioSummary.win_rate||0).toFixed(0)+'%'"></span></div>
+        <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Total Settled P&L</span><span style="font-weight:bold" :style="'color:'+((portfolioSummary.total_settled_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="'$'+(portfolioSummary.total_settled_pnl||0).toFixed(2)"></span></div>
+      </div>
+      <div x-show="!(portfolioSummary.weeks_traded||0)" style="text-align:center;color:var(--dim);padding:12px;font-size:12px">No settled weeks yet.</div>
     </div>
   </div>
+
+  <!-- Allocation History -->
+  <h2>Allocation History</h2>
+  <div x-show="allocationHistory.length>0">
+    <table>
+      <thead><tr><th>Week</th><th>Bankroll</th><th>Allocated</th><th>Trades</th><th>P&L</th><th>Status</th></tr></thead>
+      <tbody>
+        <template x-for="a in allocationHistory" :key="a.id">
+          <tr>
+            <td style="font-size:11px" x-text="a.week_start?a.week_start.substring(5,10)+' - '+a.week_end.substring(5,10):'-'"></td>
+            <td x-text="'$'+a.bankroll.toFixed(2)"></td>
+            <td x-text="'$'+a.allocated_amount.toFixed(2)"></td>
+            <td x-text="a.trade_count+' ('+a.approved_count+' approved)'"></td>
+            <td :style="'font-weight:bold;color:'+((a.settled_pnl||0)>=0?'var(--green)':'var(--red)')" x-text="a.settled_pnl!=null?'$'+a.settled_pnl.toFixed(2):'pending'"></td>
+            <td><span class="badge" :class="a.status==='settled'?(a.settled_pnl>=0?'yes':'no'):'active'" x-text="a.status"></span></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+  <div x-show="allocationHistory.length===0" style="text-align:center;color:var(--dim);padding:16px">No allocation history yet.</div>
+
+  <div class="stars-divider">* * * * *</div>
 
   <!-- Recent trade history -->
   <h2>Recent Trades</h2>
@@ -1097,117 +1053,7 @@ tr:hover{background:rgba(212,175,55,.06)}
     </tbody>
   </table>
   <div x-show="trades.length===0" style="text-align:center;color:var(--dim);padding:20px">No trades yet.</div>
-  </div><!-- /trading content wrapper -->
-</div>
-
-<!-- HEALTH -->
-<div class="section" :class="{active:tab==='health'}">
-  <div class="tab-loading" x-show="isTabLoading()&&tab==='health'">
-    <img src="/static/images/great-seal.svg" class="loading-seal" alt="">
-    <div class="loading-bar"></div>
-    <div class="loading-quip" x-text="_loadingQuip"></div>
-    <div class="loading-sub">Checking all systems on the Pi 4...</div>
-  </div>
-  <div x-show="!isTabLoading()||tab!=='health'">
-  <h1>Health Checks</h1>
-  <div class="sub">Autonomous system monitoring - all services and APIs</div>
-
-  <template x-if="healthDetail">
-    <div>
-      <div class="card" :style="'border-color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')+';margin-bottom:14px'">
-        <div style="text-align:center;padding:10px">
-          <span style="font-size:24px;font-weight:bold" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'OK':'!'"></span>
-          <div style="font-size:18px;font-weight:bold;margin-top:4px" :style="'color:'+(healthDetail.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.status==='ok'?'All Systems Operational':'Degraded'"></div>
-        </div>
-      </div>
-
-      <div class="grid g2" style="margin-bottom:14px">
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Database</h3>
-          <template x-if="healthDetail.checks.database">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.database.status==='ok'?'var(--green)':'var(--red)')" x-text="healthDetail.checks.database.status"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Speeches</span><span x-text="healthDetail.checks.database.speeches||0"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Markets</span><span x-text="healthDetail.checks.database.markets||0"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms</span><span x-text="healthDetail.checks.database.terms||0"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Fine-Tuning</h3>
-          <template x-if="healthDetail.checks.fine_tuning">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Enabled</span><span :style="'color:'+(healthDetail.checks.fine_tuning.enabled?'var(--green)':'var(--dim)')" x-text="healthDetail.checks.fine_tuning.enabled?'Yes':'No'"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>PyTorch</span><span :style="'color:'+(healthDetail.checks.fine_tuning.pytorch_available?'var(--green)':'var(--red)')" x-text="healthDetail.checks.fine_tuning.pytorch_available?healthDetail.checks.fine_tuning.torch_version:'Missing'"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Model</span><span style="font-size:11px" x-text="healthDetail.checks.fine_tuning.model"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Social Media</h3>
-          <template x-if="healthDetail.checks.social_media">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Tweets</span><span x-text="healthDetail.checks.social_media.tweets||0"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Truth Social</span><span x-text="healthDetail.checks.social_media.truth_social||0"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Daily Digests</span><span x-text="healthDetail.checks.social_media.daily_digests||0"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Predictions</h3>
-          <template x-if="healthDetail.checks.predictions">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Status</span><span :style="'color:'+(healthDetail.checks.predictions.status==='ok'?'var(--green)':healthDetail.checks.predictions.status==='stale'?'var(--gold)':'var(--red)')" x-text="healthDetail.checks.predictions.status"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Age</span><span x-text="(healthDetail.checks.predictions.age_hours||0).toFixed(1)+'h'"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Disk Space</h3>
-          <template x-if="healthDetail.checks.disk">
-            <div>
-              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.disk.percent+'%;background:'+(healthDetail.checks.disk.warning?'var(--red)':'var(--blue)')"></div></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.disk.used_gb+'/'+healthDetail.checks.disk.total_gb+' GB'"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Memory</h3>
-          <template x-if="healthDetail.checks.memory">
-            <div>
-              <div class="pbar"><div class="fill" :style="'width:'+healthDetail.checks.memory.percent+'%;background:'+(healthDetail.checks.memory.warning?'var(--red)':'#B31942')"></div></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Used</span><span x-text="healthDetail.checks.memory.used_gb+'/'+healthDetail.checks.memory.total_gb+' GB'"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Social Trends</h3>
-          <template x-if="healthDetail.checks.social_trends">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Terms Tracked</span><span x-text="healthDetail.checks.social_trends.terms_tracked||0"></span></div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Last Refresh</span><span style="font-size:10px" x-text="healthDetail.checks.social_trends.last_refresh||'never'"></span></div>
-            </div>
-          </template>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;color:var(--white)">Email</h3>
-          <template x-if="healthDetail.checks.email">
-            <div>
-              <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Configured</span><span :style="'color:'+(healthDetail.checks.email.configured?'var(--green)':'var(--red)')" x-text="healthDetail.checks.email.configured?'Yes':'No'"></span></div>
-            </div>
-          </template>
-        </div>
-      </div>
-    </div>
-  </template>
-  </div><!-- /health content wrapper -->
+  </div><!-- /portfolio content wrapper -->
 </div>
 
 <!-- SYSTEM -->
@@ -1432,29 +1278,30 @@ function app(){return{
   tabs:[
     {id:'home',label:'Home'},
     {id:'pipeline',label:'Pipeline'},
-    {id:'markets',label:'Markets'},
-    {id:'predictions',label:'Predictions'},
-    {id:'trading',label:'Trading'},
-    {id:'health',label:'Health'},
-    {id:'system',label:'System'},
+    {id:'portfolio',label:'Portfolio'},
     {id:'trumpgpt',label:'TrumpGPT'},
+    {id:'system',label:'System'},
   ],
   health:false, pipelineMode:'',
   homeData:{}, training:null, modelStatus:null, modelMethod:'Monte Carlo', modelVer:'',
   suggestions:[], markets:[], predictions:[], botCfg:{}, portfolio:null, weeklyPayouts:[], marketPriceHistory:[], selectedMarket:null,
   trades:[], tradeSummary:{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0}, heldPositions:[],
+  // Portfolio (weekly)
+  portfolioSummary:{}, pendingTrades:[], portfolioPositions:[], allocationHistory:[], portfolioConfig:{},
   versions:[], hw:null, pipelineLog:[], accuracy:null,
   gptPrompt:'', gptOutput:'', gptLoading:false, gptWordCount:500, gptScenario:'rally', gptTemperature:1.0, gptQaMode:true,
+  // TrumpGPT status
+  trumpgptStatus:null, recencyTerms:[],
   importStatus:null, socialStats:null, pythiaStatus:null, recentPosts:[],
   piFtStatus:null, socialTrends:null, healthDetail:null,
   pipelineBusy:false, pipelineOp:'', _pollInterval:null, homeLogs:[],
   adminKey:'', adminAuthed:false, adminKeyInput:'', showKeyInput:false, keyShake:false,
   ftConfig:{}, ftConfigDirty:false,
   equityCurve:{starting_balance:100,current_value:100,cash:100,unrealized:0,positions_count:0,points:[]},
-  _tabFetchedAt:{},  // timestamps of last successful fetch per tab
-  _tabLoading:{},    // true while a tab is fetching data for the first time
-  _tabRefreshing:{}, // true during any data fetch (including background refreshes)
-  _tabTTL:{home:20000,pipeline:10000,markets:30000,predictions:30000,trading:20000,health:30000,system:30000,trumpgpt:999999},
+  _tabFetchedAt:{},
+  _tabLoading:{},
+  _tabRefreshing:{},
+  _tabTTL:{home:20000,pipeline:10000,portfolio:15000,trumpgpt:30000,system:30000},
   _loadingQuip:'',
   loadingQuips:[
     "Crunching numbers on the Raspberry Pi. Believe me, nobody crunches numbers like this Pi.",
@@ -1542,8 +1389,8 @@ function app(){return{
     this._tabRefreshing[this.tab]=true;
     try{const h=await fetch('/api/system/health');const d=await h.json();this.health=d.status==='ok';this.pipelineMode='local'}catch{this.health=false}
     const L={
-      home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), markets:()=>this.loadMarkets(),
-      predictions:()=>this.loadPredictions(), trading:()=>this.loadTrading(), health:()=>this.loadHealth(), system:()=>this.loadSystem(),
+      home:()=>this.loadHome(), pipeline:()=>this.loadPipeline(), portfolio:()=>this.loadPortfolio(),
+      trumpgpt:()=>this.loadTrumpGPT(), system:()=>this.loadSystem(),
     };
     if(L[this.tab]){await L[this.tab]();this._tabFetchedAt[this.tab]=Date.now();this._tabLoading[this.tab]=false;this._tabRefreshing[this.tab]=false}
   },
@@ -1655,43 +1502,61 @@ function app(){return{
     // Create fresh chart on the canvas
     _chartStore.selected=new Chart(c,{type:'line',data:{labels,datasets:[{data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pr,borderWidth:2,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y+'c'}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:10},grid:{color:'rgba(42,74,110,.3)'}},y:{title:{display:true,text:'YES (cents)',color:'#8a9bb5'},ticks:{color:'#4a5a70',font:{size:9},callback:v=>v+'c'},grid:{color:'rgba(42,74,110,.3)'},min:0,max:100}}}});
   },
-  async loadPredictions(){const d=await this.api('/predictions/final');this.predictions=Array.isArray(d)?d:[]},
-
-  async loadTrading(){
-    const[c,p,th,pos,eq]=await Promise.all([
-      this.api('/trading/config'),this.api('/trading/portfolio'),
-      this.api('/trades/history?per_page=50'),this.api('/trading/positions'),
-      this.api('/trading/equity-curve?starting_balance=100'),
+  async loadPortfolio(){
+    const[ps,pt,pp,ah,pc,eq,th]=await Promise.all([
+      this.api('/portfolio/summary'),this.api('/portfolio/pending'),
+      this.api('/portfolio/positions'),this.api('/portfolio/history?limit=8'),
+      this.api('/portfolio/config'),this.api('/trading/equity-curve?starting_balance=100'),
+      this.api('/trades/history?per_page=30'),
     ]);
-    this.botCfg=c||{};this.portfolio=p;
-    this.trades=(th?.trades||[]);this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
-    this.heldPositions=Array.isArray(pos)?pos:[];
+    this.portfolioSummary=ps||{};
+    this.pendingTrades=Array.isArray(pt)?pt:[];
+    this.portfolioPositions=Array.isArray(pp)?pp:[];
+    this.allocationHistory=Array.isArray(ah)?ah:[];
+    this.portfolioConfig=pc||{};
     if(eq)this.equityCurve=eq;
-    this.$nextTick(()=>this.renderTradingPortfolio());
+    this.trades=(th?.trades||[]);this.tradeSummary=th?.summary||{total_trades:0,win_rate:0,total_pnl:0,avg_trade_size:0};
+    this.$nextTick(()=>this.renderPortfolioEquity());
   },
-  renderTradingPortfolio(){
-    const c=document.getElementById('tradingPortfolioChart');if(!c)return;
+  renderPortfolioEquity(){
+    const c=document.getElementById('portfolioEquityChart');if(!c)return;
     const pts=this.equityCurve.points||[];
     if(pts.length===0){
-      if(_chartStore.tradingPortfolio){try{_chartStore.tradingPortfolio.destroy()}catch(e){}_chartStore.tradingPortfolio=null}
+      if(_chartStore.portfolioEquity){try{_chartStore.portfolioEquity.destroy()}catch(e){}_chartStore.portfolioEquity=null}
       return;
     }
     const labels=pts.map(p=>p.date?(p.date).substring(5,10):'start');
     const data=pts.map(p=>p.value);
     const baseVal=this.equityCurve.starting_balance||100;
-    if(_chartStore.tradingPortfolio){try{_chartStore.tradingPortfolio.destroy()}catch(e){}_chartStore.tradingPortfolio=null}
-    _chartStore.tradingPortfolio=new Chart(c,{type:'line',data:{labels,datasets:[
+    if(_chartStore.portfolioEquity){try{_chartStore.portfolioEquity.destroy()}catch(e){}_chartStore.portfolioEquity=null}
+    _chartStore.portfolioEquity=new Chart(c,{type:'line',data:{labels,datasets:[
       {data,borderColor:'#FFD700',backgroundColor:'rgba(255,215,0,.08)',fill:true,tension:.3,pointRadius:pts.length>30?0:2,borderWidth:2},
       {data:pts.map(()=>baseVal),borderColor:'rgba(255,255,255,.15)',borderDash:[4,4],borderWidth:1,pointRadius:0,fill:false},
     ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'$'+ctx.parsed.y.toFixed(2)}}},scales:{x:{ticks:{color:'#4a5a70',font:{size:9},maxTicksLimit:12},grid:{color:'rgba(42,74,110,.4)'}},y:{ticks:{color:'#4a5a70',font:{size:9},callback:v=>'$'+v},grid:{color:'rgba(42,74,110,.4)'}}}}});
   },
-  async toggleYesOnly(){await this.apiPut('/trading/config',{yes_only:!this.botCfg.yes_only});this.botCfg=await this.api('/trading/config')||this.botCfg},
+  async approveTrade(id){await this.adminApiPost('/portfolio/trade/'+id+'/approve');await this.loadPortfolio()},
+  async rejectTrade(id){await this.adminApiPost('/portfolio/trade/'+id+'/reject');await this.loadPortfolio()},
+  async approveAll(){await this.adminApiPost('/portfolio/approve-all');await this.loadPortfolio()},
+  async rejectAll(){await this.adminApiPost('/portfolio/reject-all');await this.loadPortfolio()},
+  async generateAllocation(){await this.adminApiPost('/portfolio/generate');setTimeout(()=>this.loadPortfolio(),2000)},
+  async togglePortfolioAutoApprove(){
+    await this.adminApiPut('/portfolio/config',{auto_approve:!this.portfolioConfig.auto_approve});
+    this.portfolioConfig=await this.api('/portfolio/config')||this.portfolioConfig;
+  },
+  async togglePortfolioPaper(){
+    await this.adminApiPut('/portfolio/config',{paper_mode:!this.portfolioConfig.paper_mode});
+    this.portfolioConfig=await this.api('/portfolio/config')||this.portfolioConfig;
+  },
 
-  async loadHealth(){this.healthDetail=await this.api('/system/health-detailed')},
+  async loadTrumpGPT(){
+    const[ts,rt]=await Promise.all([this.api('/trumpgpt/status'),this.api('/trumpgpt/recency-terms')]);
+    this.trumpgptStatus=ts;
+    this.recencyTerms=Array.isArray(rt)?rt:[];
+  },
 
   async loadSystem(){
-    const[h,v,a]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy')]);
-    this.hw=h;this.versions=Array.isArray(v)?v:[];this.accuracy=a;
+    const[h,v,a,hd]=await Promise.all([this.api('/system/hardware'),this.api('/model/versions'),this.api('/model/accuracy'),this.api('/system/health-detailed')]);
+    this.hw=h;this.versions=Array.isArray(v)?v:[];this.accuracy=a;this.healthDetail=hd;
     this.$nextTick(()=>this.renderAccuracyChart());
   },
 

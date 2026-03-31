@@ -133,6 +133,37 @@ def create_scheduler() -> BackgroundScheduler:
 
     logger.info(f"Pipeline: retrain every {retrain_hours}h, first run in 10s")
 
+    # Weekly portfolio: generate allocation Sunday 10 PM ET
+    from .kalshi.weekly_portfolio import WeeklyPortfolioManager
+    _portfolio_mgr = WeeklyPortfolioManager(client, predictor)
+
+    scheduler.add_job(
+        _generate_weekly_allocation, CronTrigger(
+            day_of_week='sun', hour=22, minute=0, timezone='America/New_York'
+        ),
+        args=[_portfolio_mgr],
+        id='weekly_allocation', replace_existing=True,
+        name='Generate weekly portfolio allocation (Sun 10PM ET)',
+    )
+
+    # Weekly portfolio: execute approved trades every 5 min
+    scheduler.add_job(
+        _execute_approved_trades, IntervalTrigger(minutes=5),
+        args=[_portfolio_mgr],
+        id='execute_approved', replace_existing=True,
+        name='Execute approved weekly trades',
+    )
+
+    # Weekly portfolio: check settlements every hour
+    scheduler.add_job(
+        _check_settlements, IntervalTrigger(hours=1),
+        args=[_portfolio_mgr],
+        id='check_settlements', replace_existing=True,
+        name='Check weekly market settlements',
+    )
+
+    logger.info("Weekly portfolio: allocation Sun 10PM ET, execution every 5m, settlements every 1h")
+
     # Database pruning — daily cleanup of old predictions (6:30 AM ET)
     scheduler.add_job(
         _prune_old_predictions, CronTrigger(hour=6, minute=30, timezone='America/New_York'),
@@ -374,5 +405,42 @@ def _analyze_social_trends():
         social_media_analyzer.refresh()
     except Exception as e:
         logger.error(f"Social media analysis failed: {e}")
+
+
+def _generate_weekly_allocation(portfolio_mgr):
+    """Sunday night job: generate next week's portfolio allocation."""
+    try:
+        result = portfolio_mgr.generate_weekly_allocation()
+        if result:
+            logger.info(f"Weekly allocation generated: {result.get('trade_count', 0)} trades, "
+                        f"${result.get('allocated_amount', 0):.2f} allocated")
+
+            # Auto-approve if enabled
+            if portfolio_mgr.auto_approve:
+                count = portfolio_mgr.approve_all_pending(result.get('id'))
+                logger.info(f"Auto-approved {count} trades")
+                portfolio_mgr.execute_approved_trades()
+    except Exception as e:
+        logger.error(f"Weekly allocation generation failed: {e}")
+
+
+def _execute_approved_trades(portfolio_mgr):
+    """Periodic job: execute any approved pending trades."""
+    try:
+        executed = portfolio_mgr.execute_approved_trades()
+        if executed:
+            logger.info(f"Executed {len(executed)} approved weekly trades")
+    except Exception as e:
+        logger.error(f"Approved trade execution failed: {e}")
+
+
+def _check_settlements(portfolio_mgr):
+    """Periodic job: check for settled markets and update allocation P&L."""
+    try:
+        settled = portfolio_mgr.check_settlements()
+        if settled:
+            logger.info(f"Settlement check: {len(settled)} positions settled")
+    except Exception as e:
+        logger.error(f"Settlement check failed: {e}")
 
 

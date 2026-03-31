@@ -33,24 +33,27 @@ class TermPredictor:
 
     def __init__(self):
         self.model_weights = {
-            'frequency': 0.15,
+            'frequency': 0.10,
             'temporal': 0.05,
-            'trend': 0.10,
+            'trend': 0.08,
             'event_correlation': 0.05,
-            'monte_carlo': 0.35,
-            'news_relevance': 0.10,
-            'social_velocity': 0.20,
+            'monte_carlo': 0.27,
+            'news_relevance': 0.08,
+            'social_velocity': 0.17,
+            'market_recency': 0.20,
         }
         self._monte_carlo_predictions = None
         self._news_enricher = None
         self._social_analyzer = None
         self._correlation_matrix = None
+        self._settlement_data = None
 
     def predict_all_terms(self, event: Optional[dict] = None) -> list[dict]:
         """Generate predictions for all tracked terms."""
         self._load_monte_carlo_predictions()
         self._load_news_enrichment()
         self._load_social_analyzer()
+        self._load_settlement_data()
         self._build_correlation_matrix()
 
         predictions = []
@@ -249,6 +252,7 @@ class TermPredictor:
 
         scores['news_relevance'] = self._news_relevance_score(term)
         scores['social_velocity'] = self._social_velocity_score(term)
+        scores['market_recency'] = self._market_recency_score(term)
 
         active_scores = {k: v for k, v in scores.items() if v is not None}
         active_weights = {k: self.model_weights.get(k, 0) for k in active_scores}
@@ -693,6 +697,162 @@ Respond in JSON format:
         except Exception:
             pass
         return None
+
+    def _load_settlement_data(self):
+        """Load recent market settlement outcomes for recency bias scoring.
+
+        Builds a map of term -> list of {result, settled_at, days_ago, weight}.
+        Uses aggressive 7-day half-life: recent YES resolutions boost hard,
+        recent NO resolutions suppress hard.
+        """
+        if self._settlement_data is not None:
+            return
+
+        import math
+        self._settlement_data = {}
+        HALF_LIFE_DAYS = 7
+        decay = math.log(2) / HALF_LIFE_DAYS
+        now = datetime.utcnow()
+
+        try:
+            with get_session() as session:
+                from ..database.models import Market, market_term_association
+                settled = session.query(Market).filter(
+                    Market.result.in_(['yes', 'no']),
+                    Market.close_time.isnot(None),
+                ).all()
+
+                for market in settled:
+                    days_ago = max(0, (now - market.close_time).total_seconds() / 86400)
+                    weight = math.exp(-decay * days_ago)
+
+                    for term in market.terms:
+                        normalized = term.normalized_term.lower().strip()
+                        if normalized not in self._settlement_data:
+                            self._settlement_data[normalized] = []
+                        self._settlement_data[normalized].append({
+                            'result': market.result,
+                            'days_ago': days_ago,
+                            'weight': weight,
+                            'yes_price': market.yes_price,
+                        })
+
+            logger.debug(f"Loaded settlement data for {len(self._settlement_data)} terms")
+        except Exception as e:
+            logger.debug(f"Could not load settlement data: {e}")
+            self._settlement_data = {}
+
+    def _market_recency_score(self, term: Term) -> Optional[float]:
+        """Score based on recent market settlement outcomes.
+
+        AGGRESSIVE recency bias:
+        - Recent YES → strong boost (0.7-0.95)
+        - Recent NO → strong suppress (0.05-0.3)
+        - No settlement data → neutral (None, weight redistributed)
+
+        Uses exponential decay with 7-day half-life.
+        A YES settlement yesterday has ~10x the influence of one 3 weeks ago.
+        """
+        if not self._settlement_data:
+            return None
+
+        normalized = term.normalized_term.lower().strip()
+        settlements = self._settlement_data.get(normalized)
+
+        # Also check sub-terms for compound terms
+        if not settlements and term.is_compound and term.sub_terms:
+            for st in term.sub_terms:
+                st_lower = st.lower().strip()
+                if st_lower in self._settlement_data:
+                    settlements = self._settlement_data[st_lower]
+                    break
+
+        if not settlements:
+            return None
+
+        # Compute weighted yes/no scores
+        yes_weight = 0.0
+        no_weight = 0.0
+        total_weight = 0.0
+
+        for s in settlements:
+            w = s['weight']
+            total_weight += w
+            if s['result'] == 'yes':
+                yes_weight += w
+            else:
+                no_weight += w
+
+        if total_weight == 0:
+            return None
+
+        # Raw ratio: 1.0 = all recent settlements YES, 0.0 = all NO
+        raw_ratio = yes_weight / total_weight
+
+        # Apply aggressive sigmoid to push toward extremes
+        # This makes the score very responsive to recent outcomes
+        import math
+        # Steepness=8 makes the curve very sharp around 0.5
+        steepness = 8
+        centered = raw_ratio - 0.5
+        score = 1.0 / (1.0 + math.exp(-steepness * centered))
+
+        # Scale to [0.05, 0.95] to avoid absolute certainty
+        score = 0.05 + score * 0.90
+
+        return round(score, 4)
+
+    def get_recency_breakdown(self) -> list[dict]:
+        """Get recency bias breakdown for all terms (for dashboard display)."""
+        self._load_settlement_data()
+        if not self._settlement_data:
+            return []
+
+        breakdown = []
+        for term_key, settlements in self._settlement_data.items():
+            yes_count = sum(1 for s in settlements if s['result'] == 'yes')
+            no_count = sum(1 for s in settlements if s['result'] == 'no')
+            yes_weight = sum(s['weight'] for s in settlements if s['result'] == 'yes')
+            no_weight = sum(s['weight'] for s in settlements if s['result'] == 'no')
+            total_weight = yes_weight + no_weight
+
+            score = self._market_recency_score_raw(term_key)
+
+            most_recent = min(settlements, key=lambda s: s['days_ago'])
+
+            breakdown.append({
+                'term': term_key,
+                'yes_count': yes_count,
+                'no_count': no_count,
+                'yes_weight': round(yes_weight, 3),
+                'no_weight': round(no_weight, 3),
+                'recency_score': score,
+                'last_result': most_recent['result'],
+                'last_days_ago': round(most_recent['days_ago'], 1),
+                'total_settlements': len(settlements),
+            })
+
+        breakdown.sort(key=lambda x: abs((x['recency_score'] or 0.5) - 0.5), reverse=True)
+        return breakdown
+
+    def _market_recency_score_raw(self, normalized_term: str) -> Optional[float]:
+        """Compute recency score from a normalized term string directly."""
+        settlements = self._settlement_data.get(normalized_term)
+        if not settlements:
+            return None
+
+        import math
+        yes_weight = sum(s['weight'] for s in settlements if s['result'] == 'yes')
+        no_weight = sum(s['weight'] for s in settlements if s['result'] == 'no')
+        total_weight = yes_weight + no_weight
+        if total_weight == 0:
+            return None
+
+        raw_ratio = yes_weight / total_weight
+        steepness = 8
+        centered = raw_ratio - 0.5
+        score = 1.0 / (1.0 + math.exp(-steepness * centered))
+        return round(0.05 + score * 0.90, 4)
 
     def _build_correlation_matrix(self):
         if self._correlation_matrix is not None:

@@ -1661,13 +1661,54 @@ def _get_trumpgpt_status_uncached():
     except Exception:
         pass
 
+    # Accuracy
+    accuracy = None
+    try:
+        accuracy = predictor.evaluate_accuracy()
+    except Exception:
+        pass
+
+    # Chain stats
+    chain_states = None
+    try:
+        if _trumpgpt_trainer and _trumpgpt_trainer.chain:
+            chain_states = len(_trumpgpt_trainer.chain)
+    except Exception:
+        pass
+
     return {
         'model': model_info,
         'samples': samples,
         'fine_tune_status': ft_status,
         'fine_tune_model': app_config.fine_tune_model,
         'fine_tune_enabled': app_config.fine_tune_enabled,
+        'accuracy': accuracy,
+        'chain_states': chain_states,
     }
+
+
+@app.get("/api/trumpgpt/corpus-samples")
+def get_corpus_samples(limit: int = 10):
+    """Return random training corpus excerpts for the educational display."""
+    from ..database.models import Speech
+    from sqlalchemy.sql.expression import func
+    with get_session() as session:
+        speeches = session.query(Speech).filter(
+            Speech.transcript.isnot(None),
+            Speech.word_count >= 100,
+        ).order_by(func.random()).limit(limit).all()
+
+        return [
+            {
+                'title': s.title,
+                'source': s.source,
+                'speech_type': s.speech_type,
+                'date': s.date.strftime('%Y-%m-%d') if s.date else None,
+                'word_count': s.word_count,
+                'excerpt': (s.transcript[:500] + '...') if len(s.transcript) > 500 else s.transcript,
+            }
+            for s in speeches
+        ]
 
 
 @app.get("/api/trumpgpt/recency-terms")
